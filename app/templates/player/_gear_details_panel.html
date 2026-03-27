@@ -1,0 +1,56 @@
+{% if gear_selected_item %}
+  <div class="details-header" data-gear-selected-item="{{ gear_selected_item.id }}" data-gear-details-header-region>
+    <img class="gear-thumb" src="{{ gear_selected_item.icon_static_path }}" alt="{{ gear_selected_item.name }}">
+    <div>
+      <h3 style="margin: 0 0 6px;">{{ gear_selected_item.name }}</h3>
+      <div class="gear-meta">{{ gear_selected_item.slot_label }}</div>
+    </div>
+  </div>
+
+  <div data-gear-details-dynamic-region>
+    <div class="gear-meta">
+      {% if gear_selected_item.is_equipped %}
+        Equipped in {{ gear_selected_item.equipped_slot_label }}
+      {% else %}
+        Not equipped
+      {% endif %}
+    </div>
+
+    {% if gear_selected_item.description %}
+      <p>{{ gear_selected_item.description }}</p>
+    {% endif %}
+
+    <ul class="details-effects">
+      <li>Mine gold: {{ '%+d'|format(gear_selected_item.mine_gold_delta) }}</li>
+      <li>Steal gold: {{ '%+d'|format(gear_selected_item.steal_gold_delta) }}</li>
+      <li>Shield duration: {{ '%+d'|format(gear_selected_item.shield_duration_delta) }}s</li>
+    </ul>
+
+    <div class="gear-actions">
+      {% if gear_selected_item.is_equipped %}
+        <form method="POST" action="{{ url_for('player.gear_unequip') }}" data-gear-shell-form>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="slot_key" value="{{ gear_selected_item.equipped_slot_key }}">
+          <input type="hidden" name="gear_filter" value="{{ gear_filter }}">
+          <input type="hidden" name="selected_item" value="{{ gear_selected_item.id }}">
+          <button type="submit" class="btn btn-danger btn-small">Unequip</button>
+        </form>
+      {% else %}
+        {% for target in gear_selected_item.equip_targets %}
+          <form method="POST" action="{{ url_for('player.gear_equip') }}" data-gear-shell-form>
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="item_id" value="{{ gear_selected_item.id }}">
+            <input type="hidden" name="slot_key" value="{{ target.slot_key }}">
+            <input type="hidden" name="gear_filter" value="{{ gear_filter }}">
+            <input type="hidden" name="selected_item" value="{{ gear_selected_item.id }}">
+            <button type="submit" class="btn btn-secondary btn-small">
+              Equip to {{ target.label }}
+            </button>
+          </form>
+        {% endfor %}
+      {% endif %}
+    </div>
+  </div>
+{% else %}
+  <p class="details-empty">Select an item to see its details.</p>
+{% endif %}

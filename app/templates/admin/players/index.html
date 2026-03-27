@@ -1,0 +1,116 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}Players{% endblock %}
+
+{% block admin_content %}
+{% set create_open = create_open|default(false) or form.errors|length > 0 %}
+{% set title = 'Players' %}
+{% set eyebrow = 'People' %}
+{% set description = 'Keep the player list visible by default and open the create form only when needed.' %}
+{% include "admin/_page_header.html" %}
+
+<details class="admin-details" id="player-create-panel" {% if create_open %}open{% endif %}>
+    <summary class="admin-details-summary">
+        <span class="admin-details-summary-text">
+            <span class="admin-details-summary-title">Create Player</span>
+            <span class="admin-details-summary-hint">Uses the existing player creation flow and validation.</span>
+        </span>
+        <span class="admin-details-summary-icon">v</span>
+    </summary>
+    <div class="admin-details-body">
+        <form method="POST" action="{{ url_for('admin.player_new') }}" class="admin-form-stack">
+            {{ form.hidden_tag() }}
+
+            <p class="admin-field">
+                {{ form.username.label }}
+                {{ form.username(size=40) }}
+                {% if form.username.errors %}
+                    <span class="admin-field-error">{{ form.username.errors[0] }}</span>
+                {% endif %}
+            </p>
+
+            <p class="admin-field">
+                {{ form.password.label }}
+                {{ form.password(size=40) }}
+                {% if form.password.errors %}
+                    <span class="admin-field-error">{{ form.password.errors[0] }}</span>
+                {% endif %}
+            </p>
+
+            <p class="admin-field">
+                {{ form.yeargroup.label }}
+                {{ form.yeargroup(size=20, placeholder='e.g. Year 7') }}
+                {% if form.yeargroup.errors %}
+                    <span class="admin-field-error">{{ form.yeargroup.errors[0] }}</span>
+                {% endif %}
+            </p>
+
+            <p class="admin-field">
+                <label>{{ form.is_admin() }} {{ form.is_admin.label.text }}</label>
+            </p>
+
+            <div>
+                {{ form.submit(class_='admin-btn admin-btn-primary') }}
+            </div>
+        </form>
+    </div>
+</details>
+
+<section class="admin-section-card">
+    <div class="admin-toolbar">
+        <div>
+            <h2 class="admin-toolbar-title">All Players</h2>
+            <p class="admin-toolbar-subtitle">{{ players|length }} player{{ '' if players|length == 1 else 's' }}</p>
+        </div>
+    </div>
+
+    {% if players %}
+    <div class="admin-table-wrap">
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Admin?</th>
+                    <th>Year Group</th>
+                    <th>Classes</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for player in players %}
+                <tr>
+                    <td>{{ player.username }}</td>
+                    <td>{% if player.is_admin %}✓{% endif %}</td>
+                    <td>{{ player.yeargroup or '-' }}</td>
+                    <td>
+                        {% set grps = player.groups %}
+                        {% if grps %}
+                            {{ grps | map(attribute='name') | join(', ') }}
+                        {% else %}
+                            <em class="admin-subtle">none</em>
+                        {% endif %}
+                    </td>
+                    <td>{{ player.created_at.strftime('%Y-%m-%d') }}</td>
+                    <td>
+                        <div class="admin-row-actions">
+                            <a href="{{ url_for('admin.player_edit', player_id=player.id) }}">Edit</a>
+                            <form method="POST" action="{{ url_for('admin.player_delete', player_id=player.id) }}"
+                                  onsubmit="return confirm('Delete player {{ player.username }}?')">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="admin-link-danger">Delete</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="admin-empty-state">
+        No players yet. Open <strong>Create Player</strong> to add the first one.
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

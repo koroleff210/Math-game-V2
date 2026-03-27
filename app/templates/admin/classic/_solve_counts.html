@@ -1,0 +1,15 @@
+{% if solve_counts %}
+<table border="1" cellpadding="8" style="border-collapse:collapse;">
+    <tr>
+        <th>Problem</th><th>Solvers</th>
+    </tr>
+    {% for sc in solve_counts %}
+    <tr>
+        <td>{{ sc.problem_id }}</td>
+        <td>{{ sc.solver_count }}</td>
+    </tr>
+    {% endfor %}
+</table>
+{% else %}
+<p>No problems solved yet.</p>
+{% endif %}

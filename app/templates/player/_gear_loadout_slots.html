@@ -1,0 +1,57 @@
+<div class="equipment-slot-list" data-gear-slots-region>
+{% for slot in gear_loadout_slots %}
+  {% if slot.slot_key == 'main_hand' %}
+    {% set slot_short_label = 'Main' %}
+  {% elif slot.slot_key == 'off_hand' %}
+    {% set slot_short_label = 'Off' %}
+  {% elif slot.slot_key == 'head' %}
+    {% set slot_short_label = 'Headgear' %}
+  {% elif slot.slot_key == 'chest' %}
+    {% set slot_short_label = 'Chest' %}
+  {% elif slot.slot_key == 'boots' %}
+    {% set slot_short_label = 'Boots' %}
+  {% elif slot.slot_key == 'pocket1' %}
+    {% set slot_short_label = 'P1' %}
+  {% elif slot.slot_key == 'pocket2' %}
+    {% set slot_short_label = 'P2' %}
+  {% else %}
+    {% set slot_short_label = slot.label %}
+  {% endif %}
+
+  {% if slot.item %}
+    <a
+      class="equipment-slot equipment-slot-row equipment-slot--{{ slot.slot_key|replace('_', '-') }} {% if slot.is_selected %}selected{% endif %}"
+      data-gear-loadout-slot="{{ slot.slot_key }}"
+      data-gear-slot-region="{{ slot.slot_key }}"
+      data-gear-item-id="{{ slot.item.id }}"
+      data-gear-shell-link
+      href="{{ url_for('player.dashboard', gear_filter=gear_filter, selected_item=slot.item.id) }}"
+      data-gear-shell-url="{{ url_for('player.gear_shell', gear_filter=gear_filter, selected_item=slot.item.id) }}"
+      title="{{ slot.label }}: {{ slot.item.name }}"
+    >
+      <div class="equipment-slot-label">{{ slot_short_label }}</div>
+      <div class="equipment-slot-body">
+        <img class="gear-thumb" src="{{ slot.item.icon_static_path }}" alt="{{ slot.item.name }}">
+      </div>
+      <div class="equipment-slot-caption">
+        <div class="equipment-slot-name">{{ slot.item.name }}</div>
+      </div>
+    </a>
+  {% else %}
+    <div
+      class="equipment-slot equipment-slot-row equipment-slot--{{ slot.slot_key|replace('_', '-') }} empty"
+      data-gear-loadout-slot="{{ slot.slot_key }}"
+      data-gear-slot-region="{{ slot.slot_key }}"
+      title="{{ slot.label }}"
+    >
+      <div class="equipment-slot-label">{{ slot_short_label }}</div>
+      <div class="equipment-slot-body">
+        <div class="equipment-slot-thumb-placeholder" aria-hidden="true"></div>
+      </div>
+      <div class="equipment-slot-caption">
+        <div class="equipment-slot-name">Empty slot</div>
+      </div>
+    </div>
+  {% endif %}
+{% endfor %}
+</div>

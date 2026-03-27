@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ page_title }} - Math Game{% endblock %}
+
+{% block head %}
+<style>
+  body {
+    font-family: sans-serif;
+    margin: 0;
+    padding: 0;
+    color: #222;
+    background: #fafafa;
+  }
+  .meta-page {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 28px 24px 40px;
+  }
+  .meta-card {
+    border: 1px solid #ddd;
+    border-radius: 12px;
+    background: #fff;
+    padding: 20px;
+  }
+  .meta-card h1 {
+    margin: 0 0 10px;
+    font-size: 1.6rem;
+  }
+  .meta-card p {
+    margin: 0 0 16px;
+    color: #555;
+    line-height: 1.45;
+  }
+  .meta-back {
+    display: inline-block;
+    text-decoration: none;
+    color: #1a73e8;
+    font-weight: 600;
+  }
+  .meta-back:hover {
+    text-decoration: underline;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="meta-page">
+  <div class="meta-card">
+    <h1>{{ page_heading }}</h1>
+    <p>{{ page_description }}</p>
+    <a href="{{ url_for('player.dashboard') }}" class="meta-back">Back to Hub</a>
+  </div>
+</div>
+{% endblock %}

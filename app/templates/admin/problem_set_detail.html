@@ -1,0 +1,261 @@
+{% extends "admin/layout.html" %}
+
+{% macro builder_hidden_filters(filter_state) -%}
+  <input type="hidden" name="subject_id" value="{{ filter_state.subject_id }}">
+  {% for topic_id in filter_state.topic_ids %}
+  <input type="hidden" name="topic_id" value="{{ topic_id }}">
+  {% endfor %}
+  <input type="hidden" name="difficulty" value="{{ filter_state.difficulty }}">
+  <input type="hidden" name="answer_type" value="{{ filter_state.answer_type }}">
+  {% if filter_state.preview_problem_id %}
+  <input type="hidden" name="preview_problem_id" value="{{ filter_state.preview_problem_id }}">
+  {% endif %}
+{%- endmacro %}
+
+{% block title %}Problem Set Builder: {{ pset.name }}{% endblock %}
+
+{% block admin_content %}
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<script src="{{ url_for('static', filename='js/problem_graph_renderer.js') }}"></script>
+<style>
+  .set-builder-filters,
+  .set-builder-pane {
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    background: #fff;
+    padding: 16px;
+  }
+  .set-builder-filters {
+    margin-bottom: 18px;
+  }
+  .set-builder-grid {
+    display: grid;
+    grid-template-columns: minmax(260px, 1fr) minmax(360px, 1.2fr) minmax(260px, 1fr);
+    gap: 18px;
+    align-items: start;
+  }
+  .set-builder-pane h3 {
+    margin-top: 0;
+  }
+  .set-builder-topic-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+    max-height: 220px;
+    overflow-y: auto;
+  }
+  .set-builder-filter-row {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+    align-items: end;
+  }
+  .set-builder-filter-row label {
+    font-weight: 600;
+  }
+  .set-builder-filter-row select {
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .set-builder-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-top: 14px;
+  }
+  .set-builder-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .set-builder-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+    align-items: center;
+    padding: 10px 12px;
+    border: 1px solid #e6e6e6;
+    border-radius: 8px;
+    background: #fafafa;
+  }
+  .set-builder-row a {
+    color: inherit;
+    text-decoration: none;
+  }
+  .set-builder-row a:hover {
+    text-decoration: underline;
+  }
+  .set-builder-row-meta {
+    font-size: 0.85rem;
+    color: #666;
+    margin-top: 4px;
+  }
+  .set-builder-preview-meta {
+    color: #555;
+    font-size: 0.95rem;
+    margin-bottom: 12px;
+  }
+  .set-builder-preview-frame {
+    border: 1px solid #ececec;
+    border-radius: 8px;
+    background: #fcfcfc;
+    padding: 12px;
+  }
+  .set-builder-empty {
+    color: #666;
+    font-style: italic;
+  }
+  .set-builder-choice-list {
+    margin-top: 14px;
+    padding-left: 20px;
+  }
+  .set-builder-choice-list li + li {
+    margin-top: 6px;
+  }
+</style>
+
+<h1>Problem Set Builder: {{ pset.name }}</h1>
+{% if pset.description %}<p>{{ pset.description }}</p>{% endif %}
+
+<div class="set-builder-filters">
+  <h3 style="margin-top:0;">Filters</h3>
+  <form method="GET" action="{{ url_for('admin.problem_set_detail', set_id=pset.id) }}#builder-workspace">
+    <div class="set-builder-filter-row">
+      <p>
+        <label for="subject_id">Subject</label><br>
+        <select id="subject_id" name="subject_id" required>
+          <option value="0" {% if selected_subject_id == 0 %}selected{% endif %}>Select a subject</option>
+          {% for subject in subjects %}
+          <option value="{{ subject.id }}" {% if selected_subject_id == subject.id %}selected{% endif %}>{{ subject.name }}</option>
+          {% endfor %}
+        </select>
+      </p>
+      <p>
+        <label for="difficulty">Difficulty</label><br>
+        <select id="difficulty" name="difficulty">
+          <option value="0" {% if selected_difficulty == 0 %}selected{% endif %}>Any</option>
+          {% for value in [1, 2, 3, 4, 5] %}
+          <option value="{{ value }}" {% if selected_difficulty == value %}selected{% endif %}>{{ value }}</option>
+          {% endfor %}
+        </select>
+      </p>
+      <p>
+        <label for="answer_type">Answer type</label><br>
+        <select id="answer_type" name="answer_type">
+          <option value="text_input" {% if selected_answer_type == 'text_input' %}selected{% endif %}>Text input</option>
+          <option value="multiple_choice" {% if selected_answer_type == 'multiple_choice' %}selected{% endif %}>Multiple choice</option>
+        </select>
+      </p>
+      <p style="margin-bottom:0;">
+        <button type="submit">Filter</button>
+        <a href="{{ url_for('admin.problem_set_detail', set_id=pset.id) }}#builder-workspace" style="margin-left:8px;">Clear</a>
+      </p>
+    </div>
+
+    <div style="margin-top:10px;">
+      <label>Topics</label>
+      {% if topics_for_subject %}
+      <div class="set-builder-topic-list">
+        {% for topic in topics_for_subject %}
+        <label>
+          <input type="checkbox" name="topic_id" value="{{ topic.id }}" {% if topic.id in selected_topic_ids %}checked{% endif %}>
+          {{ topic.name }}
+        </label>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="set-builder-empty" style="margin:8px 0 0;">Choose a subject to see topics.</p>
+      {% endif %}
+    </div>
+  </form>
+</div>
+
+<div class="set-builder-grid" id="builder-workspace">
+  <div class="set-builder-pane" id="available-problems">
+    <h3>Available Problems</h3>
+    {% if not selected_subject_id %}
+    <p class="set-builder-empty">Choose a subject and click Filter to load problems.</p>
+    {% elif available_problem_rows %}
+    <div class="set-builder-list">
+      {% for row in available_problem_rows %}
+      <div class="set-builder-row">
+        <div>
+          <a href="{{ row.preview_url }}">{{ row.problem.title }}</a>
+          <div class="set-builder-row-meta">
+            {% if row.problem.answer_type == 'multiple_choice' %}MC{% else %}Text{% endif %}
+          </div>
+        </div>
+        <form method="POST" action="{{ url_for('admin.problem_set_add', set_id=pset.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          {{ builder_hidden_filters(filter_state) }}
+          <input type="hidden" name="problem_id" value="{{ row.problem.id }}">
+          <button type="submit" title="Add to set">&rarr;</button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="set-builder-empty">No available problems match the current filters.</p>
+    {% endif %}
+  </div>
+
+  <div class="set-builder-pane" id="problem-preview">
+    <h3>Preview</h3>
+    {% if preview_problem %}
+    <h4 style="margin-bottom:8px;">{{ preview_problem.title }}</h4>
+    <div class="set-builder-preview-meta">
+      Topic: {{ preview_problem.topic.name }} |
+      Difficulty: {{ preview_problem.difficulty }} |
+      Type: {% if preview_problem.answer_type == 'multiple_choice' %}Multiple choice{% else %}Text input{% endif %}
+    </div>
+    <div class="set-builder-preview-frame">
+      {% set body_view = preview_body_view %}
+      {% include 'shared/_problem_body_blocks.html' %}
+      {% if preview_choice_view and preview_choice_view.answer_type == 'multiple_choice' and preview_choice_view.options %}
+      <ol class="set-builder-choice-list">
+        {% for option in preview_choice_view.options %}
+        <li>{{ option.rendered_html|safe }}</li>
+        {% endfor %}
+      </ol>
+      {% endif %}
+    </div>
+    {% else %}
+    <p class="set-builder-empty">Click a problem on either side to preview it here.</p>
+    {% endif %}
+  </div>
+
+  <div class="set-builder-pane" id="set-problems">
+    <h3>Problems in This Set ({{ set_problem_rows|length }})</h3>
+    {% if set_problem_rows %}
+    <div class="set-builder-list">
+      {% for row in set_problem_rows %}
+      <div class="set-builder-row">
+        <div>
+          <a href="{{ row.preview_url }}">{{ row.problem.title }}</a>
+          <div class="set-builder-row-meta">
+            {% if row.problem.answer_type == 'multiple_choice' %}MC{% else %}Text{% endif %}
+          </div>
+        </div>
+        <form method="POST" action="{{ url_for('admin.problem_set_remove', set_id=pset.id, problem_id=row.problem.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          {{ builder_hidden_filters(filter_state) }}
+          <button type="submit" title="Remove from set">&larr;</button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="set-builder-empty">This set has no problems yet.</p>
+    {% endif %}
+  </div>
+</div>
+
+<p style="margin-top:24px;"><a href="{{ url_for('admin.problem_sets') }}">&larr; Back to Problem Sets</a></p>
+
+<script>
+  if (window.renderProblemGraphs) {
+    window.renderProblemGraphs(document);
+  }
+</script>
+{% endblock %}

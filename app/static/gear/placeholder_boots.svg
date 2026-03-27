@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96">
+  <rect width="96" height="96" rx="12" fill="#eef7ef"/>
+  <path d="M30 28 H42 V58 H54 Q62 58 66 66 V72 H30 Z" fill="#66bb6a"/>
+  <text x="48" y="84" text-anchor="middle" font-size="10" fill="#2e7d32">BOOTS</text>
+</svg>

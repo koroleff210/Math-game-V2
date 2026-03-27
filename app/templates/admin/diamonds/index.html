@@ -1,0 +1,75 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}Diamonds{% endblock %}
+
+{% block admin_content %}
+<h1>Diamonds — Player Balances</h1>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+        <div style="padding:10px; margin-bottom:8px; border-radius:4px;
+                    background:{% if category == 'success' %}#d4edda{% elif category == 'error' %}#f8d7da{% else %}#d1ecf1{% endif %};
+                    color:{% if category == 'success' %}#155724{% elif category == 'error' %}#721c24{% else %}#0c5460{% endif %};">
+            {{ message }}
+        </div>
+    {% endfor %}
+{% endwith %}
+
+<!-- Award form -->
+<section style="margin-bottom:32px; padding:16px; border:1px solid #dee2e6; border-radius:6px; max-width:480px;">
+    <h2 style="margin-top:0; font-size:1.1em;">Award Diamonds</h2>
+    <form method="POST" action="{{ url_for('admin.diamonds_award') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div style="margin-bottom:12px;">
+            <label style="display:block; margin-bottom:4px;">Player</label>
+            <select name="player_id" required style="width:100%; padding:6px;">
+                {% for p in players %}
+                    <option value="{{ p.id }}">{{ p.username }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div style="margin-bottom:12px;">
+            <label style="display:block; margin-bottom:4px;">Amount (min 1)</label>
+            <input type="number" name="amount" min="1" required
+                   style="width:100%; padding:6px;" placeholder="e.g. 5">
+        </div>
+
+        <div style="margin-bottom:12px;">
+            <label style="display:block; margin-bottom:4px;">Reason</label>
+            <input type="text" name="reason" required maxlength="64"
+                   style="width:100%; padding:6px;" placeholder="e.g. tournament winner">
+        </div>
+
+        <button type="submit"
+                style="padding:8px 20px; background:#007bff; color:white; border:none; border-radius:4px; cursor:pointer;">
+            Award Diamonds
+        </button>
+    </form>
+</section>
+
+<!-- Balances table -->
+{% if players %}
+<table border="1" cellpadding="8" style="border-collapse:collapse; max-width:600px; width:100%;">
+    <thead style="background:#f8f9fa;">
+        <tr>
+            <th style="text-align:left;">Player</th>
+            <th style="text-align:right;">Diamonds Balance</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for player in players %}
+    {% set prog = prog_by_player.get(player.id) %}
+    <tr>
+        <td>{{ player.username }}</td>
+        <td style="text-align:right;">{{ prog.diamonds_balance if prog else 0 }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p><em>No non-admin players found.</em></p>
+{% endif %}
+
+{% endblock %}

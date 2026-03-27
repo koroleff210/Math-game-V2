@@ -1,0 +1,198 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}{{ 'Edit' if problem else 'New' }} Problem{% endblock %}
+
+{% block admin_content %}
+<h1>{{ 'Edit Problem' if problem else 'New Problem' }}</h1>
+
+{% if problem and (has_structured_body or has_structured_answers) %}
+<div style="margin-bottom:16px; padding:12px 14px; border:1px solid #e5d39a; border-radius:8px; background:#fff8dd;">
+    <strong>Structured content is now authoritative for this problem.</strong>
+    <div style="margin-top:6px;">
+        {% if has_structured_body %}
+        Body rendering now comes from saved problem blocks, so the legacy prompt/image fields below are read-only.
+        {% endif %}
+        {% if has_structured_body and has_structured_answers %}<br>{% endif %}
+        {% if has_structured_answers %}
+        Text-answer validation now comes from accepted-answer rows, so the legacy answer field below is read-only.
+        {% endif %}
+    </div>
+    <div style="margin-top:8px;">
+        <a href="{{ url_for('admin.problem_content', problem_id=problem.id) }}">Open content editor</a>
+        to edit the active body blocks and accepted answers.
+    </div>
+</div>
+{% endif %}
+
+<form method="POST">
+    {{ form.hidden_tag() }}
+
+    <p>
+        {{ form.title.label }}<br>
+        {{ form.title(size=60) }}
+        {% if form.title.errors %}<span style="color:red;">{{ form.title.errors[0] }}</span>{% endif %}
+    </p>
+
+    <!-- Subject helper: scopes the Topic dropdown. NOT persisted on Problem. -->
+    <p>
+        <label for="subject_helper">Subject <small style="color:#6c757d;">(filter topics)</small></label><br>
+        <select id="subject_helper" name="subject_helper" style="min-width:220px;">
+            <option value="0" {% if subject_helper_value == 0 %}selected{% endif %}>— Any Subject —</option>
+            {% for s in subjects %}
+            <option value="{{ s.id }}" {% if subject_helper_value == s.id %}selected{% endif %}>{{ s.name }}</option>
+            {% endfor %}
+        </select>
+    </p>
+
+    <p>
+        {{ form.topic_id.label }}<br>
+        {{ form.topic_id() }}
+        {% if form.topic_id.errors %}<span style="color:red;">{{ form.topic_id.errors[0] }}</span>{% endif %}
+    </p>
+
+    <p>
+        {{ form.answer_type.label }}<br>
+        {{ form.answer_type(id='answer_type') }}
+        {% if form.answer_type.errors %}<span style="color:red;">{{ form.answer_type.errors[0] }}</span>{% endif %}
+        <br><small style="color:#6c757d;">
+            {% if problem %}
+            The content editor uses this to decide whether accepted answers or multiple-choice options are authoritative.
+            {% else %}
+            This decides which structured answer scaffold will be created after you save.
+            {% endif %}
+        </small>
+    </p>
+
+    <p>
+        {{ form.prompt_text.label }}<br>
+        <small>Used to seed the first rich-text block. Plain text is fine. LaTeX: use $inline$ or $$block$$.</small><br>
+        {{ form.prompt_text(rows=5, cols=60, readonly=has_structured_body) }}
+        {% if form.prompt_text.errors %}<span style="color:red;">{{ form.prompt_text.errors[0] }}</span>{% endif %}
+        {% if has_structured_body %}
+        <br><small style="color:#8a6d3b;">Read-only because saved body blocks are active for this problem.</small>
+        {% endif %}
+    </p>
+
+    <div id="text-input-seed-section" {% if not problem and form.answer_type.data == 'multiple_choice' %}style="display:none;"{% endif %}>
+    <p>
+        {{ form.answer_text.label }}<br>
+        <small>
+            {% if problem and form.answer_type.data == 'multiple_choice' %}
+            Legacy fallback only. Multiple-choice problems are authored in the content editor.
+            {% else %}
+            Used to seed the first accepted answer for text-input problems.
+            {% endif %}
+        </small><br>
+        {{ form.answer_text(size=60, readonly=has_structured_answers) }}
+        {% if form.answer_text.errors %}<span style="color:red;">{{ form.answer_text.errors[0] }}</span>{% endif %}
+        {% if has_structured_answers %}
+        <br><small style="color:#8a6d3b;">Read-only because accepted-answer rows are active for this problem.</small>
+        {% endif %}
+    </p>
+    </div>
+
+    {% if not problem %}
+    <div id="multiple-choice-seed-section" {% if form.answer_type.data != 'multiple_choice' %}style="display:none;"{% endif %}>
+        <p>
+            <strong>Multiple-Choice Option Seeds</strong><br>
+            <small style="color:#6c757d;">These four options will be created immediately and can still be edited in the content editor.</small>
+        </p>
+        {% for row in create_mc_seed_rows %}
+        <p>
+            <label>
+                <input type="radio" name="mc_correct_option" value="{{ row.index }}" {% if create_mc_correct_option == row.index|string %}checked{% endif %}>
+                Correct
+            </label>
+            <br>
+            <label for="mc_option_{{ row.index }}">Option {{ row.index }}</label><br>
+            <input id="mc_option_{{ row.index }}" name="mc_option_{{ row.index }}" type="text" value="{{ row.text }}" size="60">
+        </p>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <p>
+        {{ form.difficulty.label }}<br>
+        {{ form.difficulty() }}
+    </p>
+
+    <p>
+        {{ form.image_path.label }}<br>
+        <small>e.g. images/q42.png — relative to static/. Leave blank if no image.</small><br>
+        {{ form.image_path(size=60, readonly=has_structured_body) }}
+        {% if has_structured_body %}
+        <br><small style="color:#8a6d3b;">Read-only because saved body blocks are active for this problem.</small>
+        {% endif %}
+    </p>
+
+<p>
+    {% if problem %}
+    {{ form.submit(value='Save Metadata') }}
+    {% else %}
+    {{ form.submit(value='Create Problem and Open Content Editor') }}
+    {% endif %}
+</p>
+</form>
+
+{% if problem %}
+<p>
+    <a href="{{ url_for('admin.problem_content', problem_id=problem.id) }}">Open content editor</a>
+    <small style="color:#6c757d;">Manage ordered blocks, accepted answers, and preview.</small>
+</p>
+{% endif %}
+
+<p><a href="{{ url_for('admin.problems') }}">← Back to Problems</a></p>
+
+<script>
+(function () {
+    var subjectSel = document.getElementById('subject_helper');
+    var topicSel   = document.getElementById('topic_id');
+
+    // Fetch topics for a subject and repopulate the topic dropdown.
+    // keepTopicId: topic id to preselect (or null to leave unselected).
+    function loadTopics(subjectId, keepTopicId) {
+        fetch('/admin/topics/by_subject/' + subjectId)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                topicSel.innerHTML = '';
+                data.topics.forEach(function(t) {
+                    var opt = document.createElement('option');
+                    opt.value = t.id;
+                    opt.textContent = t.name;
+                    if (keepTopicId !== null && t.id === keepTopicId) {
+                        opt.selected = true;
+                    }
+                    topicSel.appendChild(opt);
+                });
+            });
+    }
+
+    // Changing Subject repopulates Topic (without preserving old topic selection).
+    subjectSel.addEventListener('change', function() {
+        loadTopics(parseInt(this.value), null);
+    });
+
+    // Edit-mode: if a Subject is already selected on page load, scope the
+    // Topic dropdown to that Subject and mark the current Topic.
+    var initSubject = parseInt(subjectSel.value);
+    var initTopic   = {{ form.topic_id.data | tojson }};
+    if (initSubject !== 0) {
+        loadTopics(initSubject, initTopic);
+    }
+
+    var answerTypeSel = document.getElementById('answer_type');
+    var textSection = document.getElementById('text-input-seed-section');
+    var mcSection = document.getElementById('multiple-choice-seed-section');
+    function syncAnswerTypeSections() {
+        if (!answerTypeSel) return;
+        var isMc = answerTypeSel.value === 'multiple_choice';
+        if (textSection) textSection.style.display = isMc ? 'none' : '';
+        if (mcSection) mcSection.style.display = isMc ? '' : 'none';
+    }
+    if (answerTypeSel) {
+        answerTypeSel.addEventListener('change', syncAnswerTypeSections);
+        syncAnswerTypeSections();
+    }
+}());
+</script>
+{% endblock %}

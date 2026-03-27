@@ -1,0 +1,324 @@
+PHASE 4 STEP G2A — SUBJECT FOUNDATION + SAFE TOPIC LINK
+=======================================================
+Paste this file after docs/bootstrap_prompt.txt at the start of a new conversation.
+Do NOT start coding until this file has been read.
+
+---
+
+OVERVIEW
+--------
+This step implements only the SUBJECT FOUNDATION for the problem bank hierarchy.
+
+Current hierarchy:   Topic → Problem
+Target foundation:   Subject → Topic → Problem
+
+This is an admin/problem-bank step only.
+No Classic Mode gameplay changes.
+No socket event changes.
+No session/engine/meta-system changes.
+
+This step is intentionally smaller than full G2.
+The goal is to make the data model and migration safe before adding subject-first problem UX.
+
+---
+
+GOAL OF THIS STEP
+-----------------
+Implement G2a only:
+
+1. Add Subject model.
+2. Add Topic.subject_id as nullable FK to Subject.
+3. Conservatively backfill Topic.subject_id from the existing legacy topic subject string field.
+4. Keep the legacy topic subject string field/data in place for now.
+5. Add minimal Subject admin CRUD.
+6. Add minimal Topic admin support for assigning/editing Subject manually.
+7. Preserve all existing Topic → Problem behavior.
+
+Stop after this step, even if later G2 work seems easy.
+
+Do NOT implement:
+- problem form subject-first selector
+- AJAX topics-by-subject endpoint
+- problems list subject filter
+- problem set detail subject filter
+- any cleanup/removal of legacy subject string field
+
+Those belong to later steps.
+
+---
+
+LOCKED DECISIONS
+----------------
+- Subject is a separate model.
+- Topic belongs to Subject via nullable subject_id.
+- Problem continues to belong only to Topic.
+- There is NO Problem.subject field.
+- Topic.subject_id remains nullable for now.
+- The legacy topic subject string must remain in place for transition.
+- Migration/backfill must be conservative.
+- Deleting a Subject must be blocked if any Topic references it.
+- Keep routes in app/routes/admin.py if that matches current project organization.
+
+---
+
+DATA/MIGRATION POLICY (IMPORTANT)
+---------------------------------
+Before coding, inspect the real Topic model/schema and identify the existing legacy subject string field
+(whatever its actual field name is in the repo).
+
+Use that real field for backfill.
+
+Backfill rules:
+- null / blank / whitespace-only legacy values = no Subject row, no subject_id assignment
+- trim leading/trailing whitespace
+- collapse repeated internal whitespace if needed
+- dedupe conservatively
+- case-insensitive dedupe is acceptable
+- preserve a clean display name for Subject.name
+- do NOT use fuzzy matching
+- do NOT merge semantically similar but non-identical values
+- examples:
+    "Math", " math ", "MATH"  -> may map to one Subject
+    "Physics" and "Physics HL" -> must NOT be merged automatically
+
+Transitional rules:
+- keep the legacy topic subject string field unchanged
+- do NOT remove or rename it
+- do NOT make subject_id required
+- do NOT break pages that still rely on legacy/fallback display logic
+
+If the repo unexpectedly does NOT contain a usable legacy topic subject string field:
+- still implement Subject + Topic.subject_id + admin integration
+- skip backfill cleanly
+- report this explicitly in the final summary
+
+---
+
+SCOPE
+-----
+
+G2a-1  Subject model + migration
+G2a-2  Topic.subject_id FK + migration/backfill
+G2a-3  Minimal Subject admin CRUD
+G2a-4  Minimal Topic admin integration
+
+Do these in order.
+
+---
+
+G2a-1: SUBJECT MODEL + MIGRATION
+--------------------------------
+Add Subject model with fields:
+
+- id          = Integer primary key
+- name        = String(64), nullable=False, unique=True
+- description = String(256), nullable=True
+- created_at  = DateTime, default=datetime.utcnow
+- topics      = relationship to Topic
+
+Use project conventions for model placement/imports.
+If current structure supports it, place in:
+- app/models/subjects.py
+and import in:
+- app/models/__init__.py
+
+Migration label suggestion:
+- g2a_subject_model
+
+This migration should create the subject table only.
+No Topic FK changes yet.
+
+Admin CRUD for Subject:
+- list
+- create
+- edit
+- delete
+
+Delete rule:
+- deletion blocked if any Topic references the Subject
+
+Keep implementation style aligned with existing admin CRUD patterns from G1.
+
+Suggested routes in app/routes/admin.py:
+- GET      /admin/subjects/              -> subjects_index
+- GET/POST /admin/subjects/new           -> subject_new
+- GET/POST /admin/subjects/<id>/edit     -> subject_edit
+- POST     /admin/subjects/<id>/delete   -> subject_delete
+
+Form:
+- name
+- description
+- submit
+
+Templates:
+- subjects index
+- subject create/edit form
+
+Add a Subjects nav link in admin layout/navigation in a sensible place.
+
+---
+
+G2a-2: TOPIC.SUBJECT_ID FK + MIGRATION / BACKFILL
+-------------------------------------------------
+Modify Topic model to add:
+
+- subject_id = db.Column(db.Integer, db.ForeignKey('subject.id'), nullable=True)
+
+Use SQLite-safe migration patterns.
+Use batch_alter_table if needed for SQLite ALTER TABLE compatibility.
+Use an explicit FK constraint name.
+
+Migration label suggestion:
+- g2a_topic_subject_fk
+
+This migration should:
+1. add Topic.subject_id
+2. read existing legacy topic subject string values
+3. create Subject rows as needed using conservative normalization
+4. assign Topic.subject_id where mapping is clear
+5. leave blank/unmapped topics as NULL
+6. preserve legacy subject string data unchanged
+
+Important:
+- do NOT require manual one-by-one admin assignment as the only migration path if legacy subject strings exist
+- do NOT remove the legacy field
+- do NOT touch Problem ownership or links
+
+---
+
+G2a-3: MINIMAL SUBJECT ADMIN CRUD
+---------------------------------
+Implement minimal but complete Subject admin support.
+
+Requirements:
+- subject list page shows at least:
+  Name | Topics count | Description | Created | Actions
+- create/edit form supports name and description
+- validation prevents invalid/blank names
+- duplicate names handled cleanly
+- delete blocked when topics exist
+- delete/flash/error style should match current admin conventions
+
+Do not overdesign this UI.
+Correctness first, polish later.
+
+---
+
+G2a-4: MINIMAL TOPIC ADMIN INTEGRATION
+--------------------------------------
+Add minimal Topic admin support so Subject can be assigned/edited on Topics.
+
+Required:
+- TopicForm gets optional subject_id SelectField
+- choices should be:
+    0 / None option
+    then Subjects ordered alphabetically
+- topic create/edit pages allow assigning/changing Subject
+- topic edit preselects current Subject
+- topics list shows Subject column
+- if topic has no Subject, show "—" or equivalent
+
+This is minimal integration only.
+Do NOT change Problem create/edit UX yet.
+
+---
+
+IMPLEMENTATION ORDER (STRICT)
+-----------------------------
+1. Inspect real Topic schema and identify the legacy subject string field.
+2. Add Subject model + migration.
+3. Add Topic.subject_id + migration/backfill.
+4. Add Subject admin CRUD.
+5. Add minimal Topic admin integration.
+6. Add/adjust tests.
+7. Run full existing test suite.
+
+Do NOT jump ahead to later G2 UX.
+
+---
+
+OUT OF SCOPE FOR THIS STEP
+--------------------------
+- no problem create/edit subject-first selector
+- no AJAX endpoint
+- no problems list subject filter
+- no problem set detail subject filter
+- no Subject on Problem
+- no Subject on ProblemSet
+- no socket changes
+- no Classic Mode gameplay changes
+- no session history
+- no diamonds
+- no gear/equipment
+- no richer authoring
+- no UI polish beyond what is needed for correctness
+- no deletion/removal of the legacy topic subject string field
+- no hard requirement that every Topic must have a Subject immediately
+
+---
+
+TESTING REQUIREMENTS
+--------------------
+Add targeted tests for this step.
+
+At minimum verify:
+1. Subject CRUD works.
+2. Subject deletion is blocked if Topics reference it.
+3. Topic can be created/edited with NULL Subject.
+4. Topic can be created/edited with assigned Subject.
+5. Topics list renders Subject correctly.
+6. Backfill logic creates Subject rows from legacy topic subject strings conservatively.
+7. Blank/null legacy subject values remain safely unmapped.
+8. Duplicate normalized legacy values do not create duplicate Subject rows.
+9. Existing Topic → Problem behavior still works after schema change.
+10. All prior tests remain green.
+
+If the repo already has a migration-testing pattern, use it.
+If not, still add the best practical automated coverage for backfill behavior and clearly report any unavoidable gap.
+
+---
+
+CRITICAL RULES (carry over)
+---------------------------
+- Use python -m flask for CLI commands.
+- SQLAlchemy 2.0 style: use db.session.get(), not .query.get().
+- Flask instance is named flask_app inside create_app(); do not rename it.
+- All new models must be imported in app/models/__init__.py.
+- Optional text fields should be normalized safely.
+- SQLite ALTER TABLE changes must be migration-safe.
+- FK constraints must have explicit names in Alembic migrations.
+
+---
+
+EXIT CRITERIA
+-------------
+This step is COMPLETE only when all of the following are true:
+
+1. Subject model exists and is wired into the app correctly.
+2. Topic.subject_id exists and is nullable.
+3. Migration/backfill is implemented conservatively using the real legacy topic subject field.
+4. Legacy topic subject string field remains in place unchanged.
+5. Subject admin CRUD exists and deletion guard works.
+6. Topic admin create/edit supports optional Subject assignment.
+7. Topics list shows Subject column.
+8. Existing Topic → Problem behavior is preserved.
+9. Targeted tests for this step pass.
+10. All previously passing tests still pass.
+11. No new migrations are left pending.
+
+---
+
+FINAL REPORT FORMAT
+-------------------
+After coding, report exactly:
+
+1. Files changed
+2. Migrations added
+3. The exact legacy topic subject field used for backfill
+4. The normalization/deduplication policy actually implemented
+5. Any legacy values that required special handling
+6. Tests added/updated
+7. Full test results
+8. Anything intentionally deferred to later G2 steps
+
+Do not continue to G2b/G2c unless explicitly asked.

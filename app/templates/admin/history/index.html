@@ -1,0 +1,132 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}Round History{% endblock %}
+
+{% block admin_content %}
+<h1>Round History</h1>
+<p style="color:#555; margin-bottom:12px;">
+    All frozen rounds across all sessions, newest first.
+    Click a session link to view the full per-player results.
+</p>
+
+<!-- Archive visibility toggle -->
+<p style="margin-bottom:18px;">
+{% if include_archived %}
+    <strong>Showing active and archived rounds.</strong>
+    <a href="{{ url_for('admin.history_rounds') }}"
+       style="margin-left:12px;">Hide archived</a>
+{% else %}
+    <a href="{{ url_for('admin.history_rounds', include_archived=1) }}">
+        Show archived rounds
+    </a>
+{% endif %}
+</p>
+
+<!-- Export -->
+<p style="margin-bottom:18px;">
+    <a href="{% if include_archived %}{{ url_for('admin.history_rounds_export', include_archived=1) }}{% else %}{{ url_for('admin.history_rounds_export') }}{% endif %}"
+       style="font-size:0.9em;">&#11123; Export CSV</a>
+</p>
+
+{% if rounds %}
+<table border="1" cellpadding="8" style="border-collapse:collapse; font-size:0.92em; width:100%;">
+    <thead style="background:#f1f3f5;">
+        <tr>
+            <th style="text-align:left;">Ended (UTC)</th>
+            <th style="text-align:left;">Session</th>
+            <th style="text-align:center;">Round</th>
+            <th style="text-align:left;">Mode</th>
+            <th style="text-align:left;">Problem Set</th>
+            <th style="text-align:left;">Class / Open</th>
+            <th style="text-align:right;">Players</th>
+            <th style="text-align:right;">Answers</th>
+            <th style="text-align:right;">Correct</th>
+            <th style="text-align:right;">Incorrect</th>
+            <th style="text-align:right;">Accuracy</th>
+            <th style="text-align:center;">Status</th>
+            <th style="text-align:center;">Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for rh in rounds %}
+    <tr {% if rh.archived_at %}style="opacity:0.65; background:#f8f9fa;"{% endif %}>
+        <td style="white-space:nowrap;">{{ rh.ended_at.strftime('%Y-%m-%d %H:%M') }}</td>
+        <td>
+            <a href="{{ url_for('classic_admin.history', session_id=rh.session_id) }}#round-{{ rh.id }}">
+                Session #{{ rh.session_id }}{% if rh.session_label_snapshot %} — {{ rh.session_label_snapshot }}{% endif %}
+            </a>
+        </td>
+        <td style="text-align:center;">{{ rh.round_number }}</td>
+        <td>{{ rh.mode_type }}</td>
+        <td>{{ rh.problem_set_name_snapshot or '—' }}</td>
+        <td>{{ rh.group_name_snapshot or 'Open' }}</td>
+        <td style="text-align:right;">{{ rh.player_count }}</td>
+        <td style="text-align:right;">{{ rh.total_answers }}</td>
+        <td style="text-align:right;">{{ rh.total_correct }}</td>
+        <td style="text-align:right;">{{ rh.total_incorrect }}</td>
+        <td style="text-align:right;">
+            {% if rh.total_answers > 0 %}
+                {{ (rh.overall_accuracy * 100) | round(1) }}%
+            {% else %}
+                <em style="color:#999;">n/a</em>
+            {% endif %}
+        </td>
+        <td style="text-align:center; white-space:nowrap;">
+            {% if rh.archived_at %}
+            <span style="color:#6c757d; font-size:0.85em; font-weight:bold;">Archived</span>
+            {% else %}
+            <span style="color:#198754; font-size:0.85em;">Active</span>
+            {% endif %}
+        </td>
+        <td style="text-align:center; white-space:nowrap;">
+            {% if rh.archived_at %}
+            <form method="post"
+                  action="{{ url_for('admin.history_round_unarchive', rh_id=rh.id) }}"
+                  style="display:inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit"
+                        style="background:#198754; color:#fff; border:none; border-radius:3px;
+                               padding:3px 10px; cursor:pointer; font-size:0.82em;">
+                    Unarchive
+                </button>
+            </form>
+            {% else %}
+            <form method="post"
+                  action="{{ url_for('admin.history_round_archive', rh_id=rh.id) }}"
+                  style="display:inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit"
+                        style="background:#6c757d; color:#fff; border:none; border-radius:3px;
+                               padding:3px 10px; cursor:pointer; font-size:0.82em;">
+                    Archive
+                </button>
+            </form>
+            {% endif %}
+            &nbsp;
+            <form method="post"
+                  action="{{ url_for('admin.history_round_delete', rh_id=rh.id) }}"
+                  style="display:inline;"
+                  onsubmit="return confirm('Permanently delete history for Round {{ rh.round_number }}?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit"
+                        style="background:#dc3545; color:#fff; border:none; border-radius:3px;
+                               padding:3px 10px; cursor:pointer; font-size:0.82em;">
+                    Delete
+                </button>
+            </form>
+        </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+
+{% else %}
+<div style="background:#fff3cd; border:1px solid #ffc107; border-radius:6px;
+            padding:14px 18px; color:#856404;">
+    No frozen round history yet.
+    History is recorded automatically when you end a round in a Classic session.
+</div>
+{% endif %}
+
+{% endblock %}
+

@@ -1,0 +1,40 @@
+# math_game_v2 — Python dependencies
+# Python version: 3.14.3 (exact version used in development)
+# Tested on: Windows 11 with Python 3.14.3
+#
+# Install with:  pip install -r requirements.txt
+#
+# NOTE: Versions below are the exact versions proven to work with Python 3.14.3.
+# Do not casually upgrade without retesting.
+
+# ── Web framework ──────────────────────────────────────────────────────────────
+Flask==3.1.3
+Werkzeug==3.1.6              # Flask's WSGI toolkit (pinned for compatibility)
+
+# ── Database ───────────────────────────────────────────────────────────────────
+Flask-SQLAlchemy==3.1.1      # SQLAlchemy integration for Flask
+SQLAlchemy==2.0.48           # ORM core
+Flask-Migrate==4.1.0         # Alembic-based migrations (flask db init / upgrade)
+
+# ── Authentication ─────────────────────────────────────────────────────────────
+Flask-Login==0.6.3           # Session management and @login_required
+
+# ── Real-time (Socket.IO) ──────────────────────────────────────────────────────
+Flask-SocketIO==5.6.1        # Flask + Socket.IO bridge
+python-socketio==5.16.1      # Socket.IO server
+python-engineio==4.13.1      # Engine.IO transport layer
+
+# ── Async backend (LAN server) ─────────────────────────────────────────────────
+# simple-websocket is the modern lightweight WebSocket transport for Flask-SocketIO.
+# It requires no extra OS-level dependencies (unlike gevent) and works well on Python 3.14.
+simple-websocket==1.1.0
+
+# ── Forms ──────────────────────────────────────────────────────────────────────
+Flask-WTF==1.2.2             # WTForms integration (CSRF, form rendering)
+WTForms==3.2.1               # Form validation library
+
+# ── Environment / Config ───────────────────────────────────────────────────────
+python-dotenv==1.2.2         # Load .env file for local config overrides
+
+# ── Testing ────────────────────────────────────────────────────────────────────
+pytest==9.0.2                # Test runner

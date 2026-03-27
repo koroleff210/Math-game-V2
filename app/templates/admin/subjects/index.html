@@ -1,0 +1,99 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}Subjects{% endblock %}
+
+{% block admin_content %}
+{% set create_open = create_open|default(false) or form.errors|length > 0 %}
+{% set title = 'Subjects' %}
+{% set eyebrow = 'Problem Bank' %}
+{% set description = 'Keep the subject list visible by default and open the create form only when needed.' %}
+{% include "admin/_page_header.html" %}
+
+<details class="admin-details" id="subject-create-panel" {% if create_open %}open{% endif %}>
+    <summary class="admin-details-summary">
+        <span class="admin-details-summary-text">
+            <span class="admin-details-summary-title">Create Subject</span>
+            <span class="admin-details-summary-hint">Uses the existing subject creation flow and validation.</span>
+        </span>
+        <span class="admin-details-summary-icon">v</span>
+    </summary>
+    <div class="admin-details-body">
+        <form method="POST" action="{{ url_for('admin.subject_new') }}" class="admin-form-stack">
+            {{ form.hidden_tag() }}
+
+            <p class="admin-field">
+                {{ form.name.label }}
+                {{ form.name(size=40) }}
+                {% if form.name.errors %}
+                    <span class="admin-field-error">{{ form.name.errors[0] }}</span>
+                {% endif %}
+            </p>
+
+            <p class="admin-field">
+                {{ form.description.label }}
+                {{ form.description(rows=3, cols=40) }}
+                {% if form.description.errors %}
+                    <span class="admin-field-error">{{ form.description.errors[0] }}</span>
+                {% endif %}
+            </p>
+
+            <div>
+                {{ form.submit(class_='admin-btn admin-btn-primary') }}
+            </div>
+        </form>
+    </div>
+</details>
+
+<section class="admin-section-card">
+    <div class="admin-toolbar">
+        <div>
+            <h2 class="admin-toolbar-title">All Subjects</h2>
+            <p class="admin-toolbar-subtitle">{{ subjects|length }} subject{{ '' if subjects|length == 1 else 's' }}</p>
+        </div>
+    </div>
+
+    {% if subjects %}
+    <div class="admin-table-wrap">
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Topics</th>
+                    <th>Description</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for subject in subjects %}
+                <tr>
+                    <td>{{ subject.name }}</td>
+                    <td>{{ subject.topics.count() }}</td>
+                    <td>{{ subject.description or '' }}</td>
+                    <td>{{ subject.created_at.strftime('%Y-%m-%d') }}</td>
+                    <td>
+                        <div class="admin-row-actions">
+                            <a href="{{ url_for('admin.subject_edit', subject_id=subject.id) }}">Edit</a>
+                            <form method="POST" action="{{ url_for('admin.subject_delete', subject_id=subject.id) }}"
+                                  onsubmit="return confirm('Delete subject {{ subject.name }}?')">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit"
+                                        class="admin-link-danger"
+                                        {% if subject.topics.count() > 0 %}disabled title="Cannot delete: subject has topics"{% endif %}>
+                                    Delete
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="admin-empty-state">
+        No subjects yet. Open <strong>Create Subject</strong> to add the first one.
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

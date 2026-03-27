@@ -1,0 +1,414 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}Manage Classic Session #{{ game_session.id }}{% endblock %}
+
+{% block admin_content %}
+<h1>Classic Session #{{ game_session.id }}</h1>
+
+<!-- Player join link -->
+<div style="background:#e8f4f8; border:1px solid #bee5eb; border-radius:6px; padding:12px 16px; margin-bottom:16px;">
+    <strong>🔗 Player join link:</strong>
+    <code>{{ request.host_url }}classic/play</code>
+    <small style="color:#666; display:block; margin-top:4px;">Share this link with players. It always routes to the current active session.</small>
+</div>
+
+<p>
+    <strong>Problem Set:</strong> {{ game_session.problem_set.name }}<br>
+    <strong>Label:</strong> {{ game_session.display_label }}<br>
+    <strong>Group/Class:</strong> {% if game_session.group %}{{ game_session.group.name }}{% else %}Open{% endif %}<br>
+    <strong>Status:</strong> {{ game_session.status }}<br>
+    <strong>Round:</strong>
+    {% if game_round %}
+        #{{ game_round.round_number }} —
+        {% if game_round.ended_at %}
+            Ended
+        {% elif game_round.started_at %}
+            <span style="color:green;">Active</span>
+        {% else %}
+            Waiting to start
+        {% endif %}
+    {% else %}
+        No round
+    {% endif %}
+</p>
+
+{% if broken_active_ended %}
+<div style="background:#fff3cd; border:1px solid #ffe69c; border-radius:6px; padding:12px 16px; margin-bottom:16px;">
+    <strong>Recovery needed:</strong>
+    This session is marked active, but its latest round is already ended.
+    Use the recovery action below to return it to the normal between-rounds waiting state.
+</div>
+{% endif %}
+
+<!-- Action buttons -->
+<div style="display:flex; gap:12px; margin-bottom:24px; flex-wrap:wrap; align-items:flex-start;">
+    {% if game_round and not game_round.started_at %}
+    {# First round, not yet started #}
+    <form method="POST" action="{{ url_for('classic_admin.start_round', session_id=game_session.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" style="
+            background:#28a745; color:white; border:none;
+            padding:10px 20px; cursor:pointer; font-size:1em;
+            border-radius:4px;">
+            &#9654; Start Round
+        </button>
+    </form>
+    {% endif %}
+
+    {% if game_round and game_round.started_at and not game_round.ended_at %}
+    {# Round is active — show End Round button #}
+    <form method="POST" action="{{ url_for('classic_admin.end_round', session_id=game_session.id) }}"
+          onsubmit="return confirm('End the round and return players to the lobby?')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" style="
+            background:#dc3545; color:white; border:none;
+            padding:10px 20px; cursor:pointer; font-size:1em;
+            border-radius:4px;">
+            &#9632; End Round (return to lobby)
+        </button>
+    </form>
+    {% endif %}
+
+    {% if broken_active_ended %}
+    <form method="POST" action="{{ url_for('classic_admin.repair_waiting', session_id=game_session.id) }}"
+          onsubmit="return confirm('Recover this session to waiting state?')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" style="
+            background:#fd7e14; color:white; border:none;
+            padding:10px 20px; cursor:pointer; font-size:1em;
+            border-radius:4px;">
+            Repair To Waiting State
+        </button>
+    </form>
+    {% endif %}
+
+    {% if game_session.status == 'waiting' and game_round and game_round.ended_at %}
+    {# Between rounds: show next-round form + end-session button #}
+    <div style="border:1px solid #ced4da; border-radius:6px; padding:14px 18px; background:#f8f9fa; max-width:560px;">
+        <strong>Start Next Round (Round {{ game_round.round_number + 1 }})</strong>
+        <form method="POST" action="{{ url_for('classic_admin.next_round', session_id=game_session.id) }}"
+              style="margin-top:10px;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <label style="display:block; margin-bottom:6px; font-size:0.95em;">
+                Problem Set:
+                {{ next_round_form.problem_set_id(style='padding:4px 6px; margin-left:6px;') }}
+            </label>
+            <label style="display:block; margin-bottom:6px;">
+                {{ next_round_form.carry_over_gold() }}
+                Carry over gold (uncheck to reset all gold to 0)
+            </label>
+            <label style="display:block; margin-bottom:12px;">
+                {{ next_round_form.carry_over_gems() }}
+                Carry over gems (uncheck to reset all gems to 0)
+            </label>
+
+            {# ── Collapsible round settings ────────────────────────────── #}
+            <details style="margin-bottom:12px; border:1px solid #dee2e6; border-radius:4px; padding:8px 12px; background:white;">
+                <summary style="cursor:pointer; font-weight:bold; font-size:0.95em; padding:4px 0;">
+                    &#9881; Round Settings (click to expand/edit)
+                </summary>
+                <div style="margin-top:10px; font-size:0.9em;">
+
+                    <div style="font-weight:bold; margin:8px 0 4px; color:#495057; border-bottom:1px solid #dee2e6; padding-bottom:2px;">Core Economy</div>
+                    <table style="width:100%; border-collapse:collapse;">
+                    {% for field in [next_round_form.mine_reward, next_round_form.treasure_search_reward,
+                                     next_round_form.attempts_per_problem, next_round_form.wrong_answer_penalty] %}
+                    <tr>
+                        <td style="padding:3px 8px 3px 0; white-space:nowrap;">{{ field.label.text }}</td>
+                        <td style="padding:3px 0;">{{ field(size=6, style='width:70px; padding:2px 4px;') }}</td>
+                    </tr>
+                    {% if field.errors %}<tr><td></td><td style="color:red; font-size:0.85em;">{{ field.errors[0] }}</td></tr>{% endif %}
+                    {% endfor %}
+                    </table>
+
+                    <div style="font-weight:bold; margin:12px 0 4px; color:#495057; border-bottom:1px solid #dee2e6; padding-bottom:2px;">Timer Bonus</div>
+                    <table style="width:100%; border-collapse:collapse;">
+                    {% for field in [next_round_form.bonus_timer_duration, next_round_form.bonus_timer_gold] %}
+                    <tr>
+                        <td style="padding:3px 8px 3px 0; white-space:nowrap;">{{ field.label.text }}</td>
+                        <td style="padding:3px 0;">{{ field(size=6, style='width:70px; padding:2px 4px;') }}</td>
+                    </tr>
+                    {% if field.errors %}<tr><td></td><td style="color:red; font-size:0.85em;">{{ field.errors[0] }}</td></tr>{% endif %}
+                    {% endfor %}
+                    </table>
+
+                    <div style="font-weight:bold; margin:12px 0 4px; color:#495057; border-bottom:1px solid #dee2e6; padding-bottom:2px;">First-Solver Bonus</div>
+                    <table style="width:100%; border-collapse:collapse;">
+                    {% for field in [next_round_form.first_solver_count, next_round_form.first_solver_multiplier] %}
+                    <tr>
+                        <td style="padding:3px 8px 3px 0; white-space:nowrap;">{{ field.label.text }}</td>
+                        <td style="padding:3px 0;">{{ field(size=6, style='width:70px; padding:2px 4px;') }}</td>
+                    </tr>
+                    {% if field.errors %}<tr><td></td><td style="color:red; font-size:0.85em;">{{ field.errors[0] }}</td></tr>{% endif %}
+                    {% endfor %}
+                    </table>
+
+{# ── Treasure Gold ──────────────────────────────── #}
+                      <div style="font-weight:bold; margin:12px 0 4px; color:#495057; border-bottom:1px solid #dee2e6; padding-bottom:2px;">Treasure Gold</div>
+                      <p style="margin:0 0 4px; font-size:0.82em; color:#6c757d;">Min gold is set by <em>Min Treasure Search Reward</em> in Core Economy above.</p>
+                      <table style="width:100%; border-collapse:collapse;">
+                      {% for field in [next_round_form.treasure_search_max_reward] %}
+                      <tr>
+                          <td style="padding:3px 8px 3px 0; white-space:nowrap;">{{ field.label.text }}</td>
+                          <td style="padding:3px 0;">{{ field(size=6, style='width:70px; padding:2px 4px;') }}</td>
+                      </tr>
+                      {% if field.errors %}<tr><td></td><td style="color:red; font-size:0.85em;">{{ field.errors[0] }}</td></tr>{% endif %}
+                      {% endfor %}
+                      </table>
+
+                      {# ── Gem Awards ─────────────────────────────────── #}
+                      <div style="font-weight:bold; margin:12px 0 4px; color:#495057; border-bottom:1px solid #dee2e6; padding-bottom:2px;">Gem Awards</div>
+                      <table style="width:100%; border-collapse:collapse;">
+                      {% for field in [next_round_form.gem_milestone_count, next_round_form.gem_streak_count,
+                                       next_round_form.gem_treasure_chance] %}
+                      <tr>
+                          <td style="padding:3px 8px 3px 0; white-space:nowrap;">{{ field.label.text }}</td>
+                          <td style="padding:3px 0;">{{ field(size=6, style='width:70px; padding:2px 4px;') }}</td>
+                      </tr>
+                      {% if field.errors %}<tr><td></td><td style="color:red; font-size:0.85em;">{{ field.errors[0] }}</td></tr>{% endif %}
+                      {% endfor %}
+                      </table>
+
+                      {# ── Treasure Side Rewards ──────────────────────── #}
+                      <div style="font-weight:bold; margin:12px 0 4px; color:#495057; border-bottom:1px solid #dee2e6; padding-bottom:2px;">Treasure Side Rewards</div>
+                      <p style="margin:0 0 4px; font-size:0.82em; color:#6c757d;">
+                          One weighted roll per Treasure Search. <strong>At most one side reward</strong> can be awarded.
+                          If the rolled reward is blocked (cap / full capacity), the outcome is <em>nothing</em> &mdash; no reroll.
+                          Total must be &le;&nbsp;1.
+                      </p>
+                      <table style="width:100%; border-collapse:collapse;">
+                      {% for field in [next_round_form.treasure_steal_token_chance,
+                                       next_round_form.treasure_active_shield_chance,
+                                       next_round_form.treasure_second_chance_chance] %}
+                      <tr>
+                          <td style="padding:3px 8px 3px 0; white-space:nowrap;">{{ field.label.text }}</td>
+                          <td style="padding:3px 0;">{{ field(size=6, style='width:70px; padding:2px 4px;') }}</td>
+                      </tr>
+                      {% if field.errors %}<tr><td></td><td style="color:red; font-size:0.85em;">{{ field.errors[0] }}</td></tr>{% endif %}
+                      {% endfor %}
+                      </table>
+                      {# Derived summary — computed from loaded/submitted values #}
+                      {% set _ns = namespace(total=0.0) %}
+                      {% set _ns.total = (next_round_form.gem_treasure_chance.data or 0)|float
+                                       + (next_round_form.treasure_steal_token_chance.data or 0)|float
+                                       + (next_round_form.treasure_active_shield_chance.data or 0)|float
+                                       + (next_round_form.treasure_second_chance_chance.data or 0)|float %}
+                      <div style="background:#f8f9fa; border:1px solid #dee2e6; border-radius:4px; padding:6px 10px; margin-top:6px; font-size:0.82em; color:#495057;">
+                          <strong>Side-reward summary:</strong>
+                          Subtotal: <strong>{{ "%.2f"|format(_ns.total) }}</strong>
+                          &nbsp;&mdash;&nbsp;
+                          Nothing chance: <strong>{{ "%.2f"|format(1.0 - _ns.total) }}</strong>
+                          {% if _ns.total > 1.0 %}
+                          <span style="color:#c0392b; font-weight:bold;"> &mdash; &#9888; Total exceeds 1.0.</span>
+                          {% endif %}
+                      </div>
+
+                    <div style="font-weight:bold; margin:12px 0 4px; color:#495057; border-bottom:1px solid #dee2e6; padding-bottom:2px;">Steal System</div>
+                    <table style="width:100%; border-collapse:collapse;">
+                    {% for field in [next_round_form.steal_percent, next_round_form.steal_min_cap,
+                                     next_round_form.steal_max_cap, next_round_form.steal_fallback_gold,
+                                     next_round_form.steal_chest_count, next_round_form.steal_winning_chest_count,
+                                     next_round_form.active_shield_duration, next_round_form.reactive_shield_duration] %}
+                    <tr>
+                        <td style="padding:3px 8px 3px 0; white-space:nowrap;">{{ field.label.text }}</td>
+                        <td style="padding:3px 0;">{{ field(size=6, style='width:70px; padding:2px 4px;') }}</td>
+                    </tr>
+                    {% if field.errors %}<tr><td></td><td style="color:red; font-size:0.85em;">{{ field.errors[0] }}</td></tr>{% endif %}
+                    {% endfor %}
+                    </table>
+
+                </div>
+            </details>
+
+            <button type="submit" style="
+                background:#28a745; color:white; border:none;
+                padding:10px 20px; cursor:pointer; font-size:1em;
+                border-radius:4px;">
+                &#9654; Start Next Round
+            </button>
+        </form>
+    </div>
+
+    <form method="POST" action="{{ url_for('classic_admin.end_session', session_id=game_session.id) }}"
+          onsubmit="return confirm('End the session permanently? Players will see final results.')"
+          style="align-self:flex-end;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" style="
+            background:#6c757d; color:white; border:none;
+            padding:10px 20px; cursor:pointer; font-size:1em;
+            border-radius:4px;">
+            &#10006; End Session
+        </button>
+    </form>
+    {% endif %}
+
+    <a href="{{ url_for('classic_admin.store', session_id=game_session.id) }}"
+       style="padding:10px 20px; background:#17a2b8; color:white; border-radius:4px;
+              text-decoration:none; font-size:1em; align-self:center;">
+        &#128722; Manage Store
+    </a>
+
+    {% if history_count > 0 %}
+    <a href="{{ url_for('classic_admin.history', session_id=game_session.id) }}"
+       style="padding:10px 20px; background:#6f42c1; color:white; border-radius:4px;
+              text-decoration:none; font-size:1em; align-self:center;">
+        &#128200; View History ({{ history_count }} round{{ 's' if history_count != 1 else '' }})
+    </a>
+    {% endif %}
+</div>
+
+<!-- Enrolled Players -->
+<h2>Enrolled Players</h2>
+<p id="enrolled-count">{{ enrolled|length }} player(s) registered for this session:</p>
+<ul id="enrolled-list" {% if not enrolled %}style="display:none;"{% endif %}>
+    {% for rp in enrolled %}
+    <li>{{ rp.player.username }}</li>
+    {% endfor %}
+</ul>
+<p id="enrolled-empty" style="color:#888; {% if enrolled %}display:none;{% endif %}">No players have enrolled yet.</p>
+
+<!-- Leaderboard -->
+<h2>Leaderboard</h2>
+{% if wallets %}
+<table border="1" cellpadding="8" style="border-collapse:collapse;">
+    <thead>
+    <tr>
+        <th>#</th><th>Player</th><th>Gold</th><th>Gems</th>
+    </tr>
+    </thead>
+    <tbody id="leaderboard-tbody">
+    {% for w in wallets %}
+    <tr>
+        <td>{{ loop.index }}</td>
+        <td>{{ w.player.username }}</td>
+        <td>{{ w.gold }}</td>
+        <td>{{ w.gems }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<table border="1" cellpadding="8" style="border-collapse:collapse;">
+    <thead>
+    <tr><th>#</th><th>Player</th><th>Gold</th><th>Gems</th></tr>
+    </thead>
+    <tbody id="leaderboard-tbody"></tbody>
+</table>
+<p id="leaderboard-empty">No players have joined yet.</p>
+{% endif %}
+
+<!-- Round config summary -->
+{% if config %}
+<h2>Round Config</h2>
+<table border="1" cellpadding="6" style="border-collapse:collapse; font-size:0.9em;">
+    <tr><th style="text-align:left;">Setting</th><th>Value</th></tr>
+    <tr><td>Mine reward</td><td>{{ config.mine_reward }}</td></tr>
+    <tr><td>Treasure Search reward (min)</td><td>{{ config.treasure_search_reward }}</td></tr>
+    <tr><td>Treasure Search reward (max)</td><td>{{ config.treasure_search_max_reward }}</td></tr>
+    <tr><td>Attempts per problem</td><td>{{ config.attempts_per_problem }}</td></tr>
+    <tr><td>Wrong answer penalty</td><td>{{ config.wrong_answer_penalty }}</td></tr>
+    <tr><td>Timer bonus duration (s)</td><td>{{ config.bonus_timer_duration }}</td></tr>
+    <tr><td>Timer bonus gold</td><td>{{ config.bonus_timer_gold }}</td></tr>
+    <tr><td>First solver count</td><td>{{ config.first_solver_count }}</td></tr>
+    <tr><td>First solver multiplier</td><td>{{ config.first_solver_multiplier }}</td></tr>
+    <tr><td>Gem milestone (problems / gem)</td><td>{{ config.gem_milestone_count }} {% if config.gem_milestone_count == 0 %}<em style="color:#888;">(disabled)</em>{% endif %}</td></tr>
+    <tr><td>Gem streak (correct answers / gem)</td><td>{{ config.gem_streak_count }} {% if config.gem_streak_count == 0 %}<em style="color:#888;">(disabled)</em>{% endif %}</td></tr>
+    <tr><td>Treasure gem chance</td><td>{{ (config.gem_treasure_chance * 100) | round(1) }}% {% if config.gem_treasure_chance == 0.0 %}<em style="color:#888;">(disabled)</em>{% endif %}</td></tr>
+    <tr><td>Steal token from treasure chance</td><td>{{ (config.treasure_steal_token_chance * 100) | round(1) }}% {% if config.treasure_steal_token_chance == 0.0 %}<em style="color:#888;">(disabled)</em>{% endif %}</td></tr>
+    <tr><td>Shield token from treasure chance</td><td>{{ (config.treasure_active_shield_chance * 100) | round(1) }}% {% if config.treasure_active_shield_chance == 0.0 %}<em style="color:#888;">(disabled)</em>{% endif %}</td></tr>
+    <tr><td>Second Chance from treasure chance</td><td>{{ (config.treasure_second_chance_chance * 100) | round(1) }}% {% if config.treasure_second_chance_chance == 0.0 %}<em style="color:#888;">(disabled)</em>{% endif %}</td></tr>
+    <tr><td colspan="2" style="background:#f8f9fa; font-weight:bold; padding:6px 8px;">Steal System</td></tr>
+    <tr><td>Steal percent</td><td>{{ (config.steal_percent * 100) | int }}%</td></tr>
+    <tr><td>Steal min cap (gold)</td><td>{{ config.steal_min_cap }}</td></tr>
+    <tr><td>Steal max cap (gold)</td><td>{% if config.steal_max_cap == -1 %}<em>No max cap</em>{% else %}{{ config.steal_max_cap }}{% endif %}</td></tr>
+    <tr><td>Steal fallback gold</td><td>{{ config.steal_fallback_gold }}</td></tr>
+    <tr><td>Steal chest count</td><td>{{ config.steal_chest_count }} {% if config.steal_chest_count == 0 %}<em style="color:#888;">(mini-game disabled)</em>{% endif %}</td></tr>
+    <tr><td>Winning chests</td><td>{{ config.steal_winning_chest_count }}</td></tr>
+    <tr><td>Shield token duration (s)</td><td>{{ config.active_shield_duration }}</td></tr>
+    <tr><td>Reactive protection duration (s)</td><td>{{ config.reactive_shield_duration }}</td></tr>
+    </table>
+{% endif %}
+
+<!-- Problem solve counts -->
+<h2>Solve Counts Per Problem</h2>
+<div id="solve-counts-region">
+    {% include 'admin/classic/_solve_counts.html' %}
+</div>
+
+<!-- Steal History -->
+<h2>Steal History</h2>
+<div id="steal-history-region">
+    {% include 'admin/classic/_steal_history.html' %}
+</div>
+
+{% endblock %}
+
+{% block head %}
+<script src="/static/js/socket.io.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const SESSION_ID = {{ game_session.id }};
+
+    const socket = io();
+
+    socket.on('connect', function () {
+        socket.emit('classic_admin_watch', { session_id: SESSION_ID });
+    });
+
+    // ── leaderboard_update ────────────────────────────────────────────────
+    // Payload: { leaderboard: [ {username, gold, gems}, ... ] }
+    socket.on('leaderboard_update', function (data) {
+        const rows = data.leaderboard;
+        const tbody = document.getElementById('leaderboard-tbody');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+        rows.forEach(function (entry, idx) {
+            const tr = document.createElement('tr');
+            tr.innerHTML =
+                '<td>' + (idx + 1) + '</td>' +
+                '<td>' + escHtml(entry.username) + '</td>' +
+                '<td>' + entry.gold + '</td>' +
+                '<td>' + entry.gems + '</td>';
+            tbody.appendChild(tr);
+        });
+    });
+
+    socket.on('admin_summary_update', function (data) {
+        const solveCountsRegion = document.getElementById('solve-counts-region');
+        const stealHistoryRegion = document.getElementById('steal-history-region');
+        if (solveCountsRegion && typeof data.solve_counts_html === 'string') {
+            solveCountsRegion.innerHTML = data.solve_counts_html;
+        }
+        if (stealHistoryRegion && typeof data.steal_history_html === 'string') {
+            stealHistoryRegion.innerHTML = data.steal_history_html;
+        }
+    });
+
+    // ── player_joined ─────────────────────────────────────────────────────
+    // Payload: { players: [ username, ... ] }
+    socket.on('player_joined', function (data) {
+        const list = document.getElementById('enrolled-list');
+        const count = document.getElementById('enrolled-count');
+        const empty = document.getElementById('enrolled-empty');
+        if (!list) return;
+        list.innerHTML = '';
+        data.players.forEach(function (name) {
+            const li = document.createElement('li');
+            li.textContent = name;
+            list.appendChild(li);
+        });
+        if (count)  count.textContent = data.players.length + ' player(s) registered for this session:';
+        if (empty)  empty.style.display = data.players.length ? 'none' : 'block';
+        list.style.display = data.players.length ? '' : 'none';
+    });
+
+    function escHtml(str) {
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+});
+</script>
+{% endblock %}

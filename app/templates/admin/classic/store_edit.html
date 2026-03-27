@@ -1,0 +1,36 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}Edit Store Item — Session #{{ game_session.id }}{% endblock %}
+
+{% block admin_content %}
+<h1>Edit Store Item</h1>
+<p><a href="{{ url_for('classic_admin.store', session_id=game_session.id) }}">← Back to store</a></p>
+
+<form method="POST"
+      action="{{ url_for('classic_admin.store_edit', session_id=game_session.id, item_id=item.id) }}">
+    {{ form.hidden_tag() }}
+
+    <table style="border-collapse:collapse;">
+        {% for field in [form.name, form.description, form.cost, form.currency, form.bonus_type, form.session_stock, form.per_player_limit] %}
+        <tr>
+            <td style="padding:4px 12px 4px 0;">{{ field.label }}</td>
+            <td style="padding:4px 0;">
+                {% if field.type == 'TextAreaField' %}
+                    {{ field(rows=2, cols=40) }}
+                {% else %}
+                    {{ field() }}
+                {% endif %}
+            </td>
+        </tr>
+        {% if field.errors %}
+        <tr>
+            <td></td>
+            <td style="color:red; font-size:0.9em;">{{ field.errors[0] }}</td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+    </table>
+
+    <p style="margin-top:12px;">{{ form.submit() }}</p>
+</form>
+{% endblock %}

@@ -1,0 +1,417 @@
+PHASE 4 STEP G1 — PLAYER / GROUP / SESSION FOUNDATION
+======================================================
+Paste this AFTER the bootstrap prompt (docs/bootstrap_prompt.txt) in a new chat.
+This is the complete, locked spec. Implement it exactly as written.
+
+---
+
+OVERVIEW
+--------
+G1 adds the ability to create named groups of players and restrict Classic Mode
+sessions to a specific group. It also adds admin CRUD for managing player accounts.
+
+This is a pure foundation step: no game mechanics change, no new socket events,
+no new game modes. All changes are in admin UI and access control.
+
+When G1 is complete, an admin can:
+  - Create, edit, delete student player accounts
+  - Create groups, add/remove players from them
+  - Create a Classic session restricted to a specific group
+  - Players not in that group are blocked from joining (HTTP redirect + socket event)
+
+---
+
+IMPLEMENTATION ORDER
+--------------------
+Implement in this exact sequence. Do NOT skip ahead.
+
+  1.  DB migration (new tables + new columns on GameSession)
+  2.  New model: PlayerGroup (app/models/groups.py)
+  3.  Model change: GameSession additions (group_id, label, display_label)
+  4.  New forms: PlayerCreateForm, PlayerEditForm, PlayerGroupForm
+  5.  ClassicSessionForm additions: group_id, label
+  6.  New routes: player CRUD (in app/routes/admin.py)
+  7.  New routes: group CRUD (in app/routes/admin.py)
+  8.  Classic player routes: add group access check helper + 3 HTTP route guards
+  9.  Classic socket handler: add group check to classic_join
+  10. New templates: admin/players/index.html, admin/players/form.html,
+                     admin/groups/index.html, admin/groups/detail.html,
+                     admin/groups/form.html
+  11. Modified templates: admin/layout.html, admin/classic/new.html,
+                          admin/classic/manage.html
+  12. Regression tests: confirm 249 existing tests still pass
+
+---
+
+STEP 1 — DB MIGRATION
+---------------------
+Create ONE Alembic migration with message: "g1_player_groups_and_session_labels"
+
+New table: player_group
+  id          INTEGER PRIMARY KEY AUTOINCREMENT
+  name        VARCHAR(64) NOT NULL UNIQUE
+  description VARCHAR(256) NULLABLE
+  created_at  DATETIME NOT NULL DEFAULT (current_timestamp)
+
+New table: player_group_members  (association table — NO ORM model class needed)
+  player_id   INTEGER NOT NULL REFERENCES player(id)
+  group_id    INTEGER NOT NULL REFERENCES player_group(id)
+  PRIMARY KEY (player_id, group_id)
+
+New columns on game_session:
+  group_id    INTEGER NULLABLE REFERENCES player_group(id)
+  label       VARCHAR(128) NULLABLE
+
+Migration command:
+  .venv\Scripts\python.exe -m flask db migrate -m "g1_player_groups_and_session_labels"
+  .venv\Scripts\python.exe -m flask db upgrade
+
+Verify with:
+  .venv\Scripts\python.exe -m flask db current
+  (should show the new HEAD revision)
+
+---
+
+STEP 2 — NEW MODEL: PlayerGroup
+--------------------------------
+File: app/models/groups.py  (new file)
+
+  from datetime import datetime, timezone
+  from app.extensions import db
+
+  player_group_members = db.Table(
+      'player_group_members',
+      db.Column('player_id', db.Integer, db.ForeignKey('player.id'), primary_key=True),
+      db.Column('group_id',  db.Integer, db.ForeignKey('player_group.id'), primary_key=True),
+  )
+
+  class PlayerGroup(db.Model):
+      __tablename__ = 'player_group'
+      id          = db.Column(db.Integer, primary_key=True)
+      name        = db.Column(db.String(64), nullable=False, unique=True)
+      description = db.Column(db.String(256), nullable=True)
+      created_at  = db.Column(db.DateTime, nullable=False,
+                              default=lambda: datetime.now(timezone.utc))
+      members = db.relationship('Player', secondary=player_group_members,
+                                backref='groups', lazy='dynamic')
+
+Add to app/models/__init__.py:
+  from app.models.groups import PlayerGroup, player_group_members
+
+---
+
+STEP 3 — MODEL CHANGE: GameSession
+------------------------------------
+File: app/models/game.py
+
+Add to GameSession class (after problem_set_id column):
+  group_id = db.Column(db.Integer, db.ForeignKey('player_group.id'), nullable=True)
+  label    = db.Column(db.String(128), nullable=True)
+
+Add relationship (after column definitions):
+  group = db.relationship('PlayerGroup', foreign_keys=[group_id])
+
+Add @property (after relationship):
+  @property
+  def display_label(self):
+      if self.label:
+          return self.label
+      parts = []
+      if self.problem_set:
+          parts.append(self.problem_set.name)
+      parts.append(self.group.name if self.group else 'Open')
+      parts.append(self.created_at.strftime('%Y-%m-%d') if self.created_at else '')
+      return ' \u2014 '.join(p for p in parts if p)
+
+NOTE: self.problem_set already exists as a backref from GameSession → ProblemSet.
+      Leave that relationship as-is; just add group + label.
+
+---
+
+STEP 4 — NEW FORMS
+-------------------
+File: app/routes/forms.py  (add to existing file)
+
+  class PlayerCreateForm(FlaskForm):
+      username     = StringField('Username', validators=[DataRequired(), Length(max=64)])
+      password     = PasswordField('Password', validators=[DataRequired(), Length(min=4)])
+      is_admin     = BooleanField('Admin account')
+      submit       = SubmitField('Create Player')
+
+  class PlayerEditForm(FlaskForm):
+      username     = StringField('Username', validators=[DataRequired(), Length(max=64)])
+      new_password = PasswordField('New Password (leave blank to keep current)',
+                                   validators=[Optional()])
+      is_admin     = BooleanField('Admin account')
+      submit       = SubmitField('Save Changes')
+
+  class PlayerGroupForm(FlaskForm):
+      name        = StringField('Group Name', validators=[DataRequired(), Length(max=64)])
+      description = TextAreaField('Description', validators=[Optional()])
+      submit      = SubmitField('Save')
+
+Required WTForms imports already in forms.py:
+  DataRequired, Length, Optional — add if missing
+  BooleanField, PasswordField — add if missing
+
+---
+
+STEP 5 — ClassicSessionForm ADDITIONS
+---------------------------------------
+File: app/modes/classic/forms.py
+
+Add two fields to ClassicSessionForm (near top of class, after problem_set_id):
+
+  group_id = SelectField(
+      'Restrict to Group',
+      coerce=int,
+      choices=[],   # populated in the route before render
+      validators=[Optional()],
+  )
+  label = StringField('Session Label (optional)', validators=[Optional()])
+
+The group_id SelectField MUST include a sentinel "no restriction" option.
+In the route (classic_admin_bp), populate choices as:
+  form.group_id.choices = [(0, 'Open — no group restriction')] + \
+      [(g.id, g.name) for g in PlayerGroup.query.order_by(PlayerGroup.name).all()]
+When processing the form: if group_id == 0, save group_id=None on GameSession.
+
+---
+
+STEP 6 — NEW ROUTES: Player CRUD
+----------------------------------
+File: app/routes/admin.py  (add to existing admin_bp, do NOT create new file)
+
+All routes protected by @login_required @admin_required.
+Pattern: list, new, edit, delete.
+
+  GET  /admin/players/                  → list all players; template: admin/players/index.html
+  GET  /admin/players/new               → empty PlayerCreateForm; template: admin/players/form.html
+  POST /admin/players/new               → create Player(username, password_hash, is_admin)
+                                          → flash success; redirect to /admin/players/
+  GET  /admin/players/<id>/edit         → PlayerEditForm prefilled; template: admin/players/form.html
+  POST /admin/players/<id>/edit         → update username, is_admin; if new_password non-blank →
+                                          update password_hash; redirect to /admin/players/
+  POST /admin/players/<id>/delete       → block if RoundPlayer rows exist for player
+                                          (flash error and redirect back if so)
+                                          → else delete player; redirect to /admin/players/
+
+Password hashing: use werkzeug.security.generate_password_hash / check_password_hash
+(already used in Player model — call player.set_password(new_password) or inline the call
+if Player doesn't have that helper method yet; check first).
+
+Username uniqueness: check db.session.execute(select(Player).where(Player.username == form.username.data)).scalar_one_or_none() before saving; if duplicate, re-render form with error.
+
+---
+
+STEP 7 — NEW ROUTES: Group CRUD
+---------------------------------
+File: app/routes/admin.py  (same file as Step 6)
+
+All routes protected by @login_required @admin_required.
+
+  GET  /admin/groups/                       → list all groups with member count; template: admin/groups/index.html
+  GET  /admin/groups/new                    → empty PlayerGroupForm; template: admin/groups/form.html
+  POST /admin/groups/new                    → create PlayerGroup; flash; redirect to /admin/groups/
+  GET  /admin/groups/<id>                   → group detail with member list + non-member list;
+                                             template: admin/groups/detail.html
+  GET  /admin/groups/<id>/edit              → PlayerGroupForm prefilled; template: admin/groups/form.html
+  POST /admin/groups/<id>/edit              → update name / description; redirect to /admin/groups/<id>
+  POST /admin/groups/<id>/add_player        → form field: player_id (hidden int)
+                                             → add Player to group.members; redirect to /admin/groups/<id>
+  POST /admin/groups/<id>/remove_player/<pid> → remove player from group.members; redirect to /admin/groups/<id>
+  POST /admin/groups/<id>/delete            → block if any GameSession has group_id == id
+                                             (flash error and redirect back if so)
+                                             → else DELETE group + M2M rows cascade; redirect to /admin/groups/
+
+Group name uniqueness: same pattern as player username — check before saving.
+
+---
+
+STEP 8 — CLASSIC ROUTES: Group Access Check
+--------------------------------------------
+File: app/modes/classic/routes.py
+
+Add helper (module level, before blueprint routes):
+
+  def player_in_session_group(player, session):
+      """Returns True if session is open (group_id is None) or player is a member."""
+      if session.group_id is None:
+          return True
+      from app.models.groups import PlayerGroup
+      group = db.session.get(PlayerGroup, session.group_id)
+      if group is None:
+          return True  # group deleted — treat as open
+      return group.members.filter_by(id=player.id).first() is not None
+
+Modify three existing HTTP routes (add check near top of each view function,
+after the session lookup but before any render/redirect):
+
+  /classic/play   (GET, classic_player_bp)
+    After finding the waiting/active session:
+      if not player_in_session_group(current_user, session_obj):
+          flash('You are not enrolled in the group for this session.', 'danger')
+          return redirect(url_for('player.dashboard'))  # or wherever is appropriate
+
+  /classic/lobby/<id>   (GET, classic_player_bp)
+    After loading the session:
+      if not player_in_session_group(current_user, session_obj):
+          flash('You are not enrolled in the group for this session.', 'danger')
+          return redirect(url_for('player.dashboard'))
+
+  /classic/game/<id>   (GET, classic_player_bp)
+    After loading the session:
+      if not player_in_session_group(current_user, session_obj):
+          flash('You are not enrolled in the group for this session.', 'danger')
+          return redirect(url_for('player.dashboard'))
+
+NOTE: If player.dashboard does not exist yet, redirect to url_for('auth.login') instead.
+Check the existing redirect targets in those routes before choosing the fallback.
+
+---
+
+STEP 9 — SOCKET HANDLER: classic_join Group Check
+---------------------------------------------------
+File: app/modes/classic/events.py
+
+In handle_classic_join (the function registered for 'classic_join' event),
+add this check IMMEDIATELY after the existing "session must be active/waiting" guard
+and BEFORE the RoundPlayer insert / wallet creation:
+
+  if not player_in_session_group(player, session_obj):
+      emit('access_denied', {'reason': 'not_in_group',
+                              'message': 'You are not in the group for this session.'})
+      return
+
+Import player_in_session_group at the top of events.py:
+  from app.modes.classic.routes import player_in_session_group
+
+---
+
+STEP 10 — NEW TEMPLATES
+------------------------
+All templates extend 'admin/layout.html' and use Bootstrap 5 (same as existing admin templates).
+Keep them minimal and consistent with existing admin template style.
+
+admin/players/index.html
+  - Title: "Players"
+  - Table: Username | Admin? | Groups | Created | Actions (Edit, Delete)
+  - "New Player" button links to /admin/players/new
+  - Delete is a small POST form (CSRF token required)
+  - Show flash messages
+
+admin/players/form.html
+  - Title: "New Player" or "Edit Player" (passed as `title` variable)
+  - Renders PlayerCreateForm or PlayerEditForm
+  - Password field has placeholder text about leaving blank to keep existing (edit mode)
+  - Back link to /admin/players/
+
+admin/groups/index.html
+  - Title: "Groups"
+  - Table: Name | Members | Description | Created | Actions (View, Edit, Delete)
+  - "New Group" button
+  - Delete is a POST form with CSRF
+
+admin/groups/detail.html
+  - Title: group.name
+  - Two sections:
+    1. "Members" — table of current members + "Remove" POST button per row
+    2. "Add Player" — dropdown of non-members + "Add" POST button
+  - "Edit Group" link
+  - Back link to /admin/groups/
+
+admin/groups/form.html
+  - Title: "New Group" or "Edit Group"
+  - Renders PlayerGroupForm
+  - Back link to /admin/groups/
+
+---
+
+STEP 11 — MODIFIED TEMPLATES
+-----------------------------
+
+app/templates/admin/layout.html
+  Add two nav items to the sidebar (after existing items, before Classic Mode):
+    <a href="{{ url_for('admin.players_index') }}">Players</a>
+    <a href="{{ url_for('admin.groups_index') }}">Groups</a>
+  Exact placement: after "Problem Sets" link, before "Classic Mode" link.
+  Match the existing HTML structure for nav items exactly.
+
+app/templates/admin/classic/new.html
+  Add two fields in the "Session Setup" section (after problem_set_id, before submit):
+
+  Group Restriction:
+    Label: "Restrict to Group"
+    Field: {{ form.group_id() }}  (SelectField rendered normally)
+    Help text: "Select a group to restrict join access, or leave as 'Open'."
+
+  Session Label:
+    Label: "Session Label (optional)"
+    Field: {{ form.label() }}
+    Help text: "Custom label shown in session history. Leave blank to auto-generate."
+
+app/templates/admin/classic/manage.html
+  In the session info header area (top of page, near existing session id/status display),
+  add one line:
+    Label: {{ session.display_label }}
+  And if session.group:
+    Group: {{ session.group.name }}
+  Else:
+    Group: Open
+
+---
+
+STEP 12 — REGRESSION CHECK
+----------------------------
+After all steps complete, run the full test suite:
+  .venv\Scripts\python.exe -m pytest test_classic_step_a.py test_classic_step_b.py tests/ -v
+
+Expected: all 249 tests pass (32 + 48 + 38 + 131 + 0 new = 249)
+G1 does not add new exit tests (manual testing is sufficient for admin CRUD at this stage).
+
+If any test fails, fix the regression before considering G1 done.
+
+---
+
+CONSTRAINTS — DO NOT DO THESE
+-------------------------------
+1. Do NOT add diamonds, PlayerWallet.diamonds, or any diamond mechanic.
+2. Do NOT add the Subject model or Topic.subject_id (that is G2).
+3. Do NOT split admin.py into sub-files.
+4. Do NOT add new Socket.IO events (other than emitting the existing access_denied).
+5. Do NOT add a "PlayerUpgrade" or "upgrade" model, column, or table.
+6. Do NOT add a session history view (that is Step H).
+7. Do NOT modify any classic game mechanics (engine.py, state.py, store.py).
+8. Do NOT change the migration HEAD naming — run `flask db migrate` once for all G1 schema changes.
+
+---
+
+CONFIRMED ARCHITECTURE DECISIONS (binding)
+-------------------------------------------
+AD-31: All G1 routes stay in app/routes/admin.py — no file splitting.
+AD-32: Double-guard (HTTP + socket) is correct — keep both.
+AD-33: PlayerEditForm blank new_password = preserve existing hash.
+AD-05: Optional form fields: use (field.data or '').strip() or None pattern.
+AD-07: Use db.session.get(Model, pk) not Model.query.get(pk).
+AD-08: Problem bank filters deferred to G2 / Phase 7.
+
+---
+
+DONE CRITERIA
+-------------
+G1 is complete when ALL of the following are true:
+  [ ] Migration HEAD updated; `flask db current` shows new revision
+  [ ] PlayerGroup model exists in app/models/groups.py; imported in app/models/__init__.py
+  [ ] GameSession has group_id + label columns + display_label property
+  [ ] PlayerCreateForm, PlayerEditForm, PlayerGroupForm exist in app/routes/forms.py
+  [ ] ClassicSessionForm has group_id SelectField + label StringField
+  [ ] /admin/players/ CRUD routes work (all 5 routes)
+  [ ] /admin/groups/ CRUD routes work (all 9 routes)
+  [ ] player_in_session_group() helper exists in routes.py
+  [ ] /classic/play, /classic/lobby/<id>, /classic/game/<id> redirect non-group members
+  [ ] classic_join socket emits access_denied for non-group members
+  [ ] All 5 new templates render without errors
+  [ ] admin/layout.html sidebar has Players + Groups links
+  [ ] admin/classic/new.html has group_id + label fields
+  [ ] admin/classic/manage.html shows display_label + group name
+  [ ] 249 tests still pass

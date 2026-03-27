@@ -1,0 +1,92 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}Problem Sets{% endblock %}
+
+{% block admin_content %}
+{% set create_open = form.errors|length > 0 %}
+{% set title = 'Problem Sets' %}
+{% set eyebrow = 'Problem Bank' %}
+{% set description = 'Keep the set list visible by default and open the create form only when needed.' %}
+{% include "admin/_page_header.html" %}
+
+<details class="admin-details" id="problem-set-create-panel" {% if create_open %}open{% endif %}>
+    <summary class="admin-details-summary">
+        <span class="admin-details-summary-text">
+            <span class="admin-details-summary-title">Create Problem Set</span>
+            <span class="admin-details-summary-hint">Uses the current GET list + POST create route.</span>
+        </span>
+        <span class="admin-details-summary-icon">v</span>
+    </summary>
+    <div class="admin-details-body">
+        <form method="POST" action="{{ url_for('admin.problem_sets') }}" class="admin-form-stack">
+            {{ form.hidden_tag() }}
+
+            <p class="admin-field">
+                {{ form.name.label }}
+                {{ form.name(size=40) }}
+                {% if form.name.errors %}
+                    <span class="admin-field-error">{{ form.name.errors[0] }}</span>
+                {% endif %}
+            </p>
+            <p class="admin-field">
+                {{ form.description.label }}
+                {{ form.description(rows=3, cols=40) }}
+                {% if form.description.errors %}
+                    <span class="admin-field-error">{{ form.description.errors[0] }}</span>
+                {% endif %}
+            </p>
+            <div>
+                {{ form.submit(class_='admin-btn admin-btn-primary') }}
+            </div>
+        </form>
+    </div>
+</details>
+
+<section class="admin-section-card">
+    <div class="admin-toolbar">
+        <div>
+            <h2 class="admin-toolbar-title">All Problem Sets</h2>
+            <p class="admin-toolbar-subtitle">{{ sets|length }} set{{ '' if sets|length == 1 else 's' }}</p>
+        </div>
+    </div>
+
+    {% if sets %}
+    <div class="admin-table-wrap">
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Problems</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in sets %}
+                <tr>
+                    <td>{{ s.id }}</td>
+                    <td>{{ s.name }}</td>
+                    <td>{{ s.problems.count() }}</td>
+                    <td>
+                        <div class="admin-row-actions">
+                            <a href="{{ url_for('admin.problem_set_detail', set_id=s.id) }}">View / Edit</a>
+                            <form method="POST"
+                                  action="{{ url_for('admin.problem_set_delete', set_id=s.id) }}"
+                                  onsubmit="return confirm('Delete set &quot;{{ s.name }}&quot;? This cannot be undone.');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="admin-link-danger">Delete</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="admin-empty-state">
+        No problem sets yet. Use <strong>New Problem Set</strong> to create one.
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,44 @@
+# .gitignore for math_game_v2
+# ── Python ──────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# ── Virtual environment ─────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+
+# ── Testing ─────────────────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ── Database (local instance data — back up separately) ─────────────────────
+instance/
+
+# ── Environment / secrets ────────────────────────────────────────────────────
+.env
+
+# ── OS junk ──────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Editor ────────────────────────────────────────────────────────────────────
+.idea/
+*.code-workspace
+
+# ── Runtime logs / temp files ────────────────────────────────────────────────
+server_out.log
+server_err.log
+*.log
+
+# ── Old test artifacts ───────────────────────────────────────────────────────
+deep_gameplay_results.json
+deep_ids.json
+regression_results.json
+tmp_run_server.py

@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% set nav_sections = [
+    {
+        'title': 'Launch',
+        'items': [
+            {'label': 'Classic Mode', 'endpoint': 'classic_admin.index'},
+            {'label': 'History', 'endpoint': 'admin.history_rounds'},
+        ],
+    },
+    {
+        'title': 'Problem Bank',
+        'items': [
+            {'label': 'Subjects', 'endpoint': 'admin.subjects_index'},
+            {'label': 'Topics', 'endpoint': 'admin.topics'},
+            {'label': 'Problems', 'endpoint': 'admin.problems'},
+            {'label': 'Problem Sets', 'endpoint': 'admin.problem_sets'},
+        ],
+    },
+    {
+        'title': 'People',
+        'items': [
+            {'label': 'Players', 'endpoint': 'admin.players_index'},
+            {'label': 'Classes', 'endpoint': 'admin.groups_index'},
+        ],
+    },
+    {
+        'title': 'Economy',
+        'items': [
+            {'label': 'Gear Catalog', 'endpoint': 'admin.gear_index'},
+            {'label': 'Diamonds', 'endpoint': 'admin.diamonds_index'},
+        ],
+    },
+] %}
+
+{% block head %}
+{{ super() }}
+<script src="{{ url_for('static', filename='js/admin.js') }}"></script>
+{% endblock %}
+
+{% block flash_messages %}{% endblock %}
+
+{% block content %}
+<div class="admin-shell">
+    <nav class="admin-sidebar" aria-label="Admin navigation">
+        <div class="admin-sidebar-brand">
+            <div class="admin-sidebar-kicker">Admin</div>
+            <div class="admin-sidebar-title">Math Game v2</div>
+        </div>
+
+        {% for section in nav_sections %}
+        <div class="admin-sidebar-section">
+            <h2 class="admin-sidebar-section-title">{{ section["title"] }}</h2>
+            <ul class="admin-sidebar-list">
+                {% for item in section["items"] %}
+                {% set is_active = request.endpoint == item["endpoint"] %}
+                <li>
+                    <a
+                        class="admin-sidebar-link{% if is_active %} is-active{% endif %}"
+                        href="{{ url_for(item["endpoint"]) }}"
+                        {% if is_active %}aria-current="page"{% endif %}
+                    >
+                        {{ item["label"] }}
+                    </a>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endfor %}
+
+        <div class="admin-sidebar-footer">
+            <a class="admin-sidebar-link admin-sidebar-link-logout" href="{{ url_for('auth.logout') }}">Logout</a>
+        </div>
+    </nav>
+
+    <main class="admin-main">
+        {% include "admin/_flash_messages.html" %}
+        {% block admin_content %}{% endblock %}
+    </main>
+</div>
+{% endblock %}

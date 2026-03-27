@@ -1,0 +1,96 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}Classes{% endblock %}
+
+{% block admin_content %}
+{% set create_open = create_open|default(false) or form.errors|length > 0 %}
+{% set title = 'Classes' %}
+{% set eyebrow = 'People' %}
+{% set description = 'Keep the class list visible by default and open the create form only when needed.' %}
+{% include "admin/_page_header.html" %}
+
+<details class="admin-details" id="class-create-panel" {% if create_open %}open{% endif %}>
+    <summary class="admin-details-summary">
+        <span class="admin-details-summary-text">
+            <span class="admin-details-summary-title">Create Class</span>
+            <span class="admin-details-summary-hint">Uses the existing class creation flow and validation.</span>
+        </span>
+        <span class="admin-details-summary-icon">v</span>
+    </summary>
+    <div class="admin-details-body">
+        <form method="POST" action="{{ url_for('admin.group_new') }}" class="admin-form-stack">
+            {{ form.hidden_tag() }}
+
+            <p class="admin-field">
+                {{ form.name.label }}
+                {{ form.name(size=40) }}
+                {% if form.name.errors %}
+                    <span class="admin-field-error">{{ form.name.errors[0] }}</span>
+                {% endif %}
+            </p>
+
+            <p class="admin-field">
+                {{ form.description.label }}
+                {{ form.description(rows=3, cols=40) }}
+                {% if form.description.errors %}
+                    <span class="admin-field-error">{{ form.description.errors[0] }}</span>
+                {% endif %}
+            </p>
+
+            <div>
+                {{ form.submit(class_='admin-btn admin-btn-primary') }}
+            </div>
+        </form>
+    </div>
+</details>
+
+<section class="admin-section-card">
+    <div class="admin-toolbar">
+        <div>
+            <h2 class="admin-toolbar-title">All Classes</h2>
+            <p class="admin-toolbar-subtitle">{{ groups|length }} class{{ '' if groups|length == 1 else 'es' }}</p>
+        </div>
+    </div>
+
+    {% if groups %}
+    <div class="admin-table-wrap">
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Members</th>
+                    <th>Description</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for group in groups %}
+                <tr>
+                    <td>{{ group.name }}</td>
+                    <td>{{ group.members.count() }}</td>
+                    <td>{{ group.description or '' }}</td>
+                    <td>{{ group.created_at.strftime('%Y-%m-%d') }}</td>
+                    <td>
+                        <div class="admin-row-actions">
+                            <a href="{{ url_for('admin.group_detail', group_id=group.id) }}">View</a>
+                            <a href="{{ url_for('admin.group_edit', group_id=group.id) }}">Edit</a>
+                            <form method="POST" action="{{ url_for('admin.group_delete', group_id=group.id) }}"
+                                  onsubmit="return confirm('Delete class {{ group.name }}?')">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="admin-link-danger">Delete</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="admin-empty-state">
+        No classes yet. Open <strong>Create Class</strong> to add the first one.
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

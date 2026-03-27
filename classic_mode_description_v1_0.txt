@@ -1,0 +1,853 @@
+HISTORICAL DESIGN NOTE
+Current source-of-truth docs are:
+- docs/project_state.md
+- docs/system_architecture.md
+- docs/manual_test_guide.md
+
+CLASSIC MODE DESIGN DESCRIPTION
+Version: 1.0
+Project: math_game_v2
+
+==================================================
+1. PURPOSE OF CLASSIC MODE
+==================================================
+
+Classic Mode is the main competitive classroom game mode and the experimental sandbox for testing and balancing features that may later appear in other variations of the game.
+
+Its purpose is to combine:
+- math problem solving,
+- live competition,
+- strategic choices,
+- controlled randomness,
+- teacher-controlled balance,
+- light RPG / progression elements.
+
+Classic Mode should feel exciting and dynamic, but still remain educational and readable for the teacher. The main action should always be solving problems. Everything else exists to make solving problems more fun and strategic.
+
+Core philosophy:
+
+Solve problem -> gain resources -> make strategic decision -> repeat
+
+Classic Mode is NOT just one fixed ruleset.
+It is a configurable framework with presets and teacher-tuned settings.
+
+==================================================
+2. DESIGN PRINCIPLES
+==================================================
+
+1. Solving problems must remain the main source of progress.
+2. Mining is the default and safest action.
+3. Stealing exists, but should never dominate the economy.
+4. Randomness should be controlled by admin settings, not chaotic by default.
+5. Stronger players should be rewarded, but weaker players should still have comeback potential.
+6. The admin must be able to simplify or intensify the mode using presets and detailed tuning.
+7. The mode should support later expansion into progression, specialization, and other sub-modes.
+
+==================================================
+3. ROUND STRUCTURE
+==================================================
+
+A Classic game consists of one or more rounds.
+
+For each round:
+- Admin selects Classic Mode.
+- Admin chooses a problem set.
+- Admin chooses or edits a round preset.
+- Admin starts the round.
+- All players enter the round together.
+- Each player sees the same set of problems.
+- Each player has their own personal progress on that shared set.
+- The leaderboard updates live.
+- Admin may open or close the store during the round.
+- Admin may prepare the next round while the current one is running.
+- Admin may send players to lobby, resume, or start another round/mode.
+
+Round end conditions may include:
+- admin manually ends the round,
+- timer expires,
+- top player solves all / almost all problems,
+- mixed condition decided by admin.
+
+==================================================
+4. PROBLEM SYSTEM
+==================================================
+
+4.1 Shared problem set, personal progress
+
+All players receive access to the same round problem set.
+For example, every player sees problems 1 to 8.
+
+Important:
+- Every player can attempt every problem.
+- Problem completion is personal.
+- If Ann solves problem 1, problem 1 disappears only for Ann.
+- Bob, Sam, and Jim may still attempt problem 1.
+
+4.2 Attempts per problem
+
+Admin sets how many attempts a player has for each problem in that round.
+
+Examples:
+- 1 attempt per problem
+- 2 attempts per problem
+- unlimited attempts
+
+If a player uses all attempts on a problem:
+- that problem becomes unavailable for that player,
+- the player receives no more chances on it in that round.
+
+4.3 Correct answer result
+
+If answer is correct:
+- problem becomes solved for that player,
+- problem disappears from that player's available list,
+- rewards are applied,
+- first-solver bonus may apply,
+- random bonus roll may apply,
+- player may then continue with another problem.
+
+4.4 Incorrect answer result
+
+If answer is incorrect:
+- one attempt is consumed,
+- optional gold penalty may apply,
+- if all attempts are used, that problem is closed for that player.
+
+Incorrect answer penalty is controlled by admin settings.
+
+==================================================
+5. FIRST-SOLVER BONUS
+==================================================
+
+For each problem, the first N players who solve it correctly receive bonus gold.
+
+Example settings:
+- first solver bonus count = 3
+- multiplier = 2
+
+Then:
+- 1st player gets 3 x 2 = 6 gold
+- 2nd player gets 2 x 2 = 4 gold
+- 3rd player gets 1 x 2 = 2 gold
+- 4th and later get no first-solver bonus
+
+This creates urgency without removing the problem from other players.
+
+==================================================
+6. CORE PLAYER ACTIONS
+==================================================
+
+Classic Mode should use two main successful-answer action branches:
+
+A. Mine
+B. Treasure Search
+
+Both require solving the problem correctly.
+
+--------------------------------------------------
+6A. MINE
+--------------------------------------------------
+
+Mine is the default action.
+
+When a player solves a problem and chooses Mine:
+- player gains base gold reward,
+- optional timer bonus may apply,
+- optional first-solver bonus may apply,
+- random bonus roll may occur based on round settings.
+
+Mine should be:
+- reliable,
+- safe,
+- the main way to score.
+
+Example:
+Base mine reward = 20 gold
+
+--------------------------------------------------
+6B. TREASURE SEARCH
+--------------------------------------------------
+
+Treasure Search is an alternative to Mine.
+
+When a player solves a problem and chooses Treasure Search:
+- player gains lower guaranteed gold,
+- but gets a much higher chance of receiving a special reward.
+
+Example:
+Mine:
+- +20 gold
+- 10% bonus roll chance
+
+Treasure Search:
+- +5 gold
+- 40% bonus roll chance
+
+Treasure Search gives strategy:
+- safe money vs risky reward.
+
+==================================================
+7. RANDOM BONUS SYSTEM
+==================================================
+
+After a successful Mine or Treasure Search, a bonus roll may occur.
+
+Admin can control:
+- whether random rewards are enabled,
+- total chance of bonus,
+- which reward types are enabled,
+- probabilities for each reward.
+
+Possible bonus pool:
+- extra gold
+- gem
+- diamond
+- steal token
+- shield token
+- x2 mine bonus
+- x2 steal bonus
+- special event bonus
+
+Admin can create themed rounds, for example:
+- Gold Rush: mostly extra gold and x2 mine
+- Chaos: high steal token chance
+- Defensive Round: more shield tokens
+- Progression Round: more gems and diamonds
+
+==================================================
+8. STEAL SYSTEM (REDESIGNED)
+==================================================
+
+Steal should NOT be a default action available every time.
+Steal should be a tactical event.
+
+8.1 Steal token requirement
+
+To attempt a steal, player must have a steal token.
+
+Default:
+- every player starts with capacity for 1 steal token.
+Later meta progression may increase capacity to 2 or 3.
+
+Steal tokens can be obtained from:
+- random rewards,
+- store purchase,
+- special admin rewards,
+- future upgrades.
+
+8.2 When steal can be used
+
+Recommended model:
+- player solves a problem correctly,
+- if they have a steal token, they may choose Steal instead of Mine/Treasure Search.
+
+This keeps stealing dependent on successful problem solving.
+
+8.3 Steal mini-game
+
+Steal should not have guaranteed success.
+Spending a steal token gives a chance to steal, not certainty.
+
+Steal attempt includes a mini-game.
+Examples:
+- choose 1 of 2 doors,
+- choose 1 of 3 doors,
+- 50/50 reveal,
+- similar simple luck-based interaction.
+
+Admin can configure:
+- success probability,
+- mini-game type,
+- number of winning vs losing choices.
+
+8.4 Steal amount
+
+Recommended formula:
+steal amount = percentage of target gold, modified by upgrades, with min and max caps.
+
+Example default values:
+- steal percent = 10%
+- minimum steal = 5 gold
+- maximum steal = 50 gold
+
+Admin can tune:
+- steal percent,
+- min steal,
+- max steal.
+
+8.5 Why this redesign is better
+
+This system prevents the old problem where stealing became the dominant strategy.
+Now:
+- stealing is limited,
+- stealing is tactical,
+- solving problems remains central,
+- stealing feels exciting instead of routine.
+
+==================================================
+9. SHIELD SYSTEM (REDESIGNED)
+==================================================
+
+Shield is an important fairness mechanic.
+
+9.1 Active shield
+
+Player may activate a shield token.
+For the duration:
+- player cannot be targeted by steal attempts.
+
+Default duration:
+- 60 seconds
+Admin can change this.
+
+9.2 Reactive shield
+
+If a player is successfully stolen from:
+- they automatically receive a temporary reactive shield.
+
+Default reactive shield:
+- 30 seconds
+Admin can change this.
+
+Purpose:
+- prevent chain-targeting,
+- reduce bullying,
+- keep classroom mood healthier.
+
+==================================================
+10. CURRENCY SYSTEM
+==================================================
+
+Classic Mode uses three currencies, each with different meaning.
+
+10.1 Gold
+Main round currency.
+
+Uses:
+- score / leaderboard position,
+- store purchases,
+- round-based upgrades,
+- cosmetic spending later.
+
+Gold is the main visible economy.
+
+10.2 Gems
+Tactical / item currency.
+
+Uses:
+- buying tokens,
+- stronger temporary bonuses,
+- special store items,
+- selected upgrade actions.
+
+Gems may sometimes be purchased using gold.
+
+10.3 Diamonds
+Meta progression currency.
+
+Uses:
+- permanent progression,
+- unlocking abilities,
+- increasing token capacity,
+- resetting builds,
+- advanced long-term systems.
+
+Diamonds should feel rare and important.
+
+Important rule:
+These currencies must feel different and meaningful, not just like three versions of money.
+
+==================================================
+11. UPGRADES AND PROGRESSION
+==================================================
+
+There are two layers.
+
+11.1 Session upgrades
+Temporary for the current session or game.
+
+Examples:
+- mine efficiency
+- steal effectiveness
+- bonus chance
+- shield duration
+
+Bought in the store, usually with gold or gems.
+
+11.2 Meta progression
+Persistent across sessions.
+
+Examples:
+- extra steal token capacity
+- unlock Treasure Search
+- better gem chance
+- new actions / abilities
+
+Bought mostly with diamonds.
+
+Admin should have a setting:
+- Start from scratch
+
+If enabled:
+- all players begin this session with no persistent advantages,
+- only session upgrades apply.
+
+This allows both:
+- fair classroom sessions,
+- long-term progression mode.
+
+==================================================
+12. STORE SYSTEM
+==================================================
+
+Store is controlled by admin.
+
+Admin can:
+- open store,
+- close store,
+- add items,
+- remove items,
+- change prices,
+- create themed store offers.
+
+Players:
+- see Store button only when store is open,
+- can open store without leaving the game fully,
+- buy available items if they can afford them.
+
+Store examples:
+- x2 mine
+- shield token
+- steal token
+- lockpick upgrade
+- tools upgrade
+- treasure upgrade
+- gem exchange item
+- future special consumables
+
+No hint system should be included in Classic Mode.
+
+==================================================
+13. ADMIN ROUND SETTINGS PANEL
+==================================================
+
+The admin interface must be split into logical subsections so it does not become overloaded.
+
+Suggested sections:
+
+13.1 Core settings
+- base mine reward
+- treasure search base reward
+- attempts per problem
+- round timer
+- wrong answer penalty
+
+13.2 First-solver + timer bonuses
+- first solver count
+- first solver multiplier
+- bonus timer duration
+- bonus gold during timer
+
+13.3 Random rewards
+- enable/disable random rewards
+- total bonus chance
+- allowed reward types
+- probabilities
+
+13.4 Steal settings
+- enable/disable steal system
+- steal percent
+- min steal
+- max steal
+- mini-game type
+- success probability
+
+13.5 Shield settings
+- active shield duration
+- reactive shield duration
+
+13.6 Economy / progression settings
+- gem drop chance
+- diamond drop chance
+- allow meta progression
+- start from scratch
+- max token capacity rules
+
+==================================================
+14. PRESETS
+==================================================
+
+Classic Mode should support presets.
+
+14.1 Simple
+For calm classroom practice.
+- no penalties
+- no steal
+- reduced randomness
+- mostly Mine only
+
+14.2 Default
+Balanced standard gameplay.
+- moderate penalties
+- moderate bonuses
+- moderate randomness
+- controlled steal
+
+14.3 Advanced
+High-strategy gameplay.
+- full bonus system
+- stronger store interaction
+- more valuable random rewards
+- token economy active
+
+Admin should also be able to:
+- save custom preset,
+- add title,
+- add short description,
+- load saved preset later.
+
+==================================================
+15. LOBBY / BETWEEN-ROUND SYSTEM
+==================================================
+
+When players are sent to lobby:
+- current round may be paused,
+- players return to dashboard,
+- players may access mini-game,
+- admin may prepare next round or another mode.
+
+Mini-game:
+- random problem from selected mini-game set,
+- +1 gold per correct answer,
+- each player solves their own sequence,
+- when all problems are exhausted, show "No more problems."
+
+This is useful for:
+- keeping early finishers busy,
+- filling time during transitions.
+
+==================================================
+16. DETAILED ROLE-PLAY EXAMPLE
+==================================================
+
+This example shows intended gameplay flow.
+
+Players:
+- Ann
+- Bob
+- Sam
+- Jim
+
+Admin has selected:
+- Classic Mode
+- Problem set: Review 1
+- 8 problems
+- attempts per problem = 1
+- Mine = 20 gold
+- Treasure Search = 5 gold
+- first solver count = 3
+- first solver multiplier = 2
+- bonus timer = 2 minutes
+- timer bonus = 5 gold
+- random bonus enabled
+- steal enabled
+- steal percent = 10%
+- min steal = 5
+- max steal = 50
+- active shield duration = 60 sec
+- reactive shield duration = 30 sec
+
+Admin also sets default random rewards:
+- extra gold
+- shield token
+- steal token
+- gem
+- x2 mine
+
+--------------------------------------------------
+16.1 Start of round
+--------------------------------------------------
+
+Admin starts Round 1.
+
+All players are redirected to the round page.
+
+Each player sees:
+- avatar
+- gold
+- gems
+- diamonds
+- upgrades
+- token icons
+- timer
+- mini leaderboard
+- numbered problem buttons 1 to 8
+- problem display area
+- answer field
+- Mine button
+- Treasure Search button
+- Steal option only if they have a token and solve correctly
+- Store button inactive until admin opens store
+
+At start:
+- all players have 0 gold
+- all players have no active bonuses
+- each player can attempt all 8 problems
+
+--------------------------------------------------
+16.2 Ann solves first
+--------------------------------------------------
+
+Ann opens problem 1, solves it correctly, and clicks Mine.
+
+She receives:
+- +20 gold base mine
+- +5 timer bonus
+- +6 first solver bonus
+
+Total:
+31 gold
+
+Then a random roll happens.
+She gets no extra item this time.
+
+For Ann:
+- problem 1 is now closed
+- problems 2-8 remain available
+
+For others:
+- problem 1 is still available
+
+Leaderboard:
+Ann 31
+Bob 0
+Sam 0
+Jim 0
+
+--------------------------------------------------
+16.3 Bob chooses Treasure Search
+--------------------------------------------------
+
+Bob opens problem 2, solves it correctly, and chooses Treasure Search.
+
+He receives:
+- +5 gold base reward
+- +5 timer bonus
+- +6 first solver bonus
+
+Total:
+16 gold
+
+Because Treasure Search has higher bonus chance, Bob gets a steal token.
+
+Bob now has:
+- 16 gold
+- 1 steal token
+
+--------------------------------------------------
+16.4 Sam solves same problem later
+--------------------------------------------------
+
+Sam also solves problem 2, but later.
+
+He clicks Mine.
+
+He receives:
+- +20 gold base mine
+- +4 first solver bonus (second solver for problem 2)
+
+He does not get the timer bonus because timer has ended.
+
+Total:
+24 gold
+
+Problem 2 now closes only for Sam.
+
+--------------------------------------------------
+16.5 Jim answers incorrectly
+--------------------------------------------------
+
+Jim tries problem 1 and submits a wrong answer.
+
+This round penalty is 5 gold.
+Jim currently has 0 gold.
+
+Result:
+- incorrect
+- no negative gold below zero
+- problem 1 closes for Jim because attempts per problem = 1
+
+Jim now cannot retry problem 1, but can still solve 2-8.
+
+--------------------------------------------------
+16.6 Admin opens store
+--------------------------------------------------
+
+Admin opens the store and adds:
+- x2 mine for 0 gold
+- shield token for 5 gold
+- lockpick upgrade for 50 gold
+
+All players see Store button become active.
+
+Bob opens store and buys shield token for 5 gold.
+His gold goes from 16 to 11.
+
+Ann buys free x2 mine.
+Her gold stays 31.
+She now has one active x2 mine bonus.
+
+--------------------------------------------------
+16.7 Ann uses x2 mine
+--------------------------------------------------
+
+Ann solves problem 3 correctly and clicks Mine.
+
+She receives:
+- +20 base mine x2 = 40 gold
+- +6 first solver bonus
+
+Total from action:
+46 gold
+
+Her x2 mine is consumed.
+
+Ann total:
+77 gold
+
+--------------------------------------------------
+16.8 Bob attempts a steal
+--------------------------------------------------
+
+Bob solves problem 4 correctly.
+
+Because he has a steal token, he chooses Steal instead of Mine.
+
+He selects Ann as target.
+
+Steal mini-game appears:
+Choose 1 of 3 doors.
+
+Admin settings for this round:
+- 1 winning door
+- 2 losing doors
+
+Bob picks the correct door.
+
+Steal amount:
+- Ann has 77 gold
+- 10% = 7.7
+- rounded by system rules to 8 gold
+- within min/max limits
+
+Result:
+- Bob steals 8 gold from Ann
+- steal token is consumed
+- reactive shield activates on Ann for 30 sec
+
+New totals:
+Ann 69
+Bob 19
+
+During Ann's reactive shield:
+- nobody can target Ann
+
+--------------------------------------------------
+16.9 Sam tries to steal but target is protected
+--------------------------------------------------
+
+Later Sam gets a steal token from a Treasure Search reward.
+
+He solves a problem and wants to steal from Ann.
+
+But Ann still has reactive shield active.
+
+Result:
+- Ann cannot be targeted
+- Sam must pick another target or use Mine/Treasure Search instead
+
+--------------------------------------------------
+16.10 Admin closes store
+--------------------------------------------------
+
+Admin decides the store has been open long enough and closes it.
+
+Players lose access to store until admin opens it again.
+
+--------------------------------------------------
+16.11 End of round decision
+--------------------------------------------------
+
+As round continues:
+- players solve more problems,
+- leaderboard changes,
+- some get bonuses,
+- some spend gold,
+- some get gems and diamonds.
+
+At some point Ann has solved almost all problems.
+Admin decides Round 1 has reached its natural end.
+
+Admin opens Manage Next Round and changes:
+- Mine = 25
+- attempts per problem = 2
+- first solver count = 2
+- stronger random rewards
+- different problem set: Review 2
+
+Then admin starts Round 2.
+
+All player currencies, upgrades, and progression behave according to the selected session settings.
+
+==================================================
+17. WHAT SHOULD BE IMPLEMENTED FIRST
+==================================================
+
+Classic Mode should be implemented in layers.
+
+17.1 Classic v1.0
+- shared problem set
+- personal problem completion
+- attempts per problem
+- mine reward
+- treasure search reward
+- wrong answer penalty
+- first solver bonus
+- timer bonus
+- live leaderboard
+
+17.2 Classic v1.1
+- store open / close
+- x2 mine
+- shield token
+- simple session upgrades
+
+17.3 Classic v1.2
+- random reward table
+- gems
+- diamonds
+- configurable reward probabilities
+
+17.4 Classic v1.3
+- steal token
+- steal mini-game
+- shield counterplay
+- capped steal formula
+
+17.5 Classic v1.4
+- meta progression
+- persistent upgrades
+- token capacity upgrades
+- start from scratch option
+
+==================================================
+18. OPEN NOTES FOR FUTURE
+==================================================
+
+- Character specialization (miner / thief / balanced) should be considered later.
+- More types of mini-games may replace or expand the steal mini-game.
+- Some bonuses may later become mode-specific and move out of Classic Mode.
+- Admin UI must remain modular and separated into subsections to avoid overload.
+- Presets should become a first-class feature, not just manual value entry.
+
+END OF DOCUMENT

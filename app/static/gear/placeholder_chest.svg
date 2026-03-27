@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96">
+  <rect width="96" height="96" rx="12" fill="#f5f1fb"/>
+  <path d="M30 28 H66 L72 42 L60 72 H36 L24 42 Z" fill="#a188c5"/>
+  <text x="48" y="84" text-anchor="middle" font-size="10" fill="#5e35b1">CHEST</text>
+</svg>

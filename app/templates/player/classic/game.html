@@ -1,0 +1,2571 @@
+{% extends "base.html" %}
+
+{% block title %}Classic Game — Session #{{ game_session.id }}{% endblock %}
+
+{% block head %}
+<script src="/static/js/socket.io.min.js"></script>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<script src="{{ url_for('static', filename='js/problem_graph_renderer.js') }}"></script>
+<script>
+    window.MathJax = {
+        tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
+        options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'] }
+    };
+</script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+<style>
+    body { font-family: sans-serif; margin: 0; }
+
+    /* ── Problem panel ────────────────────────────── */
+
+    .problem-body-rich-text p {
+        margin: 0 0 10px;
+        line-height: 1.45;
+    }
+    .problem-body-image {
+        margin: 12px 0;
+    }
+    .problem-body-image img {
+        display: block;
+        height: auto;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+    }
+    .problem-body-empty,
+    .problem-body-unsupported {
+        color: #666;
+        font-style: italic;
+    }
+    .problem-body-graph {
+        margin: 12px 0;
+    }
+    .problem-graph-canvas {
+        width: 100%;
+        min-height: 320px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        background: #fff;
+    }
+    #text-answer-section,
+    #mc-answer-section {
+        margin-bottom: 8px;
+    }
+    #mc-answer-section {
+        display: none;
+        min-height: 0;
+    }
+    #mc-options-list {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 5px;
+        margin-bottom: 4px;
+    }
+    .mc-option-row {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 4px;
+        min-height: 48px;
+        padding: 6px 7px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        background: #fff;
+        cursor: pointer;
+        transition: border-color 0.14s ease, background 0.14s ease, box-shadow 0.14s ease;
+    }
+    .mc-option-row:hover {
+        border-color: rgba(37, 99, 235, 0.35);
+    }
+    .mc-option-row.is-selected {
+        border-color: rgba(37, 99, 235, 0.65);
+        background: rgba(219, 234, 254, 0.55);
+        box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.12);
+    }
+    .mc-option-main {
+        display: flex;
+        align-items: flex-start;
+        gap: 6px;
+        min-width: 0;
+    }
+    .mc-option-marker {
+        width: 16px;
+        height: 16px;
+        margin-top: 1px;
+        border-radius: 999px;
+        border: 1.5px solid #9aa4b2;
+        background: white;
+        flex: 0 0 auto;
+        position: relative;
+    }
+    .mc-option-row.is-selected .mc-option-marker {
+        border-color: #2563eb;
+        background: #2563eb;
+    }
+    .mc-option-row.is-selected .mc-option-marker::after {
+        content: '';
+        position: absolute;
+        inset: 3px;
+        border-radius: 999px;
+        background: white;
+    }
+    .mc-option-label {
+        flex: 1;
+        min-width: 0;
+        font-size: 0.84rem;
+        line-height: 1.16;
+    }
+    .mc-option-label p {
+        margin: 0;
+    }
+    .mc-option-confirm {
+        display: none;
+        align-self: flex-start;
+        padding: 4px 9px;
+        border: none;
+        border-radius: 8px;
+        background: #2563eb;
+        color: white;
+        font-size: 0.78rem;
+        font-weight: 700;
+        cursor: pointer;
+    }
+    .mc-option-confirm:disabled {
+        background: #94a3b8;
+        cursor: default;
+    }
+    .mc-option-row.is-selected .mc-option-confirm {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    #feedback {
+        margin-top: 12px;
+        padding: 8px 12px;
+        border-radius: 4px;
+        display: none;
+    }
+    #feedback.correct { background: #d4edda; color: #155724; }
+    #feedback.wrong   { background: #f8d7da; color: #721c24; }
+
+    /* ── Action buttons ──────────────────────────── */
+    #action-panel {
+        display: none;
+        margin-top: 20px;
+        padding: 16px;
+        background: #fff3cd;
+        border-radius: 8px;
+        border: 1px solid #ffc107;
+    }
+    #action-panel h3 { margin-top: 0; }
+    #action-panel button {
+        padding: 10px 20px; font-size:1em; cursor:pointer;
+        border: none; border-radius:4px; margin-right: 8px;
+    }
+    #btn-mine            { background: #6f42c1; color:white; }
+    #btn-treasure-search { background: #fd7e14; color:white; }
+    /* ── Store panel ─────────────────────────────── */
+    #store-toggle {
+        background: #17a2b8; color: white; border: none;
+        padding: 8px 16px; cursor: pointer; font-size:0.95em;
+        border-radius: 4px; margin-bottom: 12px;
+    }
+    #store-panel {
+        display: none;
+        background: #f0f8ff;
+        border: 1px solid #17a2b8;
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 16px;
+    }
+    #store-panel h3 { margin-top: 0; }
+    .store-item {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 8px 0; border-bottom: 1px solid #cce5ff;
+    }
+    .store-item:last-child { border-bottom: none; }
+    .store-item-info { flex: 1; }
+    .store-item-cost { color: #b8860b; font-weight: bold; margin: 0 12px; }
+    .store-item-qty  { color: #666; font-size: 0.85em; }
+    .btn-buy {
+        background: #28a745; color: white; border: none;
+        padding: 6px 14px; cursor: pointer; border-radius:4px;
+    }
+    .btn-buy:disabled { background: #999; cursor: default; }
+    #store-msg { margin-top: 8px; font-weight: bold; }
+    #active-bonuses { margin-bottom: 12px; font-size: 0.9em; color: #155724; }
+
+    /* ── Leaderboard sidebar ─────────────────────── */
+    #round-ended-banner {
+        display: none;
+        background: #155724;
+        color: white;
+        text-align: center;
+        padding: 16px;
+        font-size: 1.3em;
+    }
+
+    /* ── Steal system ────────────────────────────── */
+    #steal-tokens-display { color: #8B0000; }
+    #btn-steal { background: #8B0000; color: white; }
+
+    #steal-targets-panel {
+        display: none;
+        margin-top: 16px;
+        padding: 16px;
+        background: #fff8e1;
+        border: 1px solid #e65100;
+        border-radius: 8px;
+    }
+    #steal-targets-panel h3 { margin-top: 0; color: #e65100; }
+    .steal-target-row {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 8px 12px; margin: 4px 0;
+        border: 1px solid #ffb74d; border-radius: 4px;
+        background: white;
+    }
+    .steal-target-row button {
+        padding: 4px 12px; background: #e65100; color: white;
+        border: none; border-radius: 4px; cursor: pointer;
+    }
+    .steal-target-row button:disabled { background: #999; cursor: default; }
+    #btn-steal-cancel {
+        margin-top: 10px; padding: 6px 16px;
+        background: #6c757d; color: white;
+        border: none; border-radius: 4px; cursor: pointer;
+    }
+    #btn-steal-cancel:disabled { background: #aaa; cursor: default; }
+
+    #steal-mini-game-panel {
+        display: none;
+        margin-top: 16px;
+        padding: 16px;
+        background: #f3e5f5;
+        border: 1px solid #9c27b0;
+        border-radius: 8px;
+        text-align: center;
+    }
+    #steal-mini-game-panel h3 { margin-top: 0; color: #6a0080; }
+    .chest-btn {
+        width: 64px; height: 64px; margin: 6px;
+        font-size: 2em; cursor: pointer;
+        border: 2px solid #9c27b0; border-radius: 8px;
+        background: white; transition: background 0.15s;
+    }
+    .chest-btn:hover:not(:disabled) { background: #f3e5f5; }
+    .chest-btn:disabled { opacity: 0.55; cursor: default; }
+    .chest-btn.winner { background: #d4edda; border-color: #28a745; }
+
+    #steal-result-msg {
+        margin-top: 12px; padding: 10px 14px;
+        border-radius: 4px; display: none;
+    }
+    #steal-result-msg.success    { background: #d4edda; color: #155724; }
+    #steal-result-msg.fail       { background: #fff3cd; color: #856404; }
+    #steal-result-msg.no-targets { background: #d1ecf1; color: #0c5460; }
+
+    #steal-notification {
+        display: none;
+        margin-top: 12px; padding: 10px 14px;
+        border-radius: 4px;
+        background: #f8d7da; color: #721c24;
+        border: 1px solid #f5c6cb;
+    }
+
+    /* ── Manual shield activation ────────────────── */
+    #btn-activate-shield {
+        margin-left: 8px;
+        padding: 2px 10px;
+        background: #0069d9; color: white;
+        border: none; border-radius: 4px;
+        cursor: pointer; font-size: 0.85em;
+    }
+    #btn-activate-shield:disabled { background: #999; cursor: default; }
+
+    /* Structural layout pass overrides */
+    body {
+        background: #f4f1ea;
+        color: #1f2937;
+    }
+
+    #game-layout {
+        display: grid;
+        grid-template-columns: minmax(214px, 0.19fr) minmax(0, 0.63fr) minmax(208px, 0.18fr);
+        gap: 14px;
+        min-height: calc(100vh - 52px);
+        height: calc(100vh - 52px);
+        padding: 14px;
+        align-items: stretch;
+        background: linear-gradient(180deg, #efe7d8 0%, #f5f0e7 100%);
+        overflow: hidden;
+    }
+
+    #support-rail,
+    #game-main,
+    #context-rail {
+        min-width: 0;
+    }
+
+    #support-rail,
+    #context-rail {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        min-height: 100%;
+    }
+
+    .rail-panel,
+    #problem-selector-shell,
+    #problem-workspace {
+        background: rgba(255, 252, 247, 0.88);
+        border: 1px solid rgba(120, 109, 88, 0.14);
+        border-radius: 18px;
+        box-shadow: 0 4px 16px rgba(63, 48, 27, 0.04);
+    }
+
+    .rail-panel {
+        padding: 12px 14px;
+    }
+
+    .rail-panel h3,
+    #problem-selector-shell h3,
+    #problem-stage-title {
+        margin: 0 0 10px;
+        font-size: 0.95rem;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: #6b5a42;
+    }
+
+    .support-subtle {
+        color: #7b6f5e;
+        font-size: 0.88rem;
+    }
+
+    #player-identity {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    #player-identity-meta {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        min-width: 0;
+    }
+
+    #player-identity-meta p {
+        margin: 0;
+    }
+
+    #player-name {
+        margin: 0;
+        font-size: 1.04rem;
+    }
+
+    #player-session-note {
+        margin: 2px 0 0;
+        color: #7b6f5e;
+        font-size: 0.88rem;
+    }
+
+    #player-shield-status {
+        display: inline-flex;
+        visibility: hidden;
+        opacity: 0;
+        align-items: center;
+        gap: 6px;
+        width: fit-content;
+        min-height: 28px;
+        padding: 5px 10px;
+        border-radius: 999px;
+        background: rgba(29, 95, 156, 0.12);
+        color: #1d5f9c;
+        font-size: 0.82rem;
+        font-weight: 700;
+        line-height: 1.2;
+        transition: opacity 0.14s ease;
+    }
+
+    #player-shield-status.is-active {
+        visibility: visible;
+        opacity: 1;
+    }
+
+    #player-shield-status-icon {
+        font-size: 0.95rem;
+        line-height: 1;
+    }
+
+    #currency-bar {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        font-size: 0.95rem;
+        font-weight: 700;
+        margin-bottom: 0;
+    }
+
+    #currency-bar > span {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 9px 10px;
+        border-radius: 11px;
+        background: rgba(255, 255, 255, 0.8);
+        border: 1px solid rgba(120, 109, 88, 0.1);
+    }
+
+    #gold-display { color: #9a6a00; }
+    #gems-display { color: #146a3f; }
+    #steal-tokens-display { color: #7a1f1f; }
+    #currency-bar .resource-label {
+        opacity: 0.86;
+    }
+    #streak-display {
+        color: #b6402b;
+        font-size: 0.92rem;
+    }
+
+    #shield-token-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px 12px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.82);
+        border: 1px solid rgba(120, 109, 88, 0.1);
+    }
+
+    #shield-token-meta {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    #shield-token-count {
+        font-size: 1.05rem;
+        line-height: 1.1;
+        color: #1f2937;
+    }
+
+    #active-bonuses {
+        display: none;
+    }
+
+    #store-slot-panel[hidden] {
+        display: none !important;
+    }
+
+    #store-slot-panel {
+        min-height: 0;
+    }
+
+    #shield-status-message {
+        display: none;
+        position: absolute;
+        left: 10px;
+        right: 10px;
+        bottom: calc(100% + 6px);
+        margin-top: 0;
+        padding: 9px 11px;
+        border-radius: 10px;
+        font-size: 0.85rem;
+        line-height: 1.4;
+        box-shadow: 0 8px 20px rgba(63, 48, 27, 0.12);
+        pointer-events: none;
+        z-index: 3;
+    }
+
+    #shield-status-message.is-visible {
+        display: block;
+    }
+
+    #shield-status-message.status-success {
+        background: rgba(21, 87, 36, 0.12);
+        color: #155724;
+    }
+
+    #shield-status-message.status-warning {
+        background: rgba(114, 28, 36, 0.12);
+        color: #721c24;
+    }
+
+    #shield-status-message.status-info {
+        background: rgba(29, 95, 156, 0.10);
+        color: #1d5f9c;
+    }
+
+    #bonus-summary-list,
+    .rules-list,
+    .context-list {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 6px 10px;
+        margin: 0;
+        font-size: 0.88rem;
+    }
+
+    #bonus-summary-list dt,
+    .rules-list dt,
+    .context-list dt {
+        color: #6b5a42;
+    }
+
+    #bonus-summary-list dd,
+    .rules-list dd,
+    .context-list dd {
+        margin: 0;
+        font-weight: 600;
+        text-align: right;
+    }
+
+    #store-toggle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        background: #1b8394;
+        border-radius: 10px;
+        margin-bottom: 0;
+        padding: 9px 12px;
+        font-size: 0.92rem;
+    }
+
+    #store-panel {
+        margin-top: 10px;
+        margin-bottom: 0;
+        border-radius: 14px;
+        padding: 12px;
+    }
+
+    #action-log-list {
+        min-height: 148px;
+        max-height: 148px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding-right: 4px;
+    }
+
+    .action-log-entry {
+        padding: 7px 9px;
+        border-radius: 9px;
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid rgba(120, 109, 88, 0.08);
+        font-size: 0.85rem;
+        line-height: 1.35;
+    }
+
+    .action-log-empty {
+        color: #7b6f5e;
+        font-style: italic;
+    }
+
+    #game-main {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        min-height: 0;
+        height: 100%;
+    }
+
+    #problem-selector-shell {
+        flex: 0 0 auto;
+        padding: 4px 6px 2px;
+        background: transparent;
+        border: none;
+        box-shadow: none;
+    }
+
+    #problem-buttons {
+        margin-bottom: 0;
+        gap: 7px;
+    }
+
+    .prob-btn {
+        padding: 8px 12px;
+        border: 1px solid rgba(58, 76, 101, 0.24);
+        border-radius: 999px;
+        transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+        font-size: 0.88rem;
+        color: #4b5563;
+        background: rgba(255, 255, 255, 0.92);
+    }
+    .prob-btn.available {
+        color: #374151;
+        background: rgba(255, 255, 255, 0.94);
+        border-color: rgba(120, 109, 88, 0.22);
+    }
+    .prob-btn.selected {
+        color: #174ea6;
+        background: rgba(219, 234, 254, 0.9);
+        border-color: rgba(37, 99, 235, 0.55);
+        box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.14);
+    }
+    .prob-btn.solved {
+        color: #166534;
+        background: rgba(220, 252, 231, 0.95);
+        border-color: rgba(34, 197, 94, 0.45);
+    }
+    .prob-btn.closed {
+        color: #8b5e34;
+        background: rgba(244, 239, 229, 0.92);
+        border-color: rgba(120, 109, 88, 0.18);
+        cursor: default;
+    }
+    .prob-btn.locked {
+        color: #8b5e34;
+        background: rgba(243, 238, 229, 0.75);
+        border-style: dashed;
+        border-color: rgba(120, 109, 88, 0.22);
+    }
+
+    #problem-workspace {
+        flex: 1 1 auto;
+        min-height: 0;
+        padding: 20px 22px 18px;
+        display: flex;
+        flex-direction: column;
+        background: rgba(255, 251, 246, 0.94);
+        overflow: hidden;
+    }
+
+    #problem-empty-state {
+        flex: 1;
+        display: grid;
+        place-items: center;
+        color: #7b6f5e;
+        font-size: 1rem;
+        text-align: center;
+        padding: 32px 24px;
+    }
+
+    #problem-detail {
+        display: none;
+        flex: 1;
+        min-height: 0;
+        margin-bottom: 0;
+    }
+
+    #problem-stage {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        height: 100%;
+        gap: 12px;
+    }
+
+    #problem-window {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding: 14px 16px 12px;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid rgba(120, 109, 88, 0.1);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+    }
+
+    #problem-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 0 4px;
+    }
+
+    #problem-title {
+        margin: 0;
+        font-size: 1.55rem;
+        line-height: 1.2;
+    }
+
+    #attempts-display {
+        margin-left: 8px;
+        color: #6b7280 !important;
+        font-size: 0.92rem;
+        white-space: nowrap;
+    }
+
+    #problem-body-frame {
+        flex: 1 1 auto;
+        min-height: 0;
+        max-height: none;
+        padding: 6px 4px 2px;
+        border-radius: 12px;
+        background: transparent;
+        border: none;
+        margin-bottom: 0;
+        overflow-y: auto;
+    }
+
+    #interaction-shell {
+        flex: 0 0 232px;
+        padding: 16px 18px;
+        border-radius: 16px;
+        background: rgba(244, 237, 225, 0.86);
+        border: 1px solid rgba(120, 109, 88, 0.1);
+        min-height: 232px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        overflow: hidden;
+    }
+
+    #interaction-shell-header {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid rgba(120, 109, 88, 0.12);
+    }
+
+    #interaction-state-kicker {
+        font-size: 0.76rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #8b7355;
+        font-weight: 700;
+    }
+
+    #interaction-state-title {
+        margin: 0;
+        font-size: 1rem;
+        color: #3f3120;
+    }
+
+    #interaction-state-hint {
+        margin: 0;
+        color: #6f6253;
+        font-size: 0.88rem;
+        line-height: 1.4;
+    }
+
+    .interaction-region {
+        display: none;
+        min-height: 0;
+        overflow: auto;
+    }
+
+    .interaction-region.is-active {
+        display: block;
+    }
+
+    #answer-form {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+        min-height: 0;
+    }
+
+    #answer-form > button {
+        align-self: flex-start;
+    }
+
+    #answer-form.mc-mode > button {
+        display: none;
+    }
+
+    #answer-form input[type=text] {
+        flex: 1 1 320px;
+        min-width: 220px;
+        padding: 10px 12px;
+        border: 1px solid #c7c2b6;
+        border-radius: 10px;
+        margin-right: 0;
+    }
+
+    #answer-form button {
+        border-radius: 10px;
+    }
+
+    #feedback,
+    #steal-result-msg,
+    #steal-notification {
+        border-radius: 10px;
+    }
+
+    #feedback {
+        margin-top: 6px;
+        font-size: 0.92rem;
+    }
+
+    #action-panel,
+    #steal-targets-panel,
+    #steal-mini-game-panel {
+        border-radius: 14px;
+    }
+
+    #action-panel,
+    #steal-targets-panel,
+    #steal-mini-game-panel,
+    #result-panel {
+        margin-top: 0;
+    }
+
+    #solve-panel.is-active #answer-form,
+    #solve-panel.is-active #feedback {
+        opacity: 1;
+    }
+
+    #solve-panel {
+        display: none;
+        min-height: 0;
+    }
+
+    #solve-panel.is-active {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        gap: 6px;
+    }
+
+    #mc-answer-section {
+        flex: 0 1 auto;
+        max-height: 166px;
+        overflow-y: auto;
+        padding-right: 2px;
+    }
+
+    #mc-options-list.mc-grid-compact-4 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    #mc-options-list.mc-grid-compact-6 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    #reward-result {
+        display: none;
+        padding: 0;
+        border-radius: 0;
+        background: transparent;
+        color: #5f513d;
+        font-size: 0.92rem;
+        line-height: 1.45;
+    }
+
+    #action-panel button,
+    #btn-steal-cancel,
+    .steal-target-row button,
+    .btn-buy {
+        border-radius: 8px;
+    }
+
+    .steal-target-row,
+    .mc-option-row,
+    .problem-graph-canvas,
+    .problem-body-image img,
+    .chest-btn {
+        border-radius: 10px;
+    }
+
+    #leaderboard {
+        width: auto;
+        padding: 12px 13px;
+        background: rgba(255, 252, 247, 0.82);
+        border-left: none;
+    }
+
+    #lb-table {
+        font-size: 0.88rem;
+    }
+
+    #lb-table td {
+        padding: 5px 4px;
+        border-bottom: 1px solid rgba(120, 109, 88, 0.12);
+    }
+
+    #support-rail .rail-panel:nth-child(1),
+    #support-rail .rail-panel:nth-child(2),
+    #support-rail .rail-panel:nth-child(5) {
+        background: rgba(255, 252, 247, 0.96);
+    }
+
+    #support-rail .rail-panel:nth-child(3),
+    #support-rail .rail-panel:nth-child(4) {
+        background: rgba(247, 242, 233, 0.78);
+        border-color: rgba(120, 109, 88, 0.1);
+    }
+
+    #support-rail .rail-panel:last-child {
+        margin-top: auto;
+        background: rgba(243, 238, 229, 0.86);
+    }
+
+    #support-rail .rail-panel h3 {
+        margin-bottom: 8px;
+    }
+
+    #context-rail .rail-panel {
+        background: rgba(250, 248, 243, 0.8);
+        border-color: rgba(120, 109, 88, 0.1);
+        padding: 11px 13px;
+    }
+
+    #context-rail .rail-panel h3 {
+        margin-bottom: 8px;
+        font-size: 0.88rem;
+    }
+
+    body {
+        overflow: hidden;
+    }
+
+    #game-layout {
+        height: calc(100vh - 16px);
+        box-sizing: border-box;
+        overflow: hidden;
+    }
+
+    #support-rail,
+    #game-main,
+    #context-rail {
+        min-height: 0;
+        height: 100%;
+    }
+
+    #support-rail {
+        overflow: hidden;
+    }
+
+    #player-status-panel,
+    #actions-panel,
+    #round-summary-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    #actions-panel {
+        flex: 0 0 auto;
+        position: relative;
+        overflow: visible;
+    }
+
+    .support-lower-slot-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .support-lower-slot-panel[hidden] {
+        display: none !important;
+    }
+
+    #round-summary-panel {
+        overflow: auto;
+    }
+
+    .support-subsection + .support-subsection {
+        margin-top: 14px;
+        padding-top: 12px;
+        border-top: 1px solid rgba(120, 109, 88, 0.12);
+    }
+
+    .support-subsection h4 {
+        margin: 0 0 8px;
+        font-size: 0.84rem;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: #6b5a42;
+    }
+
+    #player-avatar-shell {
+        width: 62px;
+        flex: 0 0 auto;
+    }
+
+    #player-avatar-stage {
+        position: relative;
+        width: 62px;
+        aspect-ratio: 11 / 12;
+        border-radius: 14px;
+        overflow: hidden;
+        background: linear-gradient(180deg, #f7f7f7 0%, #ece7de 100%);
+        border: 1px solid rgba(120, 109, 88, 0.16);
+        box-shadow: 0 6px 14px rgba(63, 48, 27, 0.08);
+    }
+
+    .player-avatar-layer {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+    }
+
+    #store-toggle {
+        width: auto;
+        min-width: 112px;
+        padding: 7px 12px;
+    }
+
+    #store-panel {
+        display: block;
+        height: 100%;
+        margin-top: 0;
+        overflow: auto;
+        background: rgba(240, 248, 255, 0.88);
+    }
+
+    #store-panel h3 {
+        display: none;
+    }
+
+    #action-log-list {
+        min-height: 132px;
+        max-height: 132px;
+    }
+
+    #context-rail {
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    #leaderboard {
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 auto;
+        min-height: 0;
+        order: 0;
+    }
+
+    #context-round-panel {
+        flex: 0 0 auto;
+        order: 1;
+    }
+
+    #context-log-panel {
+        flex: 0 0 auto;
+        order: 2;
+    }
+
+    #lb-table {
+        min-height: 0;
+    }
+
+    #lb-body {
+        display: block;
+        overflow: auto;
+        max-height: 100%;
+    }
+
+    @media (max-width: 1180px) {
+        #game-layout {
+            grid-template-columns: minmax(220px, 0.24fr) minmax(0, 0.56fr) minmax(210px, 0.20fr);
+            gap: 12px;
+            padding: 12px;
+        }
+
+        #problem-workspace {
+            min-height: 0;
+        }
+    }
+
+    /* Final fit and spacing polish */
+    #game-layout {
+        gap: 12px;
+        padding: 12px;
+    }
+
+    #support-rail,
+    #context-rail,
+    #game-main {
+        gap: 9px;
+    }
+
+    .rail-panel {
+        padding: 10px 12px;
+    }
+
+    .rail-panel h3,
+    #problem-selector-shell h3,
+    #problem-stage-title {
+        margin-bottom: 8px;
+        font-size: 0.9rem;
+    }
+
+    #player-identity {
+        gap: 10px;
+    }
+
+    #player-identity-meta {
+        gap: 4px;
+    }
+
+    #player-name {
+        font-size: 1rem;
+    }
+
+    #player-session-note,
+    .support-subtle {
+        font-size: 0.84rem;
+    }
+
+    #currency-bar {
+        gap: 6px;
+        font-size: 0.9rem;
+    }
+
+    #currency-bar > span {
+        padding: 8px 9px;
+        border-radius: 10px;
+    }
+
+    #shield-token-row {
+        gap: 10px;
+        padding: 8px 10px;
+        border-radius: 10px;
+    }
+
+    #shield-token-count {
+        font-size: 1rem;
+    }
+
+    #active-bonuses {
+        display: none;
+    }
+
+    #shield-status-message {
+        left: 10px;
+        right: 10px;
+        bottom: calc(100% + 6px);
+        margin-top: 0;
+        padding: 8px 10px;
+        font-size: 0.82rem;
+    }
+
+    #store-toggle {
+        min-width: 104px;
+        padding: 8px 10px;
+        font-size: 0.88rem;
+    }
+
+    .support-subsection + .support-subsection {
+        margin-top: 12px;
+        padding-top: 10px;
+    }
+
+    .support-subsection h4 {
+        margin-bottom: 6px;
+        font-size: 0.8rem;
+    }
+
+    #bonus-summary-list,
+    .rules-list,
+    .context-list {
+        gap: 5px 9px;
+        font-size: 0.84rem;
+    }
+
+    #problem-selector-shell {
+        padding: 2px 4px 0;
+    }
+
+    #problem-buttons {
+        gap: 6px;
+    }
+
+    .prob-btn {
+        padding: 7px 11px;
+        font-size: 0.84rem;
+    }
+
+    #game-main {
+        gap: 9px;
+    }
+
+    #problem-workspace {
+        padding: 16px 18px 14px;
+    }
+
+    #problem-empty-state {
+        padding: 24px 20px;
+        font-size: 0.95rem;
+    }
+
+    #problem-stage {
+        gap: 10px;
+    }
+
+    #problem-window {
+        gap: 10px;
+        padding: 12px 14px 10px;
+        border-radius: 14px;
+    }
+
+    #problem-header {
+        gap: 10px;
+        padding: 0 2px;
+    }
+
+    #problem-title {
+        font-size: 1.4rem;
+    }
+
+    #attempts-display {
+        font-size: 0.88rem;
+    }
+
+    #problem-body-frame {
+        padding: 4px 2px 0;
+    }
+
+    #interaction-shell {
+        flex-basis: 216px;
+        min-height: 216px;
+        padding: 14px 16px;
+        border-radius: 14px;
+        gap: 8px;
+    }
+
+    #interaction-shell-header {
+        gap: 3px;
+        padding-bottom: 8px;
+    }
+
+    #interaction-state-kicker {
+        font-size: 0.72rem;
+    }
+
+    #interaction-state-title {
+        font-size: 0.96rem;
+    }
+
+    #interaction-state-hint {
+        font-size: 0.84rem;
+    }
+
+    #answer-form {
+        gap: 7px;
+    }
+
+    #answer-form input[type=text] {
+        padding: 9px 11px;
+    }
+
+    #feedback {
+        margin-top: 4px;
+        font-size: 0.88rem;
+    }
+
+    #context-rail .rail-panel {
+        padding: 10px 12px;
+    }
+
+    #context-rail .rail-panel h3 {
+        margin-bottom: 7px;
+        font-size: 0.84rem;
+    }
+
+    #lb-table {
+        font-size: 0.84rem;
+    }
+
+    #lb-table td {
+        padding: 4px 3px;
+    }
+
+    #action-log-list {
+        min-height: 124px;
+        max-height: 124px;
+        gap: 5px;
+    }
+
+    .action-log-entry {
+        padding: 6px 8px;
+        font-size: 0.82rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="round-ended-banner">Round over! Final results above.</div>
+
+<div id="game-layout">
+    <aside id="support-rail">
+            <section class="rail-panel" id="player-status-panel">
+                <h3>Player / Status</h3>
+                <div id="player-identity">
+                    <div id="player-avatar-shell" aria-hidden="true">
+                        <div id="player-avatar-stage">
+                            {% for layer_key in ['head-back', 'body-upper', 'body-lower', 'boots', 'main-hand', 'chest', 'face', 'head-front', 'off-hand', 'off-hand-base'] %}
+                                {% set layer = gear_avatar.layer_map.get(layer_key) %}
+                                {% if layer %}
+                                    <img
+                                        class="player-avatar-layer"
+                                        src="{{ layer.static_path }}"
+                                        alt=""
+                                    >
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div id="player-identity-meta">
+                        <p class="support-subtle" style="margin:0;">Player</p>
+                        <p id="player-name">{{ player.username }}</p>
+                        <p id="player-session-note">{{ gear_avatar.face_label }} · Session #{{ game_session.id }}</p>
+                        <div id="player-shield-status" aria-live="polite">
+                            <span id="player-shield-status-icon">&#128737;</span>
+                            <span id="player-shield-status-label">Protected</span>
+                            <span id="player-shield-status-time"></span>
+                        </div>
+                    </div>
+                </div>
+                <div id="currency-bar">
+                    <span id="gold-display"><span class="resource-label">Gold</span> <span id="gold-amount">0</span></span>
+                    <span id="gems-display"><span class="resource-label">Gems</span> <span id="gems-amount">0</span></span>
+                    <span id="steal-tokens-display"><span class="resource-label">Steal Tokens</span> <span id="steal-tokens-amount">0</span>/<span id="steal-tokens-max">1</span></span>
+                    <span id="streak-display" style="display:none;"></span>
+                </div>
+            </section>
+
+            <section class="rail-panel" id="actions-panel">
+                <h3>Actions</h3>
+                <div id="shield-token-row">
+                    <div id="shield-token-meta">
+                        <span class="support-subtle">Shield Token</span>
+                        <strong id="shield-token-count">0</strong>
+                    </div>
+                    <button id="btn-activate-shield" type="button" onclick="activateShield()" disabled>Activate</button>
+                </div>
+                <div id="active-bonuses"></div>
+                <div id="shield-status-message" aria-live="polite"></div>
+                <button id="store-toggle" type="button" onclick="toggleStore()">Open Store</button>
+            </section>
+
+        <section class="rail-panel support-lower-slot-panel" id="round-summary-panel">
+            <h3>This Round</h3>
+            <div class="support-subsection">
+                <h4>Total Bonuses</h4>
+                <dl id="bonus-summary-list">
+                    <dt>Mine Bonus</dt>
+                    <dd id="bonus-summary-mine">0</dd>
+                    <dt>Second Chance</dt>
+                    <dd id="bonus-summary-shield">0</dd>
+                </dl>
+            </div>
+
+            <div class="support-subsection">
+                        <h4>Round Rules</h4>
+                        <dl class="rules-list">
+                            <dt>Mine reward</dt>
+                            <dd>{{ round_config.mine_reward if round_config else '?' }}</dd>
+                            <dt>Treasure range</dt>
+                            <dd>
+                                {% if round_config %}
+                                    {{ round_config.treasure_search_reward }}–{{ round_config.treasure_search_max_reward }}
+                                {% else %}
+                                    ?
+                                {% endif %}
+                            </dd>
+                            <dt>Attempts per Problem</dt>
+                            <dd>
+                                {% if round_config %}
+                                    {% if round_config.attempts_per_problem == -1 %}Unlimited{% else %}{{ round_config.attempts_per_problem }}{% endif %}
+                                {% else %}
+                                    ?
+                                {% endif %}
+                            </dd>
+                            <dt>Wrong penalty</dt>
+                            <dd>{% if round_config %}{{ round_config.wrong_answer_penalty }}{% else %}?{% endif %}</dd>
+                            <dt>Timer bonus</dt>
+                            <dd
+                                id="timer-bonus-display"
+                                data-bonus-duration="{% if round_config %}{{ round_config.bonus_timer_duration }}{% else %}0{% endif %}"
+                                data-bonus-gold="{% if round_config %}{{ round_config.bonus_timer_gold }}{% else %}0{% endif %}"
+                                data-round-started-at="{% if game_round and game_round.started_at %}{{ game_round.started_at.isoformat() }}{% else %}{% endif %}"
+                            >
+                                {% if round_config and round_config.bonus_timer_duration > 0 %}
+                                    +{{ round_config.bonus_timer_gold }} for {{ round_config.bonus_timer_duration }}s
+                                {% else %}
+                                    Off
+                                {% endif %}
+                            </dd>
+                        </dl>
+            </div>
+        </section>
+
+        <section class="rail-panel support-lower-slot-panel" id="store-slot-panel" hidden>
+            <h3>Store</h3>
+            <div id="store-panel">
+                <div id="store-items-list"><!-- Populated by JS --></div>
+                <div id="store-msg"></div>
+            </div>
+        </section>
+
+    </aside>
+
+    <main id="game-main">
+        <section id="problem-selector-shell">
+            <h3>Problems</h3>
+            <div id="problem-buttons"><!-- Populated by JS --></div>
+        </section>
+
+        <section id="problem-workspace">
+            <div id="problem-empty-state">Choose a problem to start working. The lower interaction area stays stable while solve, reward, and steal states change.</div>
+
+            <div id="problem-detail">
+                <div id="problem-stage">
+                    <div id="problem-window">
+                        <div id="problem-header">
+                            <div>
+                                <div id="problem-stage-title">Current Problem</div>
+                                <h2 id="problem-title"></h2>
+                            </div>
+                            <span id="attempts-display"></span>
+                        </div>
+
+                        <div id="problem-body-frame">
+                            <div id="problem-body"></div>
+                        </div>
+                    </div>
+
+                    <div id="interaction-shell" data-state="solve">
+                        <div id="interaction-shell-header">
+                            <div id="interaction-state-kicker">Current Step</div>
+                            <h3 id="interaction-state-title">Solve the current problem</h3>
+                            <p id="interaction-state-hint">Submit an answer below. When you solve it, this same panel will advance to the reward step.</p>
+                        </div>
+
+                        <div id="solve-panel" class="interaction-region is-active">
+                            <form id="answer-form" onsubmit="submitAnswer(event)">
+                                <div id="text-answer-section">
+                                    <input type="text" id="answer-input"
+                                           placeholder="Your answer?" autocomplete="off">
+                                </div>
+                                <div id="mc-answer-section">
+                                    <div id="mc-options-list"></div>
+                                </div>
+                                <button type="submit" id="submit-btn">Submit</button>
+                            </form>
+
+                            <div id="feedback"></div>
+                        </div>
+
+                        <div id="action-panel" class="interaction-region">
+                            <h3>Choose your action:</h3>
+                            <button id="btn-mine" onclick="chooseAction('mine')">Mine</button>
+                            <button id="btn-treasure-search" onclick="chooseAction('treasure_search')">Treasure Search</button>
+                            <button id="btn-steal" onclick="chooseAction('steal')" style="display:none;">Steal</button>
+                        </div>
+
+                        <div id="steal-targets-panel" class="interaction-region">
+                            <h3>Choose a steal target:</h3>
+                            <div id="steal-targets-list"></div>
+                            <button id="btn-steal-cancel" onclick="cancelSteal()">&#x2715; Cancel</button>
+                        </div>
+
+                        <div id="steal-mini-game-panel" class="interaction-region">
+                            <h3 id="mini-game-title">Pick a chest!</h3>
+                            <div id="chest-buttons"></div>
+                        </div>
+
+                        <div id="result-panel" class="interaction-region">
+                            <div id="reward-result"></div>
+                            <div id="steal-result-msg"></div>
+                            <div id="steal-notification"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <aside id="context-rail">
+        <section class="rail-panel" id="leaderboard">
+            <h3>Leaderboard</h3>
+            <table id="lb-table">
+                <tbody id="lb-body">
+                    <tr><td colspan="2" style="color:#999;">Waiting for leaderboard data.</td></tr>
+                </tbody>
+            </table>
+        </section>
+
+        <section class="rail-panel" id="context-round-panel">
+            <h3>Round Context</h3>
+            <dl class="context-list">
+                <dt>Status</dt>
+                <dd>{{ game_session.status|capitalize }}</dd>
+                <dt>Round</dt>
+                <dd>{% if game_round %}{{ game_round.round_number }}{% else %}?{% endif %}</dd>
+                <dt>Session</dt>
+                <dd>#{{ game_session.id }}</dd>
+                <dt>First solver bonus</dt>
+                <dd>
+                    {% if round_config %}
+                        {{ round_config.first_solver_count }} &times; {{ round_config.first_solver_multiplier }}
+                    {% else %}
+                        ?
+                    {% endif %}
+                </dd>
+            </dl>
+        </section>
+
+        <section class="rail-panel" id="context-log-panel">
+            <h3>Action Log</h3>
+            <div id="action-log-list">
+                <div class="action-log-entry action-log-empty">Waiting for round data.</div>
+            </div>
+        </section>
+    </aside>
+</div>
+
+<script>
+(function () {
+const SESSION_ID = {{ game_session.id }};
+
+    // Problem data indexed by id
+    const problems = {};
+    let selectedProblemId = null;
+    let pendingActionProblemId = null;
+    let roundActive = false;
+    let currentStreak = 0;  // local mirror of server streak — reset on wrong, incremented on correct prompt
+    let stealTokens = 0;    // local mirror of wallet.steal_tokens
+    let miniGameRevealTimer = null;
+    let tokenMaxCap = 1;           // round steal-token cap from frozen modifiers
+    let shieldExpiryTimer = null;  // handle for auto-hiding the shield badge
+    let shieldCountdownInterval = null;
+    let shieldMessageTimer = null;
+    let selectedMcOptionId = null;
+    const timerBonusEl = document.getElementById('timer-bonus-display');
+    let roundStartedAtIso = timerBonusEl && timerBonusEl.dataset ? timerBonusEl.dataset.roundStartedAt || '' : '';
+    let timerBonusCountdownInterval = null;
+
+    const socket = io();
+
+    function normalizeIsoUtc(expiresIso) {
+        if (!expiresIso) return null;
+        return (expiresIso.indexOf('+') !== -1 || expiresIso.charAt(expiresIso.length - 1) === 'Z')
+            ? expiresIso
+            : (expiresIso + 'Z');
+    }
+
+    function secondsUntilExpiry(expiresIso) {
+        if (!expiresIso) return null;
+        const exp = new Date(normalizeIsoUtc(expiresIso));
+        if (!(exp instanceof Date) || Number.isNaN(exp.getTime())) return null;
+        return Math.max(0, Math.ceil((exp.getTime() - Date.now()) / 1000));
+    }
+
+    function timerBonusSecondsRemaining() {
+        const el = document.getElementById('timer-bonus-display');
+        if (!el) return null;
+        const duration = Number(el.dataset.bonusDuration || 0);
+        if (!roundActive || duration <= 0 || !roundStartedAtIso) return null;
+        const startedAt = new Date(normalizeIsoUtc(roundStartedAtIso));
+        if (!(startedAt instanceof Date) || Number.isNaN(startedAt.getTime())) return null;
+        return Math.max(0, Math.ceil(duration - ((Date.now() - startedAt.getTime()) / 1000)));
+    }
+
+    function renderTimerBonusDisplay() {
+        const el = document.getElementById('timer-bonus-display');
+        if (!el) return;
+        const duration = Number(el.dataset.bonusDuration || 0);
+        const gold = Number(el.dataset.bonusGold || 0);
+        if (duration <= 0 || gold <= 0) {
+            el.textContent = 'Off';
+            return;
+        }
+        const remaining = timerBonusSecondsRemaining();
+        if (remaining === null) {
+            el.textContent = '+' + gold + ' in first ' + duration + 's';
+            return;
+        }
+        if (remaining > 0) {
+            el.textContent = '+' + gold + ' (' + remaining + 's left)';
+            return;
+        }
+        el.textContent = '+' + gold + ' window closed';
+    }
+
+    function syncTimerBonusCountdown() {
+        if (timerBonusCountdownInterval) {
+            clearInterval(timerBonusCountdownInterval);
+            timerBonusCountdownInterval = null;
+        }
+        renderTimerBonusDisplay();
+        const el = document.getElementById('timer-bonus-display');
+        if (!el) return;
+        const duration = Number(el.dataset.bonusDuration || 0);
+        if (!roundActive || duration <= 0 || !roundStartedAtIso) return;
+        timerBonusCountdownInterval = setInterval(function () {
+            const remaining = timerBonusSecondsRemaining();
+            renderTimerBonusDisplay();
+            if (remaining === null || remaining <= 0) {
+                clearInterval(timerBonusCountdownInterval);
+                timerBonusCountdownInterval = null;
+            }
+        }, 1000);
+    }
+
+    function setShieldStatusMessage(text, tone) {
+        const el = document.getElementById('shield-status-message');
+        if (!el) return;
+        if (shieldMessageTimer) {
+            clearTimeout(shieldMessageTimer);
+            shieldMessageTimer = null;
+        }
+        if (!text) {
+            el.textContent = '';
+            el.className = '';
+            return;
+        }
+        el.textContent = text;
+        el.className = 'is-visible status-' + (tone || 'info');
+        shieldMessageTimer = setTimeout(function () {
+            el.textContent = '';
+            el.className = '';
+            shieldMessageTimer = null;
+        }, 6000);
+    }
+
+    // ── Connection & join ────────────────────────────────────────────────────
+
+    socket.on('connect', function () {
+        socket.emit('classic_join', { session_id: SESSION_ID });
+    });
+
+    socket.on('join_ack', function (data) {
+        document.getElementById('gold-amount').textContent = data.gold;
+        document.getElementById('gems-amount').textContent = data.gems || 0;
+        stealTokens = data.steal_tokens || 0;
+        tokenMaxCap = data.steal_token_max_cap || 1;
+        updateTokenDisplay();
+        updateShieldDisplay(data.shield_active, data.shield_expires_at);
+        roundActive = (data.round_status === 'active');
+        syncTimerBonusCountdown();
+
+        currentStreak = data.streak || 0;
+        const streakEl = document.getElementById('streak-display');
+        if (currentStreak > 0) {
+            streakEl.textContent = 'Streak x' + currentStreak;
+            streakEl.style.display = 'inline';
+        } else {
+            streakEl.style.display = 'none';
+        }
+
+        if (data.round_status === 'ended') {
+            window.location.href = '/classic/round_over/' + SESSION_ID;
+            return;
+        }
+
+        const container = document.getElementById('problem-buttons');
+        container.innerHTML = '';
+        data.problem_list.forEach(function (p) {
+            problems[p.problem_id] = p;
+            const btn = document.createElement('button');
+            btn.id = 'prob-btn-' + p.problem_id;
+            btn.textContent = p.title.length > 20 ? p.title.substring(0, 18) + '...' : p.title;
+            btn.onclick = function () { selectProblem(p.problem_id); };
+            applyProblemButtonState(btn, p, false);
+            container.appendChild(btn);
+        });
+
+        renderStore(data.store_items || []);
+        renderBonuses(data.active_bonuses || {});
+        renderActionLog(data.recent_actions || []);
+
+        if (data.leaderboard && data.leaderboard.length > 0) {
+            const tbody = document.getElementById('lb-body');
+            tbody.innerHTML = '';
+            data.leaderboard.forEach(function (entry, i) {
+                const row = document.createElement('tr');
+                row.innerHTML = '<td>' + (i + 1) + '. ' + escapeHtml(entry.username) + '</td>' +
+                                '<td>Gold ' + entry.gold + '</td>' +
+                                '<td style="color:#1a7f3c;">Gems ' + (entry.gems || 0) + '</td>';
+                tbody.appendChild(row);
+            });
+        }
+    });
+
+    socket.on('round_started', function () {
+        roundActive = true;
+        roundStartedAtIso = new Date().toISOString();
+        syncTimerBonusCountdown();
+        Object.keys(problems).forEach(function (problemId) {
+            const btn = document.getElementById('prob-btn-' + problemId);
+            if (btn) {
+                applyProblemButtonState(btn, problems[problemId], String(selectedProblemId) === String(problemId));
+            }
+        });
+        const activateBtn = document.getElementById('btn-activate-shield');
+        if (activateBtn) activateBtn.disabled = false;
+    });
+
+    socket.on('round_ended', function () {
+        roundActive = false;
+        syncTimerBonusCountdown();
+        document.getElementById('round-ended-banner').style.display = 'block';
+        document.getElementById('round-ended-banner').textContent = 'Round over. Loading results...';
+        setTimeout(function () {
+            window.location.href = '/classic/round_over/' + SESSION_ID;
+        }, 1500);
+    });
+
+    socket.on('return_to_lobby', function () {
+        roundActive = false;
+        syncTimerBonusCountdown();
+        document.getElementById('round-ended-banner').style.display = 'block';
+        document.getElementById('round-ended-banner').textContent = 'Round over. Returning to lobby...';
+        setTimeout(function () {
+            window.location.href = '/classic/lobby/' + SESSION_ID;
+        }, 1500);
+    });
+
+    window.selectProblem = function (problemId) {
+        // A1-5: Block problem switching while an action choice is pending
+        if (pendingActionProblemId !== null) return;
+        selectedProblemId = problemId;
+        const p = problems[problemId];
+        document.getElementById('problem-empty-state').style.display = 'none';
+
+        // Highlight selected button
+        document.querySelectorAll('.prob-btn').forEach(function (b) {
+            b.classList.remove('selected');
+        });
+        const selBtn = document.getElementById('prob-btn-' + problemId);
+        if (selBtn) applyProblemButtonState(selBtn, p, true);
+
+        document.getElementById('problem-title').textContent = p.title;
+        renderProblemBody(p);
+        renderProblemAnswerInput(p);
+        document.getElementById('problem-detail').style.display = 'block';
+        document.getElementById('feedback').style.display = 'none';
+        document.getElementById('reward-result').style.display = 'none';
+        document.getElementById('steal-result-msg').style.display = 'none';
+        document.getElementById('steal-notification').style.display = 'none';
+        document.getElementById('answer-input').value = '';
+        selectedMcOptionId = null;
+        setInteractionState('solve');
+
+        // Show attempts info
+        const atDisplay = document.getElementById('attempts-display');
+        if (p.attempts_left === -1) {
+            atDisplay.textContent = '(unlimited attempts)';
+        } else {
+            atDisplay.textContent = p.attempts_left + ' attempt(s) left';
+        }
+
+        const submitBtn = document.getElementById('submit-btn');
+        submitBtn.disabled = p.is_closed || !roundActive;
+    };
+
+    // ── Answer submission ────────────────────────────────────────────────────
+
+    window.submitAnswer = function (event) {
+        event.preventDefault();
+        if (!selectedProblemId || !roundActive) return;
+
+        const problem = problems[selectedProblemId];
+        const isMultipleChoice = problem && problem.answer_type === 'multiple_choice';
+        const answerText = document.getElementById('answer-input').value.trim();
+        const selectedChoice = selectedMcOptionId;
+        if (!isMultipleChoice && !answerText) return;
+        if (isMultipleChoice && !selectedChoice) return;
+
+        document.getElementById('submit-btn').disabled = true;
+        document.querySelectorAll('.mc-option-confirm').forEach(function (btn) {
+            btn.disabled = true;
+        });
+
+        const payload = {
+            session_id: SESSION_ID,
+            problem_id: selectedProblemId,
+            answer_text: answerText,
+        };
+        if (isMultipleChoice) {
+            payload.selected_option_id = selectedChoice;
+        }
+        socket.emit('classic_submit_answer', payload);
+    };
+
+    window.selectMcOption = function (optionId) {
+        const problem = problems[selectedProblemId];
+        if (!problem || problem.answer_type !== 'multiple_choice' || !roundActive) return;
+        selectedMcOptionId = String(optionId);
+        document.querySelectorAll('.mc-option-row').forEach(function (row) {
+            row.classList.toggle('is-selected', row.dataset.optionId === selectedMcOptionId);
+        });
+    };
+
+    window.confirmMcOption = function (event, optionId) {
+        event.preventDefault();
+        event.stopPropagation();
+        const problem = problems[selectedProblemId];
+        if (!problem || problem.answer_type !== 'multiple_choice') return;
+        selectedMcOptionId = String(optionId);
+        window.submitAnswer(event);
+    };
+
+    socket.on('answer_result', function (data) {
+        const fb = document.getElementById('feedback');
+        const hintText = data.correct
+            ? 'Correct answer confirmed. The reward step will appear next.'
+            : 'Adjust your answer and submit again.';
+        setInteractionState('solve', {
+            title: data.correct ? 'Answer checked' : 'Try again',
+            hint: hintText,
+        });
+        fb.style.display = 'block';
+
+        if (data.correct) {
+            fb.className = 'correct';
+            fb.textContent = 'Correct.';
+        } else {
+            fb.className = 'wrong';
+            let wrongMsg = 'Wrong answer. ' +
+                (data.attempts_left === -1
+                    ? 'Unlimited attempts remaining.'
+                    : data.attempts_left + ' attempt(s) left.');
+            if (data.second_chance_used) {
+                wrongMsg += ' Second Chance used - no penalty, attempt preserved.';
+            }
+            fb.textContent = wrongMsg;
+
+            // Update gold after penalty
+            document.getElementById('gold-amount').textContent = data.gold_after_penalty;
+
+            // Reset streak display
+            if (data.streak_reset) {
+                currentStreak = 0;
+                document.getElementById('streak-display').style.display = 'none';
+            }
+        }
+
+        // Update local problem state
+        if (selectedProblemId && problems[selectedProblemId]) {
+            const p = problems[selectedProblemId];
+            if (data.attempts_left !== -1) p.attempts_left = data.attempts_left;
+            if (data.problem_closed) {
+                p.is_closed = true;
+                const btn = document.getElementById('prob-btn-' + selectedProblemId);
+                if (btn) {
+                    applyProblemButtonState(btn, p, btn.classList.contains('selected'));
+                }
+                document.getElementById('submit-btn').disabled = true;
+                document.querySelectorAll('.mc-option-confirm').forEach(function (btn) {
+                    btn.disabled = true;
+                });
+            } else {
+                document.getElementById('submit-btn').disabled = false;
+                document.querySelectorAll('.mc-option-confirm').forEach(function (btn) {
+                    btn.disabled = false;
+                });
+            }
+        }
+
+        const atDisplay = document.getElementById('attempts-display');
+        const p = problems[selectedProblemId];
+        if (p && p.attempts_left !== -1) {
+            atDisplay.textContent = data.attempts_left + ' attempt(s) left';
+        }
+        document.getElementById('answer-input').value = '';
+    });
+
+    // ── Action choice (Mine / Treasure Search) ───────────────────────────────
+
+    socket.on('choose_action_prompt', function (data) {
+        pendingActionProblemId = data.problem_id;
+
+        const fb = document.getElementById('feedback');
+        fb.className = 'correct';
+        fb.style.display = 'block';
+        fb.textContent = 'Correct. You were solver #' + data.solver_rank +
+            (data.timer_active ? ' (timer bonus active)' : '') +
+            '. Choose your action:';
+
+        document.getElementById('submit-btn').disabled = true;
+        document.querySelectorAll('.mc-option-confirm').forEach(function (btn) {
+            btn.disabled = true;
+        });
+        // A1-5: Lock all problem buttons while action is being decided
+        document.querySelectorAll('.prob-btn').forEach(function (b) { b.disabled = true; });
+        setInteractionState('action', {
+            title: 'Choose your action',
+            hint: 'Pick Mine, Treasure Search, or Steal to finish this problem.',
+        });
+        document.getElementById('steal-result-msg').style.display = 'none';
+        // Show steal button only if the player has a token
+        const stealBtn = document.getElementById('btn-steal');
+        stealBtn.style.display = data.steal_available ? 'inline-block' : 'none';
+        stealBtn.disabled = false;
+        document.getElementById('btn-mine').disabled = false;
+        document.getElementById('btn-treasure-search').disabled = false;
+
+        // Increment local streak counter on confirmed correct answer
+        currentStreak++;
+        const streakEl = document.getElementById('streak-display');
+        streakEl.textContent = 'Streak x' + currentStreak;
+        streakEl.style.display = 'inline';
+
+        // Mark problem solved in local state
+        if (problems[data.problem_id]) {
+            problems[data.problem_id].is_solved = true;
+            problems[data.problem_id].is_closed = true;
+            const btn = document.getElementById('prob-btn-' + data.problem_id);
+            if (btn) {
+                applyProblemButtonState(btn, problems[data.problem_id], true);
+            }
+        }
+    });
+
+    window.chooseAction = function (action) {
+        if (!pendingActionProblemId) return;
+        document.getElementById('btn-mine').disabled = true;
+        document.getElementById('btn-treasure-search').disabled = true;
+        document.getElementById('btn-steal').disabled = true;
+
+        socket.emit('classic_choose_action', {
+            session_id: SESSION_ID,
+            problem_id: pendingActionProblemId,
+            action: action,
+        });
+    };
+
+    socket.on('reward_applied', function (data) {
+        setInteractionState('result', {
+            title: 'Reward applied',
+            hint: 'Your reward has been added. Pick another problem when you are ready.',
+        });
+        document.getElementById('gold-amount').textContent = data.new_balance;
+        if (data.new_gems !== undefined) {
+            document.getElementById('gems-amount').textContent = data.new_gems;
+        }
+        // Update steal-token count if a token was earned from treasure
+        if (data.token_awarded) {
+            stealTokens = Math.min(stealTokens + 1, tokenMaxCap);  // A1-7: use dynamic cap
+            updateTokenDisplay();
+        }
+        const msg = document.getElementById('reward-result');
+        msg.style.display = 'block';
+
+        // Gold line
+        let goldLabel = '+' + data.gold_gained + ' gold';
+        if (data.x2_active) goldLabel += ' (x2 mine bonus applied)';
+        if (data.treasure_roll !== null && data.treasure_roll !== undefined) {
+            goldLabel += ' (rolled ' + data.treasure_roll + ')';
+        }
+        // Token line
+        if (data.token_found) {
+            goldLabel += data.token_awarded ? ' +1 steal token' : ' steal token already full';
+        }
+        if (data.treasure_shield_token_granted) {
+            goldLabel += ' +1 Shield Token';
+        }
+
+        // Gems line
+        let gemLabel = '';
+        if (data.gems_gained && data.gems_gained > 0) {
+            const reasonMap = { milestone: 'milestone', streak: 'streak', both: 'milestone + streak' };
+            gemLabel = '+' + data.gems_gained + ' gem' + (data.gems_gained > 1 ? 's' : '') +
+                (data.gem_reason ? ' (' + (reasonMap[data.gem_reason] || data.gem_reason) + ')' : '');
+        }
+
+        let itemLine = '';
+        if (data.treasure_shield_token_granted) {
+            itemLine = 'Shield Token gained from treasure.';
+        } else if (data.treasure_second_chance_granted) {
+            itemLine = 'Second Chance gained from treasure.';
+        }
+
+        msg.innerHTML = '<strong>' + goldLabel + '</strong>' +
+            (gemLabel ? '<br><span style="color:#1a7f3c; font-weight:bold;">Gems ' + gemLabel + '</span>' : '') +
+            (itemLine ? '<br><span style="color:#1d5f9c; font-weight:bold;">' + itemLine + '</span>' : '');
+        document.getElementById('steal-result-msg').style.display = 'none';
+        document.getElementById('steal-notification').style.display = 'none';
+        pendingActionProblemId = null;
+        // A1-5: Re-enable non-closed problem buttons after action resolves
+        Object.keys(problems).forEach(function (problemId) {
+            const btn = document.getElementById('prob-btn-' + problemId);
+            if (btn) {
+                applyProblemButtonState(btn, problems[problemId], String(selectedProblemId) === String(problemId));
+            }
+        });
+        document.getElementById('btn-mine').disabled = false;
+        document.getElementById('btn-treasure-search').disabled = false;
+        document.getElementById('btn-steal').disabled = false;
+        // Refresh active bonus display
+        if (data.active_bonuses) renderBonuses(data.active_bonuses);
+        appendActionLog(goldLabel + (gemLabel ? ' | ' + gemLabel : '') + (itemLine ? ' | ' + itemLine : ''));
+    });
+
+    // ── Leaderboard ──────────────────────────────────────────────────────────
+
+    socket.on('leaderboard_update', function (data) {
+        const tbody = document.getElementById('lb-body');
+        tbody.innerHTML = '';
+        data.leaderboard.forEach(function (entry, i) {
+            const row = document.createElement('tr');
+            row.innerHTML = '<td>' + (i + 1) + '. ' + escapeHtml(entry.username) + '</td>' +
+                            '<td>Gold ' + entry.gold + '</td>' +
+                            '<td style="color:#1a7f3c;">Gems ' + (entry.gems || 0) + '</td>';
+            tbody.appendChild(row);
+        });
+    });
+
+    function escapeHtml(str) {
+        return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function applyProblemButtonState(btn, problem, isSelected) {
+        if (!btn || !problem) return;
+        btn.className = 'prob-btn';
+        if (problem.is_solved) {
+            btn.classList.add('solved');
+            btn.disabled = true;
+        } else if (problem.is_closed) {
+            btn.classList.add('closed');
+            btn.disabled = true;
+        } else if (!roundActive) {
+            btn.classList.add('locked');
+            btn.disabled = true;
+        } else {
+            btn.classList.add('available');
+            btn.disabled = false;
+        }
+        if (isSelected) {
+            btn.classList.add('selected');
+        }
+    }
+
+    function setInteractionState(state, options) {
+        const shell = document.getElementById('interaction-shell');
+        const titleEl = document.getElementById('interaction-state-title');
+        const hintEl = document.getElementById('interaction-state-hint');
+        const regions = {
+            solve: document.getElementById('solve-panel'),
+            action: document.getElementById('action-panel'),
+            target: document.getElementById('steal-targets-panel'),
+            mini_game: document.getElementById('steal-mini-game-panel'),
+            result: document.getElementById('result-panel'),
+        };
+        const defaults = {
+            solve: {
+                title: 'Solve the current problem',
+                hint: 'Submit an answer below. When you solve it, this same panel will advance to the reward step.',
+            },
+            action: {
+                title: 'Choose your action',
+                hint: 'Your answer is locked in. Pick one follow-up action to continue.',
+            },
+            target: {
+                title: 'Choose a steal target',
+                hint: 'Select one target to continue the steal attempt, or cancel to go back.',
+            },
+            mini_game: {
+                title: 'Resolve the steal mini-game',
+                hint: 'Pick one chest to finish this steal attempt.',
+            },
+            result: {
+                title: 'Result',
+                hint: 'Review the outcome, then continue with another problem when ready.',
+            },
+        };
+        const meta = Object.assign({}, defaults[state] || defaults.solve, options || {});
+        if (shell) shell.dataset.state = state;
+        if (titleEl) titleEl.textContent = meta.title;
+        if (hintEl) hintEl.textContent = meta.hint;
+        Object.keys(regions).forEach(function (key) {
+            const region = regions[key];
+            if (!region) return;
+            region.classList.toggle('is-active', key === state);
+            region.style.display = key === state ? 'block' : 'none';
+        });
+    }
+
+    function typesetProblemMath() {
+        const bodyContainer = document.getElementById('problem-body');
+        const optionsContainer = document.getElementById('mc-options-list');
+        const containers = [bodyContainer, optionsContainer].filter(Boolean);
+        if (containers.length === 0 || !window.MathJax || !window.MathJax.typesetPromise) return;
+        if (window.MathJax.typesetClear) {
+            window.MathJax.typesetClear(containers);
+        }
+        window.MathJax.typesetPromise(containers).catch(function (err) {
+            console.error('MathJax typeset failed:', err);
+        });
+    }
+
+    function renderProblemBody(problem) {
+        const container = document.getElementById('problem-body');
+        if (!container) return;
+        if (problem.problem_body_html) {
+            container.innerHTML = problem.problem_body_html;
+        } else {
+            container.innerHTML = '<div class="problem-body-rich-text"><p>' +
+                escapeHtml(problem.prompt_text || '') +
+                '</p></div>';
+        }
+        if (window.renderProblemGraphs) {
+            window.renderProblemGraphs(container);
+        }
+        typesetProblemMath();
+    }
+
+    function renderProblemAnswerInput(problem) {
+        const textSection = document.getElementById('text-answer-section');
+        const mcSection = document.getElementById('mc-answer-section');
+        const mcList = document.getElementById('mc-options-list');
+        const answerInput = document.getElementById('answer-input');
+        const answerForm = document.getElementById('answer-form');
+        const submitBtn = document.getElementById('submit-btn');
+        const isMultipleChoice = problem.answer_type === 'multiple_choice';
+
+        if (isMultipleChoice) {
+            selectedMcOptionId = null;
+            textSection.style.display = 'none';
+            mcSection.style.display = 'block';
+            answerForm.classList.add('mc-mode');
+            answerInput.value = '';
+            mcList.innerHTML = '';
+            const optionCount = (problem.choice_options || []).length;
+            mcList.className = optionCount > 4 ? 'mc-grid-compact mc-grid-compact-6' : 'mc-grid-compact mc-grid-compact-4';
+            (problem.choice_options || []).forEach(function (option) {
+                const row = document.createElement('div');
+                row.className = 'mc-option-row';
+                row.dataset.optionId = String(option.id);
+                row.tabIndex = 0;
+                row.setAttribute('role', 'button');
+                row.innerHTML =
+                    '<div class="mc-option-main">' +
+                        '<span class="mc-option-marker" aria-hidden="true"></span>' +
+                        '<span class="mc-option-label">' + option.rendered_html + '</span>' +
+                    '</div>' +
+                    '<button type="button" class="mc-option-confirm" onclick="confirmMcOption(event, ' + option.id + ')">Confirm</button>';
+                row.addEventListener('click', function () {
+                    window.selectMcOption(option.id);
+                });
+                row.addEventListener('keydown', function (event) {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        window.selectMcOption(option.id);
+                    }
+                });
+                mcList.appendChild(row);
+            });
+            submitBtn.disabled = false;
+        } else {
+            textSection.style.display = 'block';
+            mcSection.style.display = 'none';
+            answerForm.classList.remove('mc-mode');
+            mcList.innerHTML = '';
+            mcList.className = '';
+        }
+        typesetProblemMath();
+    }
+
+    // A1-7: Update the steal-token HUD to show current / cap.
+    function updateTokenDisplay() {
+        document.getElementById('steal-tokens-amount').textContent = stealTokens;
+        document.getElementById('steal-tokens-max').textContent = tokenMaxCap;
+    }
+
+    socket.on('error', function (data) {
+        console.error('Socket error:', data.msg);
+        // Re-enable activate button if a shield activation was rejected
+        const activateBtn = document.getElementById('btn-activate-shield');
+        if (activateBtn) activateBtn.disabled = false;
+    });
+
+    // ── Store ─────────────────────────────────────────────────────────────────
+
+    window.toggleStore = function () {
+        const roundPanel = document.getElementById('round-summary-panel');
+        const storePanel = document.getElementById('store-slot-panel');
+        const btn = document.getElementById('store-toggle');
+        const isOpen = !storePanel.hasAttribute('hidden');
+        if (isOpen) {
+            storePanel.setAttribute('hidden', '');
+            roundPanel.removeAttribute('hidden');
+            btn.textContent = 'Open Store';
+        } else {
+            roundPanel.setAttribute('hidden', '');
+            storePanel.removeAttribute('hidden');
+            btn.textContent = 'Close Store';
+        }
+    };
+
+    function renderStore(items) {
+        const container = document.getElementById('store-items-list');
+        if (!items || items.length === 0) {
+            container.innerHTML = '<p style="color:#666;">No items available.</p>';
+            return;
+        }
+        container.innerHTML = '';
+        items.forEach(function (item) {
+            const div = document.createElement('div');
+            div.className = 'store-item';
+            div.id = 'store-item-' + item.id;
+
+            const outOfStock = item.quantity_left === 0;
+            const qtyLabel = item.quantity_left === -1 ? 'unlimited' : ('stock: ' + item.quantity_left);
+            const bonusLabels = {
+                'x2_mine': 'x2 next Mine reward',
+                'shield': 'Second Chance - try again with no penalty',
+                'steal_token': '+1 steal token (instant)',
+                'steal_shield': 'Shield Token (activate when ready)',
+            };
+            const bonusLabel = bonusLabels[item.bonus_type] || item.bonus_type;
+
+            div.innerHTML =
+                '<div class="store-item-info">' +
+                    '<strong>' + escapeHtml(item.name) + '</strong> ' +
+                    '<span style="font-size:0.85em; color:#555;">- ' + bonusLabel + '</span><br>' +
+                    (item.description ? '<small>' + escapeHtml(item.description) + '</small><br>' : '') +
+                    '<span class="store-item-qty">' + qtyLabel + '</span>' +
+                '</div>' +
+                '<span class="store-item-cost">' + (item.currency === 'gems' ? 'Gems ' : 'Gold ') + item.cost + '</span>' +
+                '<button class="btn-buy" id="buy-btn-' + item.id + '"' +
+                    (outOfStock ? ' disabled' : '') +
+                    ' onclick="buyItem(' + item.id + ')">' +
+                    (outOfStock ? 'Out of stock' : 'Buy') +
+                '</button>';
+
+            container.appendChild(div);
+        });
+    }
+
+    function renderActionLog(entries) {
+        const el = document.getElementById('action-log-list');
+        if (!el) return;
+        if (!entries || entries.length === 0) {
+            el.innerHTML = '<div class="action-log-entry action-log-empty">No actions yet.</div>';
+            return;
+        }
+        el.innerHTML = '';
+        entries.forEach(function (entry) {
+            const row = document.createElement('div');
+            row.className = 'action-log-entry';
+            row.textContent = entry;
+            el.appendChild(row);
+        });
+        el.scrollTop = el.scrollHeight;
+    }
+
+    function appendActionLog(entry) {
+        if (!entry) return;
+        const el = document.getElementById('action-log-list');
+        if (!el) return;
+        if (el.querySelector('.action-log-empty')) {
+            el.innerHTML = '';
+        }
+        const row = document.createElement('div');
+        row.className = 'action-log-entry';
+        row.textContent = entry;
+        el.appendChild(row);
+        while (el.children.length > 10) {
+            el.removeChild(el.firstElementChild);
+        }
+        el.scrollTop = el.scrollHeight;
+    }
+
+    function renderBonuses(bonuses) {
+        const el = document.getElementById('active-bonuses');
+        const mineSummary = document.getElementById('bonus-summary-mine');
+        const shieldSummary = document.getElementById('bonus-summary-shield');
+        const shieldTokenCountEl = document.getElementById('shield-token-count');
+        const activateBtn = document.getElementById('btn-activate-shield');
+        const parts = [];
+        if (bonuses.x2_mine) parts.push('Mine x2 x' + bonuses.x2_mine);
+        if (bonuses.shield) parts.push('Second Chance x' + bonuses.shield);
+        const shieldTokenCount = bonuses.steal_shield || 0;
+        el.textContent = parts.length ? ('Active bonuses: ' + parts.join('  |  ')) : 'No active bonuses.';
+        if (shieldTokenCountEl) shieldTokenCountEl.textContent = shieldTokenCount;
+        if (activateBtn) activateBtn.disabled = !(roundActive && shieldTokenCount > 0);
+        if (mineSummary) mineSummary.textContent = bonuses.x2_mine || 0;
+        if (shieldSummary) shieldSummary.textContent = bonuses.shield || 0;
+    }
+
+    window.activateShield = function () {
+        const btn = document.getElementById('btn-activate-shield');
+        if (btn) btn.disabled = true;
+        socket.emit('classic_activate_steal_shield', { session_id: SESSION_ID });
+    };
+
+    socket.on('shield_activated', function (data) {
+        updateShieldDisplay(data.shield_active, data.shield_expires_at);
+        renderBonuses(data.active_bonuses || {});
+        setShieldStatusMessage('', 'info');
+        appendActionLog(data.log_entry || 'Shield Token activated');
+    });
+
+    socket.on('shield_activation_blocked', function (data) {
+        const btn = document.getElementById('btn-activate-shield');
+        if (btn) btn.disabled = false;
+        if (data.active_bonuses) renderBonuses(data.active_bonuses);
+        appendActionLog(data.msg || 'Shield Token activation blocked');
+        setShieldStatusMessage(data.msg || 'Already Protected. Shield Token not consumed.', 'warning');
+        const msgEl = document.getElementById('store-msg');
+        if (msgEl) {
+            msgEl.style.color = '#721c24';
+            msgEl.textContent = data.msg || 'Shield Token activation blocked.';
+        }
+    });
+
+    window.buyItem = function (itemId) {
+        document.getElementById('buy-btn-' + itemId).disabled = true;
+        document.getElementById('store-msg').textContent = '';
+        socket.emit('classic_buy_item', { session_id: SESSION_ID, item_id: itemId });
+    };
+
+    socket.on('buy_result', function (data) {
+        const msgEl = document.getElementById('store-msg');
+        if (data.ok) {
+            document.getElementById('gold-amount').textContent = data.new_balance;
+            if (data.new_gems !== undefined) {
+                const gemsEl = document.getElementById('gems-amount');
+                if (gemsEl) gemsEl.textContent = data.new_gems;
+            }
+            if (data.steal_tokens !== undefined) {
+                stealTokens = data.steal_tokens;
+                updateTokenDisplay();
+            }
+            msgEl.style.color = '#155724';
+            msgEl.textContent = 'Item purchased.';
+            renderStore(data.store_items);
+            renderBonuses(data.active_bonuses);
+            appendActionLog('Store purchase completed');
+        } else {
+            msgEl.style.color = '#721c24';
+            msgEl.textContent = 'Purchase failed: ' + data.msg;
+            renderStore(data.store_items);
+        }
+    });
+
+    // Admin pushed a store update — refresh item list without page reload
+    socket.on('store_updated', function (data) {
+        if (data.store_items) {
+            renderStore(data.store_items);
+        }
+    });
+
+    // ── Steal system ─────────────────────────────────────────────────────────
+
+    // Show/hide the compact protection badge and keep the countdown live.
+    function updateShieldDisplay(active, expiresIso) {
+        const badgeEl = document.getElementById('player-shield-status');
+        const timeEl = document.getElementById('player-shield-status-time');
+        if (shieldExpiryTimer) { clearTimeout(shieldExpiryTimer); shieldExpiryTimer = null; }
+        if (shieldCountdownInterval) { clearInterval(shieldCountdownInterval); shieldCountdownInterval = null; }
+        if (!active && !expiresIso) {
+            badgeEl.classList.remove('is-active');
+            timeEl.textContent = '';
+            return;
+        }
+        if (expiresIso) {
+            var isoNorm = normalizeIsoUtc(expiresIso);
+            const exp = new Date(isoNorm);
+            if (exp > new Date()) {
+                const refreshCountdown = function () {
+                    const remaining = secondsUntilExpiry(expiresIso);
+                    if (!remaining) {
+                        badgeEl.classList.remove('is-active');
+                        timeEl.textContent = '';
+                        if (shieldCountdownInterval) {
+                            clearInterval(shieldCountdownInterval);
+                            shieldCountdownInterval = null;
+                        }
+                        return;
+                    }
+                    badgeEl.classList.add('is-active');
+                    timeEl.textContent = remaining + 's';
+                };
+                refreshCountdown();
+                shieldCountdownInterval = setInterval(refreshCountdown, 1000);
+                shieldExpiryTimer = setTimeout(function () {
+                    badgeEl.classList.remove('is-active');
+                    timeEl.textContent = '';
+                    if (shieldCountdownInterval) {
+                        clearInterval(shieldCountdownInterval);
+                        shieldCountdownInterval = null;
+                    }
+                    shieldExpiryTimer = null;
+                }, exp.getTime() - Date.now());
+                return;
+            }
+        }
+        if (active) {
+            badgeEl.classList.add('is-active');
+            timeEl.textContent = '';
+        } else {
+            badgeEl.classList.remove('is-active');
+            timeEl.textContent = '';
+        }
+    }
+
+    socket.on('steal_targets', function (data) {
+        setInteractionState('target', {
+            title: 'Choose a steal target',
+            hint: 'Pick one target to continue, or cancel to go back to reward choice.',
+        });
+        const list = document.getElementById('steal-targets-list');
+        list.innerHTML = '';
+        if (!data.targets || data.targets.length === 0) {
+            list.innerHTML = '<p style="color:#666;">No valid targets.</p>';
+        } else {
+            data.targets.forEach(function (t) {
+                const row = document.createElement('div');
+                row.className = 'steal-target-row';
+                row.innerHTML =
+                    '<span><strong>' + escapeHtml(t.username) + '</strong></span>' +
+                    '<span>Gold ' + t.gold + '</span>' +
+                    '<button onclick="pickTarget(' + t.player_id + ')">Pick</button>';
+                list.appendChild(row);
+            });
+        }
+        document.getElementById('reward-result').style.display = 'none';
+        document.getElementById('steal-result-msg').style.display = 'none';
+        document.getElementById('btn-steal-cancel').disabled = false;
+    });
+
+    window.pickTarget = function (targetId) {
+        // Disable all pick buttons and cancel to prevent double-fire
+        document.querySelectorAll('#steal-targets-list button').forEach(function (b) {
+            b.disabled = true;
+        });
+        document.getElementById('btn-steal-cancel').disabled = true;
+        socket.emit('classic_steal_pick_target', {
+            session_id: SESSION_ID,
+            target_player_id: targetId,
+        });
+    };
+
+    window.cancelSteal = function () {
+        document.getElementById('btn-steal-cancel').disabled = true;
+        socket.emit('classic_steal_cancel', { session_id: SESSION_ID });
+        // Server will re-emit choose_action_prompt to restore the action panel
+    };
+
+    // Server sends steal_mini_game_start when pick_target confirmed + mini-game enabled.
+    socket.on('steal_mini_game_start', function (data) {
+        setInteractionState('mini_game', {
+            title: 'Resolve the steal mini-game',
+            hint: 'Pick a chest to determine whether the steal succeeds.',
+        });
+        const count = data.chest_count || 3;
+        const winCount = data.winning_chest_count || 1;
+        document.getElementById('mini-game-title').textContent =
+            'Pick a chest! (' + winCount + ' of ' + count + ' wins)';
+        const btnContainer = document.getElementById('chest-buttons');
+        btnContainer.innerHTML = '';
+        for (let i = 1; i <= count; i++) {
+            const btn = document.createElement('button');
+            btn.className = 'chest-btn';
+            btn.id = 'chest-btn-' + i;
+            btn.textContent = String(i);
+            btn.onclick = (function (idx) { return function () { pickChest(idx); }; })(i);
+            btnContainer.appendChild(btn);
+        }
+    });
+
+    window.pickChest = function (idx) {
+        document.querySelectorAll('.chest-btn').forEach(function (b) { b.disabled = true; });
+        socket.emit('classic_steal_mini_game_pick', {
+            session_id: SESSION_ID,
+            chest_index: idx,
+        });
+    };
+
+    // steal_result fires for all steal outcomes: success, mini_game_fail, no_targets_fallback, target_invalid
+    socket.on('steal_result', function (data) {
+        setInteractionState('result', {
+            title: 'Steal resolved',
+            hint: 'Review the result, then move on to another problem when ready.',
+        });
+        document.getElementById('gold-amount').textContent = data.new_balance;
+        stealTokens = data.new_tokens !== undefined ? data.new_tokens : stealTokens;
+        updateTokenDisplay();
+
+        if (miniGameRevealTimer) clearTimeout(miniGameRevealTimer);
+        const miniPanel = document.getElementById('steal-mini-game-panel');
+        if (data.winning_chests && data.winning_chests.length > 0) {
+            data.winning_chests.forEach(function (idx) {
+                const btn = document.getElementById('chest-btn-' + idx);
+                if (btn) { btn.classList.add('winner'); btn.textContent = 'Win'; }
+            });
+            miniPanel.style.display = 'block';
+            miniGameRevealTimer = setTimeout(function () {
+                miniPanel.style.display = 'none';
+            }, 1800);
+        } else {
+            miniPanel.style.display = 'none';
+        }
+
+        document.getElementById('reward-result').style.display = 'none';
+        document.getElementById('steal-notification').style.display = 'none';
+
+        const msgEl = document.getElementById('steal-result-msg');
+        msgEl.style.display = 'block';
+        if (data.outcome === 'success') {
+            msgEl.className = 'steal-result-msg success';
+            msgEl.innerHTML = '<strong>Steal succeeded.</strong><br>' + escapeHtml(data.log_entry || '');
+        } else if (data.outcome === 'no_targets_fallback') {
+            msgEl.className = 'steal-result-msg no-targets';
+            msgEl.innerHTML = '<strong>No targets available.</strong><br>' + escapeHtml(data.log_entry || '');
+        } else {
+            msgEl.className = 'steal-result-msg fail';
+            msgEl.innerHTML = '<strong>Steal failed.</strong><br>' + escapeHtml(data.log_entry || '');
+        }
+        appendActionLog(data.log_entry || 'Steal resolved');
+
+        pendingActionProblemId = null;
+        Object.keys(problems).forEach(function (problemId) {
+            const btn = document.getElementById('prob-btn-' + problemId);
+            if (btn) {
+                applyProblemButtonState(btn, problems[problemId], String(selectedProblemId) === String(problemId));
+            }
+        });
+        document.getElementById('btn-mine').disabled = false;
+        document.getElementById('btn-treasure-search').disabled = false;
+        document.getElementById('btn-steal').disabled = false;
+    });
+
+    socket.on('steal_victim_notify', function (data) {
+        setInteractionState('result', {
+            title: 'Incoming event',
+            hint: 'A steal affected your balance. Review the update, then continue.',
+        });
+        if (data.new_balance !== undefined) {
+            document.getElementById('gold-amount').textContent = data.new_balance;
+        }
+        if (data.shield_granted) {
+            updateShieldDisplay(true, data.shield_expires_at_iso || null);
+        }
+        document.getElementById('reward-result').style.display = 'none';
+        document.getElementById('steal-result-msg').style.display = 'none';
+        const notifEl = document.getElementById('steal-notification');
+        notifEl.style.display = 'block';
+        notifEl.innerHTML =
+            '<strong>You were robbed.</strong><br>' +
+            escapeHtml(data.stolen_by) + ' stole ' + data.amount + ' gold from you.' +
+            (data.shield_granted
+                ? '<br>Protected for ' + (secondsUntilExpiry(data.shield_expires_at_iso || null) || '?') + 's.'
+                : '');
+        if (data.shield_granted) {
+            const seconds = secondsUntilExpiry(data.shield_expires_at_iso || null);
+            setShieldStatusMessage(
+                seconds ? 'Reactive protection active for ' + seconds + 's.' : 'Reactive protection active.',
+                'info'
+            );
+        }
+        appendActionLog(data.log_entry || (data.stolen_by + ' stole ' + data.amount + ' gold'));
+        setTimeout(function () { notifEl.style.display = 'none'; }, 8000);
+    });
+
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,184 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}New Classic Session{% endblock %}
+
+{% macro render_field(field, field_type='default', hint='') -%}
+<p class="admin-field">
+    {{ field.label }}
+    {% if field_type == 'text' %}
+        {{ field(size=40) }}
+    {% else %}
+        {{ field() }}
+    {% endif %}
+    {% if hint %}
+        <span class="admin-help-text">{{ hint }}</span>
+    {% endif %}
+    {% if field.errors %}
+        <span class="admin-field-error">{{ field.errors[0] }}</span>
+    {% endif %}
+</p>
+{%- endmacro %}
+
+{% block admin_content %}
+{% set title = 'New Classic Session' %}
+{% set eyebrow = 'Launch' %}
+{% set description = 'Group the launch settings by intent, keep server validation unchanged, and surface a live pre-flight review before submission.' %}
+{% include "admin/_page_header.html" %}
+
+<form method="POST" action="{{ url_for('classic_admin.new_session') }}" data-classic-session-form>
+    {{ form.hidden_tag() }}
+
+    <div class="admin-grid-two">
+        <div>
+            <details class="admin-details" open>
+                <summary class="admin-details-summary">
+                    <span class="admin-details-summary-text">
+                        <span class="admin-details-summary-title">1. Session</span>
+                        <span class="admin-details-summary-hint">Choose the session scope and launch label.</span>
+                    </span>
+                    <span class="admin-details-summary-icon">v</span>
+                </summary>
+                <div class="admin-details-body admin-form-stack">
+                    {{ render_field(form.problem_set_id) }}
+                    {{ render_field(form.group_id, hint="Leave as Open to allow any eligible player to join.") }}
+                    {{ render_field(form.label, field_type='text', hint='Leave blank to keep the existing auto-generated label behavior.') }}
+                </div>
+            </details>
+
+            <details class="admin-details" open>
+                <summary class="admin-details-summary">
+                    <span class="admin-details-summary-text">
+                        <span class="admin-details-summary-title">2. Core Round / Economy</span>
+                        <span class="admin-details-summary-hint">Primary gold flow, attempts, and treasure range.</span>
+                    </span>
+                    <span class="admin-details-summary-icon">v</span>
+                </summary>
+                <div class="admin-details-body admin-form-grid">
+                    {{ render_field(form.mine_reward, hint='Gold awarded for a successful mine.') }}
+                    {{ render_field(form.treasure_search_reward, hint='Minimum gold from treasure search.') }}
+                    {{ render_field(form.treasure_search_max_reward, hint='Maximum gold from treasure search.') }}
+                    {{ render_field(form.attempts_per_problem, hint='Use -1 for unlimited attempts.') }}
+                    {{ render_field(form.wrong_answer_penalty, hint='Gold deducted after a wrong answer.') }}
+                </div>
+            </details>
+
+            <details class="admin-details">
+                <summary class="admin-details-summary">
+                    <span class="admin-details-summary-text">
+                        <span class="admin-details-summary-title">3. Bonuses</span>
+                        <span class="admin-details-summary-hint">Timer, first-solver, and gem earn rules.</span>
+                    </span>
+                    <span class="admin-details-summary-icon">v</span>
+                </summary>
+                <div class="admin-details-body admin-form-grid">
+                    {{ render_field(form.bonus_timer_duration, hint='Set to 0 to disable the timer bonus.') }}
+                    {{ render_field(form.bonus_timer_gold, hint='Gold awarded when the timer bonus is active.') }}
+                    {{ render_field(form.first_solver_count, hint='Set to 0 to disable first-solver rewards.') }}
+                    {{ render_field(form.first_solver_multiplier, hint='Gold multiplier applied by first-solver placement.') }}
+                    {{ render_field(form.gem_milestone_count, hint='Set to 0 to disable gem milestones.') }}
+                    {{ render_field(form.gem_streak_count, hint='Set to 0 to disable gem streak rewards.') }}
+                </div>
+            </details>
+
+            <details class="admin-details">
+                <summary class="admin-details-summary">
+                    <span class="admin-details-summary-text">
+                        <span class="admin-details-summary-title">4. Treasure</span>
+                        <span class="admin-details-summary-hint">Configure treasure side rewards without changing backend rules.</span>
+                    </span>
+                    <span class="admin-details-summary-icon">v</span>
+                </summary>
+                <div class="admin-details-body admin-form-grid">
+                    {{ render_field(form.gem_treasure_chance, hint='Chance that treasure also grants one gem.') }}
+                    {{ render_field(form.treasure_steal_token_chance, hint='Chance that treasure grants a steal token.') }}
+                    {{ render_field(form.treasure_active_shield_chance, hint='Chance that treasure grants a shield token.') }}
+                    {{ render_field(form.treasure_second_chance_chance, hint='Chance that treasure grants second chance protection.') }}
+                </div>
+            </details>
+
+            <details class="admin-details">
+                <summary class="admin-details-summary">
+                    <span class="admin-details-summary-text">
+                        <span class="admin-details-summary-title">5. Steal &amp; Protection</span>
+                        <span class="admin-details-summary-hint">Steal caps, fallback flow, mini-game, and shield durations.</span>
+                    </span>
+                    <span class="admin-details-summary-icon">v</span>
+                </summary>
+                <div class="admin-details-body admin-form-grid">
+                    {{ render_field(form.steal_percent, hint='Decimal probability, for example 0.1 for 10 percent.') }}
+                    {{ render_field(form.steal_min_cap, hint='Minimum gold stolen from a valid target.') }}
+                    {{ render_field(form.steal_max_cap, hint='Use -1 for no steal max cap.') }}
+                    {{ render_field(form.steal_fallback_gold, hint='Gold awarded when no valid targets exist.') }}
+                    {{ render_field(form.steal_chest_count, hint='Set to 0 to disable the chest mini-game.') }}
+                    {{ render_field(form.steal_winning_chest_count, hint='Must stay within the chest count when enabled.') }}
+                    {{ render_field(form.active_shield_duration, hint='Manual shield token duration in seconds.') }}
+                    {{ render_field(form.reactive_shield_duration, hint='Automatic post-steal protection duration in seconds.') }}
+                </div>
+            </details>
+        </div>
+
+        <div>
+            <details class="admin-details" open>
+                <summary class="admin-details-summary">
+                    <span class="admin-details-summary-text">
+                        <span class="admin-details-summary-title">6. Review</span>
+                        <span class="admin-details-summary-hint">Live summary and lightweight warnings before submit.</span>
+                    </span>
+                    <span class="admin-details-summary-icon">v</span>
+                </summary>
+                <div class="admin-details-body">
+                    <div class="admin-review-list">
+                        <div class="admin-review-item">
+                            <h3>Session</h3>
+                            <div data-review="session">Waiting for form values.</div>
+                        </div>
+
+                        <div class="admin-review-item">
+                            <h3>Treasure Gold Range</h3>
+                            <div data-review="treasure-range">Waiting for form values.</div>
+                        </div>
+
+                        <div class="admin-review-item">
+                            <h3>Enabled Bonus Sources</h3>
+                            <div data-review="bonus-sources">Waiting for form values.</div>
+                        </div>
+
+                        <div class="admin-review-item">
+                            <h3>Treasure Side Rewards</h3>
+                            <div data-review="side-rewards">Waiting for form values.</div>
+                        </div>
+
+                        <div class="admin-review-item">
+                            <h3>Steal Summary</h3>
+                            <div data-review="steal">Waiting for form values.</div>
+                        </div>
+
+                        <div class="admin-review-item">
+                            <h3>Disabled / Ignored States</h3>
+                            <div data-review="disabled-states">Waiting for form values.</div>
+                        </div>
+
+                        <div class="admin-review-item admin-callout admin-callout-warning">
+                            <h3>Warnings</h3>
+                            <ul class="admin-warning-list" data-review="warnings"></ul>
+                            <div class="admin-help-text">
+                                Empty problem set warnings are not shown in this pass because the rendered page context does not currently include problem counts.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </details>
+
+            <div class="admin-section-card admin-section-card-muted">
+                <h2 class="admin-toolbar-title">Submit</h2>
+                <p class="admin-toolbar-subtitle">
+                    Existing WTForms and route validation still decide what can be saved. These summaries are guidance only.
+                </p>
+                <div style="margin-top: 16px;">
+                    {{ form.submit(class_='admin-btn admin-btn-primary') }}
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+{% endblock %}

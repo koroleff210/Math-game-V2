@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}Classic Lobby — Session #{{ game_session.id }}{% endblock %}
+
+{% block head %}
+<script src="/static/js/socket.io.min.js"></script>
+<style>
+    #lobby-container {
+        max-width: 500px;
+        margin: 60px auto;
+        text-align: center;
+        font-family: sans-serif;
+    }
+    #status-msg {
+        font-size: 1.4em;
+        margin-bottom: 24px;
+    }
+    #player-list {
+        list-style: none;
+        padding: 0;
+        margin: 12px auto;
+        width: fit-content;
+    }
+    #player-list li {
+        padding: 4px 12px;
+        background: #f0f0f0;
+        margin-bottom: 4px;
+        border-radius: 4px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="lobby-container">
+    <h1>Classic Mode — Lobby</h1>
+    <p>Session #{{ game_session.id }} · Problem Set: {{ game_session.problem_set.name }}</p>
+
+    <div id="status-msg">⏳ Waiting for admin to start the round…</div>
+
+    <h3>Players in session:</h3>
+    <ul id="player-list">
+        {% for rp in enrolled %}
+        <li>{{ rp.player.username }}</li>
+        {% endfor %}
+    </ul>
+</div>
+
+<script>
+(function () {
+    const SESSION_ID = {{ game_session.id }};
+    const socket = io();
+
+    socket.on('connect', function () {
+        socket.emit('classic_join', { session_id: SESSION_ID });
+    });
+
+    socket.on('join_ack', function (data) {
+        if (data.round_status === 'active') {
+            // Round already started — go straight to game
+            window.location.href = '/classic/game/' + SESSION_ID;
+        } else if (data.round_status === 'ended') {
+            // Between rounds — update status message
+            document.getElementById('status-msg').textContent = '⏳ Round complete. Waiting for the next round to start…';
+        }
+    });
+
+    // Update player list whenever any player (including ourselves) joins the room.
+    socket.on('player_joined', function (data) {
+        const list = document.getElementById('player-list');
+        list.innerHTML = '';
+        data.players.forEach(function (name) {
+            const li = document.createElement('li');
+            li.textContent = name;
+            list.appendChild(li);
+        });
+    });
+
+    socket.on('round_started', function () {
+        document.getElementById('status-msg').textContent = '🚀 Round started! Redirecting…';
+        setTimeout(function () {
+            window.location.href = '/classic/game/' + SESSION_ID;
+        }, 800);
+    });
+
+    // A1-8: When the session ends after a round, redirect directly to results.
+    socket.on('round_ended', function () {
+        document.getElementById('status-msg').textContent = '🏁 Session ended! Loading results…';
+        setTimeout(function () {
+            window.location.href = '/classic/round_over/' + SESSION_ID;
+        }, 1000);
+    });
+
+    socket.on('error', function (data) {
+        console.error('Socket error:', data.msg);
+    });
+})();
+</script>
+{% endblock %}

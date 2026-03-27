@@ -1,0 +1,133 @@
+<div
+  id="gear-shell-container"
+  data-gear-shell
+  data-gear-current-filter="{{ gear_filter }}"
+>
+  <div data-gear-shell-message-region>
+    {% if gear_shell_message %}
+      <div class="notice notice-{{ gear_shell_message.category }}" data-gear-shell-message>
+        <strong>{{ gear_shell_message.text }}</strong>
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="gear-work-top">
+    <div class="gear-avatar-column">
+      <div class="equipment-pane">
+        <h3 class="gear-card-title">{{ current_user.username }}</h3>
+        <div class="avatar-pane-layout">
+          <div class="avatar-loadout-stage">
+            <div class="avatar-stage-cell" data-gear-avatar-preview-region>
+              {% include 'player/_avatar_preview.html' %}
+            </div>
+
+            {% include 'player/_gear_loadout_slots.html' %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="gear-detail-column">
+      <div class="details-pane gear-selected-pane" id="gear-details-panel" data-gear-details-container data-gear-details-region>
+        <h3 class="gear-card-title">Selected Item</h3>
+        {% include 'player/_gear_details_panel.html' %}
+      </div>
+
+      <div class="bonus-pane gear-bonus-pane" data-gear-bonus-region>
+        <h3 class="gear-card-title">Active Gear Bonuses</h3>
+        <div class="gear-session-control" data-hub-session-control>
+          {% if hub_status.state == 'eligible' and hub_status.session %}
+            <form method="POST" action="{{ url_for('classic_player.join_session') }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="session_id" value="{{ hub_status.session.id }}">
+              <button type="submit" class="btn btn-success btn-small">Join Game</button>
+            </form>
+            <p class="gear-session-control-note">
+              {% if hub_status.session.display_label %}
+                Ready: {{ hub_status.session.display_label }}
+              {% else %}
+                A joinable session is ready.
+              {% endif %}
+            </p>
+          {% elif hub_status.state == 'enrolled_unfinished' and hub_status.session %}
+            <a href="{{ url_for('classic_player.play') }}" class="btn btn-secondary btn-small">Return to Game</a>
+            <p class="gear-session-control-note">
+              {% if hub_status.session.display_label %}
+                Current session: {{ hub_status.session.display_label }}
+              {% else %}
+                You are already enrolled in a live session.
+              {% endif %}
+            </p>
+          {% else %}
+            <button type="button" class="btn btn-success btn-small" disabled>Join Game</button>
+            <p class="gear-session-control-note">No joinable session is available right now.</p>
+          {% endif %}
+        </div>
+        <ul class="bonus-list">
+          <li>Mine: {{ '%+d'|format(gear_active_bonus_summary.mine_gold_delta) }}</li>
+          <li>Steal: {{ '%+d'|format(gear_active_bonus_summary.steal_gold_delta) }}</li>
+          <li>Shield: {{ '%+d'|format(gear_active_bonus_summary.shield_duration_delta) }} s</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  {% if gear_inventory_items %}
+    <div class="gear-inventory-section" data-gear-inventory-region>
+      <div class="filter-tabs">
+        {% for tab in gear_filter_tabs %}
+          {% if tab.default_selected_item_id %}
+            <a
+              class="filter-tab {% if tab.is_active %}active{% endif %}"
+              data-gear-shell-link
+              href="{{ url_for('player.dashboard', gear_filter=tab.key, selected_item=tab.default_selected_item_id) }}"
+              data-gear-shell-url="{{ url_for('player.gear_shell', gear_filter=tab.key, selected_item=tab.default_selected_item_id) }}"
+            >
+              {{ tab.label }} ({{ tab.item_count }})
+            </a>
+          {% else %}
+            <a
+              class="filter-tab {% if tab.is_active %}active{% endif %}"
+              data-gear-shell-link
+              href="{{ url_for('player.dashboard', gear_filter=tab.key) }}"
+              data-gear-shell-url="{{ url_for('player.gear_shell', gear_filter=tab.key) }}"
+            >
+              {{ tab.label }} ({{ tab.item_count }})
+            </a>
+          {% endif %}
+        {% endfor %}
+      </div>
+
+      <div class="inventory-pane">
+        <h3 class="gear-card-title">Owned Gear</h3>
+        {% if gear_visible_items %}
+          <div class="inventory-scroll-region">
+            <div class="inventory-grid">
+              {% for item in gear_visible_items %}
+                <a
+                  class="inventory-card {% if gear_selected_item and gear_selected_item.id == item.id %}selected{% endif %} {% if item.is_equipped %}equipped{% endif %}"
+                  data-gear-inventory-item="{{ item.id }}"
+                  data-gear-item-id="{{ item.id }}"
+                  data-gear-slot="{{ item.slot_type }}"
+                  data-gear-shell-link
+                  href="{{ url_for('player.dashboard', gear_filter=gear_filter, selected_item=item.id) }}"
+                  data-gear-shell-url="{{ url_for('player.gear_shell', gear_filter=gear_filter, selected_item=item.id) }}"
+                  title="{{ item.name }} — {{ item.slot_label }}{% if item.is_equipped %} (Equipped in {{ item.equipped_slot_label }}){% endif %}"
+                >
+                  <img class="gear-thumb" src="{{ item.icon_static_path }}" alt="{{ item.name }}">
+                  {% if item.is_equipped %}
+                    <div class="status-badge" aria-label="Equipped in {{ item.equipped_slot_label }}">Equipped</div>
+                  {% endif %}
+                </a>
+              {% endfor %}
+            </div>
+          </div>
+        {% else %}
+          <p class="inventory-empty">No owned items match this filter yet.</p>
+        {% endif %}
+      </div>
+    </div>
+  {% else %}
+    <p class="muted-empty">You do not own any gear yet.</p>
+  {% endif %}
+</div>

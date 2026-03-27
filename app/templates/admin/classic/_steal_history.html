@@ -1,0 +1,32 @@
+{% if steal_events %}
+<table border="1" cellpadding="8" style="border-collapse:collapse; font-size:0.9em;">
+    <tr>
+        <th>Time (UTC)</th>
+        <th>Actor</th>
+        <th>Target</th>
+        <th>Outcome</th>
+        <th>Gold</th>
+    </tr>
+    {% for ev in steal_events %}
+    <tr>
+        <td>{{ ev.created_at.strftime('%H:%M:%S') }}</td>
+        <td>{{ ev.actor.username }}</td>
+        <td>{% if ev.target %}{{ ev.target.username }}{% else %}<em>stranger</em>{% endif %}</td>
+        <td>
+            {% if ev.outcome == 'success' %}
+                <span style="color:green;">✓ success</span>
+            {% elif ev.outcome == 'mini_game_fail' %}
+                <span style="color:#dc3545;">✗ mini-game fail</span>
+            {% elif ev.outcome == 'target_invalid' %}
+                <span style="color:#6c757d;">↩ target invalid</span>
+            {% else %}
+                <span style="color:#6c757d;">↩ no targets</span>
+            {% endif %}
+        </td>
+        <td>{{ ev.gold_exchanged }}</td>
+    </tr>
+    {% endfor %}
+</table>
+{% else %}
+<p>No steal attempts yet.</p>
+{% endif %}

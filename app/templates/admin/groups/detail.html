@@ -1,0 +1,106 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}{{ group.name }}{% endblock %}
+
+{% block admin_content %}
+<h1>{{ group.name }}</h1>
+
+<p>
+    <a href="{{ url_for('admin.groups_index') }}" style="color:#007bff;">&larr; Back to Classes</a>
+    &nbsp;|&nbsp;
+    <a href="{{ url_for('admin.group_edit', group_id=group.id) }}" style="color:#6c757d;">Edit Class</a>
+</p>
+
+{% if group.description %}
+<p style="color:#555;">{{ group.description }}</p>
+{% endif %}
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+        <div style="padding:10px; margin-bottom:8px; border-radius:4px;
+                    background:{% if category == 'success' %}#d4edda{% elif category == 'error' %}#f8d7da{% else %}#d1ecf1{% endif %};
+                    color:{% if category == 'success' %}#155724{% elif category == 'error' %}#721c24{% else %}#0c5460{% endif %};">
+            {{ message }}
+        </div>
+    {% endfor %}
+{% endwith %}
+
+<h2>Members</h2>
+{% if members %}
+<table border="1" cellpadding="8" style="border-collapse:collapse; max-width:600px;">
+    <thead style="background:#f8f9fa;">
+        <tr>
+            <th style="text-align:left;">Username</th>
+            <th style="text-align:left;">Year Group</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for player in members %}
+    <tr>
+        <td>{{ player.username }}</td>
+        <td>{{ player.yeargroup or '—' }}</td>
+        <td>
+            <form method="POST"
+                  action="{{ url_for('admin.group_remove_player', group_id=group.id, player_id=player.id) }}"
+                  style="display:inline;"
+                  onsubmit="return confirm('Remove {{ player.username }} from class?')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit"
+                        style="background:none; border:none; color:#dc3545; cursor:pointer; padding:0;">
+                    Remove
+                </button>
+            </form>
+        </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p style="color:#888;">No members yet.</p>
+{% endif %}
+
+<h2 style="margin-top:24px;">Add Players</h2>
+
+{% if all_yeargroups %}
+<form method="GET" action="{{ url_for('admin.group_detail', group_id=group.id) }}"
+      style="margin-bottom:12px; display:flex; gap:8px; align-items:center;">
+    <label for="yg-filter" style="font-size:0.9em; color:#555;">Filter by Year Group:</label>
+    <select id="yg-filter" name="yg" style="padding:4px 8px;">
+        <option value="">— All —</option>
+        {% for yg in all_yeargroups %}
+        <option value="{{ yg }}" {% if yg == yg_filter %}selected{% endif %}>{{ yg }}</option>
+        {% endfor %}
+    </select>
+    <button type="submit"
+            style="padding:4px 12px; background:#6c757d; color:white; border:none; border-radius:4px; cursor:pointer; font-size:0.9em;">
+        Filter
+    </button>
+    {% if yg_filter %}
+    <a href="{{ url_for('admin.group_detail', group_id=group.id) }}"
+       style="font-size:0.9em; color:#007bff;">Clear</a>
+    {% endif %}
+</form>
+{% endif %}
+
+{% if non_members %}
+<form method="POST" action="{{ url_for('admin.group_add_player', group_id=group.id) }}"
+      style="display:flex; gap:8px; align-items:center;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <select name="player_id" style="padding:6px; min-width:200px;">
+        {% for player in non_members %}
+        <option value="{{ player.id }}">{{ player.username }}{% if player.yeargroup %} ({{ player.yeargroup }}){% endif %}</option>
+        {% endfor %}
+    </select>
+    <button type="submit"
+            style="padding:6px 16px; background:#28a745; color:white; border:none; border-radius:4px; cursor:pointer;">
+        Add
+    </button>
+</form>
+{% else %}
+<p style="color:#888;">
+    {% if yg_filter %}No players in year group "{{ yg_filter }}" outside this class.
+    {% else %}All players are already in this class.{% endif %}
+</p>
+{% endif %}
+{% endblock %}

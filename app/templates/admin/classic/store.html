@@ -1,0 +1,113 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}Store — Session #{{ game_session.id }}{% endblock %}
+
+{% block admin_content %}
+<h1>Store — Classic Session #{{ game_session.id }}</h1>
+<p><a href="{{ url_for('classic_admin.manage', session_id=game_session.id) }}">← Back to session</a></p>
+
+<!-- Existing items -->
+<h2>Items</h2>
+{% if items %}
+<table border="1" cellpadding="8" style="border-collapse:collapse; margin-bottom:24px;">
+    <tr>
+        <th>Name</th>
+        <th>Bonus</th>
+        <th>Cost</th>
+        <th>Currency</th>
+        <th>Session Stock</th>
+        <th>Per-Player Limit</th>
+        <th>Sold</th>
+        <th>Description</th>
+        <th>Actions</th>
+    </tr>
+    {% for item in items %}
+    <tr>
+        <td>{{ item.name }}</td>
+        <td>{{ item.bonus_type }}</td>
+        <td>{{ item.cost }}</td>
+        <td>{% if item.currency == 'gems' %}Gems 💎{% else %}Gold 💰{% endif %}</td>
+        <td>
+            {% if item.session_stock == -1 %}
+                <em>Unlimited</em>
+            {% else %}
+                {{ item.session_stock }} total
+                <small style="color:#666;">({{ item.session_stock - sold_counts.get(item.id, 0) }} remaining)</small>
+            {% endif %}
+        </td>
+        <td>
+            {% if item.per_player_limit == -1 %}
+                <em>Unlimited</em>
+            {% else %}
+                {{ item.per_player_limit }} per player
+            {% endif %}
+        </td>
+        <td>{{ sold_counts.get(item.id, 0) }}</td>
+        <td>{{ item.description or '—' }}</td>
+        <td>
+            <a href="{{ url_for('classic_admin.store_edit', session_id=game_session.id, item_id=item.id) }}">Edit</a>
+            &nbsp;
+            <form method="POST"
+                  action="{{ url_for('classic_admin.store_delete', session_id=game_session.id, item_id=item.id) }}"
+                  style="display:inline;"
+                  onsubmit="return confirm('Delete {{ item.name }}?')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" style="color:red; background:none; border:none; cursor:pointer; padding:0;">
+                    Delete
+                </button>
+            </form>
+        </td>
+    </tr>
+    {% endfor %}
+</table>
+{% else %}
+<p>No items yet. Add one below.</p>
+{% endif %}
+<p style="color:#666; font-size:0.85em; margin-top:4px;">
+    <strong>Note:</strong> Session Stock is the total number of purchases allowed across all players for the entire session.
+    Per-Player Limit is the max purchases each player can make for that item.
+    &minus;1 = unlimited for either.
+</p>
+
+<!-- Push store to players -->
+<form method="POST" action="{{ url_for('classic_admin.push_store', session_id=game_session.id) }}"
+      style="margin-bottom:24px;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" style="
+        background:#fd7e14; color:white; border:none;
+        padding:10px 20px; cursor:pointer; font-size:1em;
+        border-radius:4px;"
+        title="Push current store items to all connected players without requiring a page refresh">
+        &#128722; Push Store to Players
+    </button>
+</form>
+
+<!-- Add item form -->
+<h2>Add Item</h2>
+<form method="POST" action="{{ url_for('classic_admin.store', session_id=game_session.id) }}">
+    {{ form.hidden_tag() }}
+
+    <table style="border-collapse:collapse;">
+        {% for field in [form.name, form.description, form.cost, form.currency, form.bonus_type, form.session_stock, form.per_player_limit] %}
+        <tr>
+            <td style="padding:4px 12px 4px 0;">{{ field.label }}</td>
+            <td style="padding:4px 0;">
+                {% if field.type == 'TextAreaField' %}
+                    {{ field(rows=2, cols=40) }}
+                {% else %}
+                    {{ field() }}
+                {% endif %}
+            </td>
+        </tr>
+        {% if field.errors %}
+        <tr>
+            <td></td>
+            <td style="color:red; font-size:0.9em;">{{ field.errors[0] }}</td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+    </table>
+
+    <p style="margin-top:12px;">{{ form.submit() }}</p>
+</form>
+{% endblock %}

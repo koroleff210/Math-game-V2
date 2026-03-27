@@ -1,0 +1,233 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}History — Session #{{ game_session.id }}{% endblock %}
+
+{% block admin_content %}
+<h1>History — Classic Session #{{ game_session.id }}</h1>
+<p><a href="{{ url_for('classic_admin.manage', session_id=game_session.id) }}">&#8592; Back to session</a></p>
+
+<!-- Archive visibility toggle -->
+<p style="margin-bottom:16px;">
+{% if include_archived %}
+    <strong>Showing active and archived rounds.</strong>
+    <a href="{{ url_for('classic_admin.history', session_id=game_session.id) }}"
+       style="margin-left:12px;">Hide archived</a>
+{% else %}
+    <a href="{{ url_for('classic_admin.history', session_id=game_session.id, include_archived=1) }}">
+        Show archived rounds
+    </a>
+{% endif %}
+</p>
+
+<!-- Export -->
+<p style="margin-bottom:20px;">
+    <a href="{% if include_archived %}{{ url_for('classic_admin.history_export', session_id=game_session.id, include_archived=1) }}{% else %}{{ url_for('classic_admin.history_export', session_id=game_session.id) }}{% endif %}"
+       style="font-size:0.9em;">&#11123; Export CSV</a>
+</p>
+
+<!-- Session context -->
+<div style="background:#f8f9fa; border:1px solid #dee2e6; border-radius:6px;
+            padding:14px 18px; margin-bottom:24px;">
+    <strong>Session context</strong><br>
+    <table style="border-collapse:collapse; margin-top:8px; font-size:0.95em;">
+        <tr>
+            <td style="padding:2px 16px 2px 0; color:#555;">Label</td>
+            <td>{{ game_session.display_label }}</td>
+        </tr>
+        <tr>
+            <td style="padding:2px 16px 2px 0; color:#555;">Mode</td>
+            <td>{{ game_session.mode }}</td>
+        </tr>
+        <tr>
+            <td style="padding:2px 16px 2px 0; color:#555;">Class</td>
+            <td>{% if game_session.group %}{{ game_session.group.name }}{% else %}Open{% endif %}</td>
+        </tr>
+        <tr>
+            <td style="padding:2px 16px 2px 0; color:#555;">Problem set</td>
+            <td>{% if game_session.problem_set %}{{ game_session.problem_set.name }}{% else %}—{% endif %}</td>
+        </tr>
+        <tr>
+            <td style="padding:2px 16px 2px 0; color:#555;">Frozen rounds</td>
+            <td>{{ rounds | length }}</td>
+        </tr>
+    </table>
+</div>
+
+{% if rounds %}
+
+{% for rh in rounds %}
+{% set player_rows = results_by_round.get(rh.id, []) %}
+
+<div id="round-{{ rh.id }}"
+     style="border:1px solid {% if rh.archived_at %}#adb5bd{% else %}#ced4da{% endif %};
+            border-radius:6px; padding:18px 20px; margin-bottom:32px;
+            {% if rh.archived_at %}opacity:0.75; background:#f8f9fa;{% endif %}">
+
+    <!-- Round heading -->
+    <h2 style="margin-top:0; margin-bottom:12px;">
+        Round {{ rh.round_number }}
+        <small style="font-weight:normal; color:#6c757d; font-size:0.65em;">
+            ({{ rh.mode_type }})
+        </small>
+        {% if rh.archived_at %}
+        <span style="font-size:0.6em; font-weight:bold; color:#fff; background:#6c757d;
+                     border-radius:4px; padding:2px 7px; vertical-align:middle;">ARCHIVED</span>
+        {% endif %}
+    </h2>
+
+    <!-- Round summary -->
+    <table style="border-collapse:collapse; font-size:0.92em; margin-bottom:16px;">
+        <tr>
+            <td style="padding:2px 20px 2px 0; color:#555;">Started</td>
+            <td>{% if rh.started_at %}{{ rh.started_at.strftime('%Y-%m-%d %H:%M:%S') }} UTC{% else %}<em style="color:#999;">not recorded</em>{% endif %}</td>
+        </tr>
+        <tr>
+            <td style="padding:2px 20px 2px 0; color:#555;">Ended</td>
+            <td>{{ rh.ended_at.strftime('%Y-%m-%d %H:%M:%S') }} UTC</td>
+        </tr>
+        <tr>
+            <td style="padding:2px 20px 2px 0; color:#555;">Players</td>
+            <td>{{ rh.player_count }}</td>
+        </tr>
+        <tr>
+            <td style="padding:2px 20px 2px 0; color:#555;">Total answers</td>
+            <td>{{ rh.total_answers }}</td>
+        </tr>
+        <tr>
+            <td style="padding:2px 20px 2px 0; color:#555;">Correct / Incorrect</td>
+            <td>{{ rh.total_correct }} / {{ rh.total_incorrect }}</td>
+        </tr>
+        <tr>
+            <td style="padding:2px 20px 2px 0; color:#555;">Accuracy</td>
+            <td>
+                {% if rh.total_answers > 0 %}
+                    {{ (rh.overall_accuracy * 100) | round(1) }}%
+                {% else %}
+                    <em style="color:#999;">n/a</em>
+                {% endif %}
+            </td>
+        </tr>
+        {% if rh.problem_set_name_snapshot %}
+        <tr>
+            <td style="padding:2px 20px 2px 0; color:#555;">Problem set</td>
+            <td>{{ rh.problem_set_name_snapshot }}</td>
+        </tr>
+        {% endif %}
+        {% if rh.group_name_snapshot %}
+        <tr>
+            <td style="padding:2px 20px 2px 0; color:#555;">Group</td>
+            <td>{{ rh.group_name_snapshot }}</td>
+        </tr>
+        {% else %}
+        <tr>
+            <td style="padding:2px 20px 2px 0; color:#555;">Group</td>
+            <td><em style="color:#999;">Open session</em></td>
+        </tr>
+        {% endif %}
+        {% if rh.session_label_snapshot %}
+        <tr>
+            <td style="padding:2px 20px 2px 0; color:#555;">Session label</td>
+            <td>{{ rh.session_label_snapshot }}</td>
+        </tr>
+        {% endif %}
+        {% if rh.archived_at %}
+        <tr>
+            <td style="padding:2px 20px 2px 0; color:#555;">Archived</td>
+            <td style="color:#6c757d;">{{ rh.archived_at.strftime('%Y-%m-%d %H:%M:%S') }} UTC</td>
+        </tr>
+        {% endif %}
+    </table>
+
+    <!-- Per-player results table -->
+    {% if player_rows %}
+    <table border="1" cellpadding="7" style="border-collapse:collapse; font-size:0.9em; width:100%;">
+        <thead style="background:#f1f3f5;">
+            <tr>
+                <th style="text-align:center;">#</th>
+                <th>Player</th>
+                <th style="text-align:right;">Gold</th>
+                <th style="text-align:right;">Gems</th>
+                <th style="text-align:right;">Answers</th>
+                <th style="text-align:right;">Correct</th>
+                <th style="text-align:right;">Incorrect</th>
+                <th style="text-align:right;">Accuracy</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for r in player_rows %}
+            <tr>
+                <td style="text-align:center;">{{ r.final_place }}</td>
+                <td>{{ r.player_name_snapshot }}</td>
+                <td style="text-align:right;">{{ r.final_gold }}</td>
+                <td style="text-align:right;">{{ r.final_gems }}</td>
+                <td style="text-align:right;">{{ r.total_answers }}</td>
+                <td style="text-align:right;">{{ r.correct }}</td>
+                <td style="text-align:right;">{{ r.incorrect }}</td>
+                <td style="text-align:right;">
+                    {% if r.total_answers > 0 %}
+                        {{ (r.accuracy * 100) | round(1) }}%
+                    {% else %}
+                        <em style="color:#999;">n/a</em>
+                    {% endif %}
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:#888; font-style:italic;">No player results recorded for this round.</p>
+    {% endif %}
+
+    <!-- Admin controls: Archive / Unarchive / Delete -->
+    <div style="margin-top:18px; padding-top:14px; border-top:1px solid #dee2e6;
+                display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+        {% if rh.archived_at %}
+        <form method="post"
+              action="{{ url_for('admin.history_round_unarchive', rh_id=rh.id) }}"
+              style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit"
+                    style="background:#198754; color:#fff; border:none; border-radius:4px;
+                           padding:5px 14px; cursor:pointer; font-size:0.88em;">
+                Unarchive
+            </button>
+        </form>
+        {% else %}
+        <form method="post"
+              action="{{ url_for('admin.history_round_archive', rh_id=rh.id) }}"
+              style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit"
+                    style="background:#6c757d; color:#fff; border:none; border-radius:4px;
+                           padding:5px 14px; cursor:pointer; font-size:0.88em;">
+                Archive
+            </button>
+        </form>
+        {% endif %}
+
+        <form method="post"
+              action="{{ url_for('admin.history_round_delete', rh_id=rh.id) }}"
+              style="display:inline;"
+              onsubmit="return confirm('Permanently delete history for Round {{ rh.round_number }}? This cannot be undone.');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit"
+                    style="background:#dc3545; color:#fff; border:none; border-radius:4px;
+                           padding:5px 14px; cursor:pointer; font-size:0.88em;">
+                Delete permanently
+            </button>
+        </form>
+    </div>
+
+</div>
+{% endfor %}
+
+{% else %}
+<div style="background:#fff3cd; border:1px solid #ffc107; border-radius:6px;
+            padding:14px 18px; color:#856404;">
+    No frozen round history exists for this session yet.
+    History is recorded automatically when you end a round.
+</div>
+{% endif %}
+
+{% endblock %}
+

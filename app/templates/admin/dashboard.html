@@ -1,0 +1,27 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block admin_content %}
+<h1>Admin Dashboard</h1>
+
+<p>Welcome. Use the sidebar to manage the problem bank.</p>
+
+<table border="1" cellpadding="8" style="border-collapse:collapse;">
+    <tr>
+        <th>Section</th><th>Link</th>
+    </tr>
+    <tr>
+        <td>Topics</td>
+        <td><a href="{{ url_for('admin.topics') }}">Manage Topics</a></td>
+    </tr>
+    <tr>
+        <td>Problems</td>
+        <td><a href="{{ url_for('admin.problems') }}">Manage Problems</a></td>
+    </tr>
+    <tr>
+        <td>Problem Sets</td>
+        <td><a href="{{ url_for('admin.problem_sets') }}">Manage Problem Sets</a></td>
+    </tr>
+</table>
+{% endblock %}

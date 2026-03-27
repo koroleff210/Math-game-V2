@@ -1,0 +1,84 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}Problems{% endblock %}
+
+{% block admin_content %}
+{% set title = 'Problems' %}
+{% set eyebrow = 'Problem Bank' %}
+{% set description = 'Browse the problem bank, filter by subject, and jump directly into the editor.' %}
+{% set primary_href = url_for('admin.problem_new') %}
+{% set primary_label = '+ New Problem' %}
+{% include "admin/_page_header.html" %}
+
+<section class="admin-section-card">
+    <form method="GET" action="{{ url_for('admin.problems') }}" class="admin-filter-bar">
+        <p class="admin-field">
+            <label for="subject_id">Filter by Subject</label>
+            <select name="subject_id" id="subject_id" onchange="this.form.submit()">
+                <option value="0"{% if selected_subject_id == 0 %} selected{% endif %}>All Subjects</option>
+                {% for s in subjects %}
+                <option value="{{ s.id }}"{% if selected_subject_id == s.id %} selected{% endif %}>{{ s.name }}</option>
+                {% endfor %}
+            </select>
+        </p>
+        <noscript>
+            <button type="submit" class="admin-btn admin-btn-secondary">Apply Filter</button>
+        </noscript>
+    </form>
+
+    <div class="admin-toolbar">
+        <div>
+            <h2 class="admin-toolbar-title">All Problems</h2>
+            <p class="admin-toolbar-subtitle">
+                {{ problems|length }} problem{{ '' if problems|length == 1 else 's' }}{% if selected_subject_id %} in the selected subject{% endif %}
+            </p>
+        </div>
+    </div>
+
+    {% if problems %}
+    <div class="admin-table-wrap">
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Title</th>
+                    <th>Subject</th>
+                    <th>Topic</th>
+                    <th>Difficulty</th>
+                    <th>Answer Type</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for p in problems %}
+                <tr>
+                    <td>{{ p.id }}</td>
+                    <td>{{ p.title }}</td>
+                    <td>{% if p.topic.subject_obj %}{{ p.topic.subject_obj.name }}{% else %}&mdash;{% endif %}</td>
+                    <td>{{ p.topic.name }}</td>
+                    <td>{{ p.difficulty }}</td>
+                    <td>{{ p.answer_type }}</td>
+                    <td>
+                        <div class="admin-row-actions">
+                            <a href="{{ url_for('admin.problem_content', problem_id=p.id) }}">Edit</a>
+                            <form method="POST"
+                                  action="{{ url_for('admin.problem_delete', problem_id=p.id) }}"
+                                  onsubmit="return confirm('Delete problem &quot;{{ p.title }}&quot;? This cannot be undone.');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="admin-link-danger">Delete</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="admin-empty-state">
+        No problems{% if selected_subject_id %} for this subject{% endif %} yet.
+        {% if not selected_subject_id %}<a href="{{ url_for('admin.problem_new') }}">Create one.</a>{% endif %}
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

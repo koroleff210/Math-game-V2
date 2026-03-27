@@ -1,0 +1,85 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}Gear Catalog{% endblock %}
+
+{% block admin_content %}
+<h1>Gear Catalog</h1>
+
+<p>
+    <a href="{{ url_for('admin.gear_new') }}"
+       style="padding:8px 16px; background:#007bff; color:white; border-radius:4px; text-decoration:none;">
+        + New Gear Item
+    </a>
+</p>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+        <div style="padding:10px; margin-bottom:8px; border-radius:4px;
+                    background:{% if category == 'success' %}#d4edda{% elif category == 'error' %}#f8d7da{% else %}#d1ecf1{% endif %};
+                    color:{% if category == 'success' %}#155724{% elif category == 'error' %}#721c24{% else %}#0c5460{% endif %};">
+            {{ message }}
+        </div>
+    {% endfor %}
+{% endwith %}
+
+{% if gear_items %}
+<table border="1" cellpadding="8" style="border-collapse:collapse; width:100%; max-width:1100px;">
+    <thead style="background:#f8f9fa;">
+        <tr>
+            <th style="text-align:left;">Item ID</th>
+            <th style="text-align:left;">Preview</th>
+            <th style="text-align:left;">Name</th>
+            <th style="text-align:left;">Slot</th>
+            <th style="text-align:left;">Image</th>
+            <th style="text-align:left;">Avatar Key</th>
+            <th style="text-align:left;">Cost</th>
+            <th style="text-align:left;">Effects</th>
+            <th style="text-align:left;">Flags</th>
+            <th style="text-align:left;">Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for item in gear_items %}
+    <tr data-item-id="{{ item.id }}">
+        <td><code>{{ item.id }}</code></td>
+        <td>
+            <img src="{{ item.icon_static_path }}" alt="{{ item.name }}" style="width:48px; height:48px; object-fit:cover; border:1px solid #ddd; border-radius:6px; background:#f8f9fa;">
+        </td>
+        <td>
+            <strong>{{ item.name }}</strong><br>
+            <span style="font-size:0.9em; color:#666;">{{ item.description }}</span>
+        </td>
+        <td>{{ item.slot_type.replace('_', ' ')|title }}</td>
+        <td>{{ item.image_key or '—' }}</td>
+        <td>{{ item.avatar_asset_key or '—' }}</td>
+        <td>{{ item.diamond_cost }}</td>
+        <td>
+            Mine {{ '%+d'|format(item.mine_gold_delta) }}<br>
+            Steal {{ '%+d'|format(item.steal_gold_delta) }}<br>
+            Shield {{ '%+d'|format(item.shield_duration_delta) }}s
+        </td>
+        <td>
+            Active:
+            {% if item.is_active %}Yes{% else %}No{% endif %}<br>
+            Blacksmith:
+            {% if item.is_blacksmith_visible %}Visible{% else %}Hidden{% endif %}
+        </td>
+        <td>
+            <div class="admin-row-actions">
+                <a href="{{ url_for('admin.gear_edit', item_id=item.id) }}" style="color:#007bff;">Edit</a>
+                <form method="POST"
+                      action="{{ url_for('admin.gear_delete', item_id=item.id) }}"
+                      onsubmit="return confirm('Delete gear item {{ item.name }}? This will remove it from all player inventories and loadouts.');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="admin-link-danger">Delete</button>
+                </form>
+            </div>
+        </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>No gear items yet.</p>
+{% endif %}
+{% endblock %}

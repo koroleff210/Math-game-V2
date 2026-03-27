@@ -1,0 +1,330 @@
+HISTORICAL ROADMAP NOTE
+This file is retained for background only.
+Current source-of-truth docs are:
+- docs/project_state.md
+- docs/system_architecture.md
+
+Diamonds_Upgrades_Roadmap_v1
+Status: Phase 1 MVP (D0 through D5) COMPLETE as of 2026-03-18
+Migration HEAD: d5a1b2c3d4e5
+See docs/project_state.md for full implementation details.
+
+Purpose
+
+Add persistent meta progression safely to math_game_v2 without destabilizing current Classic gameplay, frozen round history, or session/round state boundaries.
+
+Core economy roles
+
+Gold
+
+session-scoped
+
+main score currency during session
+
+later usable only in end-of-round merchant for weak/cosmetic rewards
+
+Gems
+
+session-scoped
+
+tactical in-round store currency
+
+not persistent
+
+Diamonds
+
+persistent across sessions
+
+manually awarded by admin
+
+used for long-term progression
+
+first use: permanent upgrades only
+
+Gear
+
+later persistent item layer
+
+weaker than permanent upgrades
+
+not in first Diamonds implementation
+
+Product rules
+Persistent ownership
+
+Player is the persistent identity anchor
+
+persistent progression data must not live in PlayerWallet or other session-scoped tables
+
+Diamond spending
+
+Diamonds cannot be spent during active session flow
+
+Diamond shop is only available outside an active session lifecycle
+
+Upgrade timing
+
+Persistent upgrades are resolved into frozen round-effective values at round start
+
+They do not change mid-round
+
+Lobby or between-round changes do not affect the already-started round
+
+Gold merchant timing
+
+Gold merchant is a separate future system
+
+It appears after round end only
+
+It does not sell permanent upgrades
+
+History integrity
+
+Round history remains frozen at round end
+
+Persistent progression must never mutate historical round results
+
+Phase D0 — architecture foundation [COMPLETE — migration d0e1f2a3b4c5]
+Goal
+
+Introduce persistent progression structures without changing gameplay behavior.
+
+Add
+
+PlayerProgression persistent table keyed to player_id
+
+DiamondTransaction persistent ledger table
+
+PlayerUpgrade persistent upgrade ownership table
+
+round-scoped effective-values snapshot table keyed to player_id and round_id
+
+Notes
+
+Do not store Diamonds directly in PlayerWallet
+
+Prefer separate progression table over adding game-progression columns to Player
+
+No purchase flow yet
+
+No gameplay effect yet
+
+Why first
+
+This creates the safe data model before any UI or gameplay wiring.
+
+Phase D1 — admin diamond awards [COMPLETE — 23+15 tests; migration d1a2b3c4e5f6 (store currency)]
+Goal
+
+Allow admin to award persistent Diamonds safely after session end.
+
+Scope
+
+add Diamonds balance view
+
+admin can grant Diamonds to selected players
+
+every award writes a transaction log entry
+
+no spending yet
+
+no upgrades yet
+
+Rules
+
+award action must be atomic
+
+balance and ledger must stay consistent
+
+only allowed in safe admin context, not during active round flow
+
+Why second
+
+This validates the persistent wallet and ledger before adding a shop.
+
+Phase D2 — player upgrade shop outside sessions [COMPLETE — 28 tests + 13 SC tests + 8 D2b tests]
+Goal
+
+Allow players to spend Diamonds on permanent upgrades in a separate meta area.
+
+Scope
+
+player-facing Diamonds page / blacksmith page
+
+upgrade catalog display
+
+purchase validation
+
+Diamond deduction
+
+upgrade level increment
+
+ledger entry for purchase
+
+no gameplay effect yet
+
+Upgrade set for first release
+
+steal token capacity
+
+shield duration bonus %
+
+mine bonus
+
+treasure bonus
+
+Rules
+
+upgrades are capped
+
+additive
+
+small
+
+purchase succeeds only if:
+
+player is in allowed meta context
+
+upgrade exists
+
+player is below max level
+
+player has enough Diamonds
+
+Why third
+
+This validates progression UX separately from gameplay logic.
+
+Phase D3 — round-start snapshot resolution [COMPLETE — 9 tests + 19 stock clarity tests]
+Goal
+
+Freeze persistent upgrade effects into round-specific values.
+
+Scope
+
+at round start, resolve each player’s persistent upgrades into round-effective values
+
+store one frozen row per player per round
+
+no live gameplay lookups from persistent upgrade tables during action handling
+
+Effective values to snapshot
+
+effective steal token capacity
+
+effective mine bonus
+
+effective treasure bonus
+
+effective shield percentage bonus
+
+Formula rules
+
+shield bonus is percentage-based from round config
+
+it affects both manual and reactive shield durations
+
+future gear flat bonus will stack after percentage calculation
+
+Why fourth
+
+This preserves determinism and prevents mid-round mutation.
+
+Phase D4 — gameplay wiring [COMPLETE — 20 tests + 11 treasure side-reward tests + 9 D4b unified SC tests; migrations d4a1b2c3e4f5, d4b1a2b3c4d5]
+Goal
+
+Make gameplay use only frozen round-effective values.
+
+Scope
+
+Wire frozen values into:
+
+mine reward calculation
+
+treasure reward calculation
+
+steal token capacity enforcement
+
+manual shield duration
+
+reactive shield duration
+
+Rules
+
+do not read persistent upgrade tables in action handlers
+
+read only frozen round-effective snapshot for the current round
+
+Why fifth
+
+This is the first gameplay-changing step and should happen only after the model, wallet, ledger, and shop are stable.
+
+Phase D5 — QA and hardening [COMPLETE — 10 tests + ~22 stabilization tests; migration d5a1b2c3d4e5]
+Goal
+
+Prove the Diamonds/upgrades system is safe.
+
+Must-test cases
+
+admin award writes correct balance and ledger
+
+player cannot buy without enough Diamonds
+
+player cannot exceed max level
+
+duplicate submit does not double-purchase
+
+upgrades do not change current round after round start
+
+new round picks up latest upgrade levels
+
+old round history remains unchanged
+
+token overflow respects upgraded cap
+
+shield bonus applies to both manual and reactive shields
+
+mine/treasure bonuses match frozen round-effective values
+
+Why sixth
+
+Prevents silent state bugs in progression systems.
+
+Explicitly deferred after D5
+Later phase: Gold merchant
+
+appears after round end
+
+uses gold only
+
+sells weak/cosmetic rewards
+
+no permanent upgrades
+
+Later phase: Gear
+
+persistent item layer
+
+weaker than upgrades
+
+starts with simple slot structure
+
+round-start snapshot must later include gear effects too
+
+Later admin tools
+
+adjust Diamonds to arbitrary value
+
+adjust upgrade levels
+
+grant persistent gear manually
+
+remove gameplay bonus from specific gear item
+
+reset all progression while preserving cosmetic gear ownership
+
+Later seasonal controls
+
+disable gear bonuses by season/unit
+
+retain item ownership as cosmetic

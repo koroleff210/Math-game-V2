@@ -1,0 +1,41 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block admin_content %}
+<h1>{{ title }}</h1>
+
+<p><a href="{{ url_for('admin.subjects_index') }}" style="color:#007bff;">&larr; Back to Subjects</a></p>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+        <div style="padding:10px; margin-bottom:8px; border-radius:4px;
+                    background:{% if category == 'success' %}#d4edda{% elif category == 'error' %}#f8d7da{% else %}#d1ecf1{% endif %};
+                    color:{% if category == 'success' %}#155724{% elif category == 'error' %}#721c24{% else %}#0c5460{% endif %};">
+            {{ message }}
+        </div>
+    {% endfor %}
+{% endwith %}
+
+<form method="POST" style="max-width:400px;">
+    {{ form.hidden_tag() }}
+
+    <p>
+        {{ form.name.label }}<br>
+        {{ form.name(size=40) }}
+        {% if form.name.errors %}
+            <span style="color:red; font-size:0.9em;">{{ form.name.errors[0] }}</span>
+        {% endif %}
+    </p>
+
+    <p>
+        {{ form.description.label }}<br>
+        {{ form.description(size=60) }}
+        {% if form.description.errors %}
+            <span style="color:red; font-size:0.9em;">{{ form.description.errors[0] }}</span>
+        {% endif %}
+    </p>
+
+    <p>{{ form.submit(style='padding:8px 20px; background:#007bff; color:white; border:none; border-radius:4px; cursor:pointer;') }}</p>
+</form>
+{% endblock %}

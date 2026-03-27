@@ -1,0 +1,650 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}{% if create_mode %}New Problem{% else %}Problem Content{% endif %}{% endblock %}
+
+{% block admin_content %}
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<script src="{{ url_for('static', filename='js/problem_graph_renderer.js') }}"></script>
+<style>
+  .problem-editor-form {
+    width: 100%;
+  }
+  .problem-content-grid {
+    margin-top: 16px;
+    display: grid;
+    grid-template-columns: minmax(0, 1.7fr) minmax(340px, 1fr);
+    gap: 24px;
+    align-items: start;
+  }
+  .problem-content-column {
+    min-width: 0;
+  }
+  .problem-editor-card,
+  .problem-preview-card {
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    background: #fff;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .problem-editor-form > .problem-editor-card:last-of-type {
+    margin-bottom: 12px;
+  }
+  .problem-editor-card p,
+  .problem-block-editor p {
+    margin: 0 0 12px;
+  }
+  .problem-editor-card p:last-child,
+  .problem-block-editor p:last-child {
+    margin-bottom: 0;
+  }
+  .problem-metadata-grid {
+    display: grid;
+    grid-template-columns: minmax(260px, 2fr) minmax(150px, 1fr) minmax(150px, 1fr) minmax(120px, 0.8fr);
+    gap: 12px;
+    align-items: end;
+  }
+  .problem-bootstrap-grid {
+    display: grid;
+    gap: 18px;
+  }
+  .problem-bootstrap-card {
+    border: 1px solid #e3e8ef;
+    border-radius: 12px;
+    padding: 14px 16px;
+    background: #fcfdff;
+  }
+  .problem-bootstrap-card h4 {
+    margin: 0 0 10px;
+    font-size: 0.98rem;
+  }
+  .problem-metadata-grid > p {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+  }
+  .problem-metadata-grid label {
+    margin-bottom: 4px;
+  }
+  .problem-answer-mode-card {
+    padding-top: 14px;
+    padding-bottom: 14px;
+  }
+  .problem-answer-mode-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .problem-answer-mode-row strong {
+    min-width: 108px;
+  }
+  .problem-subject-select {
+    max-width: 360px;
+  }
+  .problem-bootstrap-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .problem-block-editor {
+    border: 1px solid #e3e3e3;
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 12px;
+    background: #fafafa;
+  }
+  .problem-block-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .problem-block-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .problem-inline-add {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed #d7d7d7;
+  }
+  .problem-inline-add button,
+  .problem-empty-block-actions button {
+    margin-right: 8px;
+    margin-top: 6px;
+  }
+  .problem-block-editor textarea,
+  .problem-block-editor input[type="text"],
+  .problem-block-editor input[type="number"],
+  .problem-editor-card textarea,
+  .problem-editor-card select,
+  .problem-editor-card input[type="text"] {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .problem-block-editor label,
+  .problem-editor-card label {
+    font-weight: 600;
+  }
+  .problem-preview-card {
+    position: sticky;
+    top: 24px;
+  }
+  .problem-preview-frame {
+    border: 1px solid #ececec;
+    border-radius: 8px;
+    padding: 12px;
+    background: #fcfcfc;
+  }
+  .problem-preview-rich-text p,
+  .problem-body-rich-text p {
+    margin: 0 0 10px;
+  }
+  .problem-preview-image,
+  .problem-body-image {
+    margin: 12px 0;
+  }
+  .problem-preview-image img,
+  .problem-body-image img {
+    display: block;
+    height: auto;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+  }
+  .problem-preview-empty,
+  .problem-preview-unsupported,
+  .problem-body-empty,
+  .problem-body-unsupported {
+    color: #666;
+    font-style: italic;
+  }
+  .problem-subnote {
+    color: #666;
+    font-size: 0.92rem;
+    margin-top: 4px;
+  }
+  .graph-editor-section {
+    margin-top: 16px;
+  }
+  .graph-editor-section h4 {
+    margin: 0 0 10px;
+  }
+  .graph-row-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 2.3fr) repeat(2, minmax(110px, 0.8fr)) auto;
+    gap: 10px;
+    align-items: end;
+  }
+  .graph-point-row-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto;
+    gap: 10px;
+    align-items: end;
+  }
+  .graph-row-grid + .graph-row-grid,
+  .graph-point-row-grid + .graph-point-row-grid,
+  .graph-unsupported-card + .graph-unsupported-card {
+    margin-top: 10px;
+  }
+  .graph-inline-meta {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 8px;
+  }
+  .graph-unsupported-card {
+    border: 1px dashed #d0c4a4;
+    border-radius: 8px;
+    background: #fff9ef;
+    padding: 10px 12px;
+  }
+  @media (max-width: 900px) {
+    .problem-metadata-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+
+<h1>{% if create_mode %}New Problem{% else %}Problem Content{% endif %}</h1>
+{% if create_mode %}
+<div class="admin-callout" style="margin-bottom:16px;">
+  Create the problem metadata first. Full content editing opens after creation.
+</div>
+{% endif %}
+{% if not create_mode %}
+<p>
+  <strong>{{ problem.title }}</strong>
+  <small style="color:#6c757d;">Topic: {{ problem.topic.name }}</small>
+</p>
+{% endif %}
+
+<form class="problem-editor-form" method="POST" action="{% if create_mode %}{{ url_for('admin.problem_new') }}{% else %}{{ url_for('admin.problem_content', problem_id=problem.id) }}{% endif %}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <div class="problem-editor-card" id="metadata">
+    <h3 style="margin-top:0;">Metadata</h3>
+    <div class="problem-bootstrap-grid">
+      <div class="problem-metadata-grid">
+        <p>
+          <label for="title">Title</label><br>
+          <input id="title" name="title" type="text" value="{{ title_value }}">
+        </p>
+        <p>
+          <label for="subject_helper">Subject</label><br>
+          <select id="subject_helper" class="problem-subject-select" name="subject_helper">
+            <option value="0" {% if subject_helper_value == 0 %}selected{% endif %}>- Any Subject -</option>
+            {% for s in subjects %}
+            <option value="{{ s.id }}" {% if subject_helper_value == s.id %}selected{% endif %}>{{ s.name }}</option>
+            {% endfor %}
+          </select>
+        </p>
+      </div>
+
+      <div class="problem-bootstrap-card">
+        <h4>Topic</h4>
+        <p class="problem-subnote">Choose a topic from the selected subject.</p>
+        <div id="topic-choice-group" class="admin-choice-group" data-selected-topic-id="{{ selected_topic_id or '' }}">
+          <div id="topic-choice-grid" class="admin-choice-grid" role="radiogroup" aria-label="Topic choices">
+            {% for topic_id, topic_name in topic_choices %}
+            <label>
+              <input class="admin-choice-input" type="radio" name="topic_id" value="{{ topic_id }}" {% if selected_topic_id == topic_id %}checked{% endif %}>
+              <span class="admin-choice-pill admin-choice-card">
+                <strong>{{ topic_name }}</strong>
+                <span>Topic</span>
+              </span>
+            </label>
+            {% endfor %}
+          </div>
+          <div id="topic-choice-empty" class="admin-choice-empty" hidden>No topics are available for this subject yet.</div>
+        </div>
+      </div>
+
+      <div class="problem-bootstrap-card">
+        <h4>Difficulty</h4>
+        <div class="admin-choice-grid admin-choice-grid-compact" role="radiogroup" aria-label="Difficulty">
+          {% if create_mode %}
+          {% set difficulty_choices = [(1, '1 Easy', 'Fast warm-up'), (2, '2 Medium', 'Standard round difficulty'), (3, '3 Hard', 'More demanding problem')] %}
+          {% else %}
+          {% set difficulty_choices = [(1, '1 Easy', 'Light difficulty'), (2, '2 Medium', 'Standard difficulty'), (3, '3 Hard', 'Higher challenge'), (4, '4 Expert', 'Legacy higher tier'), (5, '5 Master', 'Legacy highest tier')] %}
+          {% endif %}
+          {% for value, title, subtitle in difficulty_choices %}
+          <label>
+            <input class="admin-choice-input" id="difficulty_{{ value }}" type="radio" name="difficulty" value="{{ value }}" {% if difficulty_value == value %}checked{% endif %}>
+            <span class="admin-choice-pill admin-choice-card">
+              <strong>{{ title }}</strong>
+              <span>{{ subtitle }}</span>
+            </span>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="problem-editor-card problem-answer-mode-card" id="answer-mode">
+    <div class="problem-answer-mode-row">
+      <strong>Answer Type</strong>
+      {% for value, label in answer_type_choices %}
+      <label>
+        <input class="admin-choice-input" id="answer_type_{{ value }}" type="radio" name="answer_type" value="{{ value }}" {% if answer_type_value == value %}checked{% endif %}>
+        <span class="admin-choice-pill">{{ label }}</span>
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% if create_mode %}
+  <p class="problem-bootstrap-actions">
+    <button id="create-problem-submit" type="submit">Create Problem and Open Editor</button>
+  </p>
+  {% else %}
+  <div class="problem-content-grid">
+    <div class="problem-content-column">
+      <div class="problem-editor-card" id="body-blocks">
+        <div class="problem-block-toolbar">
+          <h3 style="margin:0;">Body Blocks</h3>
+        </div>
+        <p class="problem-subnote">
+          Build the question from top to bottom. Add the next block directly below the current one, or move blocks if you need to reorder later.
+        </p>
+
+        {% if not problem.blocks %}
+        <p class="problem-subnote" style="margin-top:0;">
+          No saved body blocks yet. The preview is currently showing legacy prompt/image fallback. Add a new block or initialize a first rich-text block from the legacy prompt.
+        </p>
+        <div class="problem-empty-block-actions">
+          <button type="submit" formmethod="post" formaction="{{ url_for('admin.problem_block_add', problem_id=problem.id, block_type='rich_text') }}">Start with Text Block</button>
+          <button type="submit" formmethod="post" formaction="{{ url_for('admin.problem_block_add', problem_id=problem.id, block_type='image') }}">Add Image Block</button>
+          {% if not has_structured_body %}
+          <button type="submit" formmethod="post" formaction="{{ url_for('admin.problem_block_initialize', problem_id=problem.id) }}">Initialize from Legacy Prompt</button>
+          {% endif %}
+        </div>
+        {% endif %}
+
+        {% for block in problem.blocks %}
+        <div class="problem-block-editor" id="block-{{ block.id }}">
+          <div class="problem-block-toolbar">
+            <strong>#{{ block.position }} - {{ block.block_type }}</strong>
+            <div class="problem-block-actions">
+              <button type="submit" formaction="{{ url_for('admin.problem_block_move', problem_id=problem.id, block_id=block.id) }}" name="direction" value="up">Move Up</button>
+              <button type="submit" formaction="{{ url_for('admin.problem_block_move', problem_id=problem.id, block_id=block.id) }}" name="direction" value="down">Move Down</button>
+              <button type="submit" formaction="{{ url_for('admin.problem_block_delete', problem_id=problem.id, block_id=block.id) }}">Delete</button>
+            </div>
+          </div>
+
+          {% if block.block_type == 'rich_text' %}
+          <p class="problem-subnote">Supports paragraphs, line breaks, **bold**, and inline LaTeX delimiters.</p>
+          <p>
+            <label for="block_{{ block.id }}_text_content">Rich text</label><br>
+            <textarea id="block_{{ block.id }}_text_content" name="block_{{ block.id }}_text_content" rows="8">{{ block.text_content or '' }}</textarea>
+          </p>
+          {% elif block.block_type == 'image' %}
+          <p>
+            <label for="block_{{ block.id }}_image_path">Image path</label><br>
+            <input id="block_{{ block.id }}_image_path" type="text" name="block_{{ block.id }}_image_path" value="{{ block.image_path or '' }}">
+          </p>
+          <p>
+            <label for="block_{{ block.id }}_image_width_pct">Width percent</label><br>
+            <input id="block_{{ block.id }}_image_width_pct" type="number" min="1" max="100" name="block_{{ block.id }}_image_width_pct" value="{{ block.image_width_pct or 100 }}">
+          </p>
+          {% elif block.block_type == 'graph' %}
+          {% set graph_editor = graph_editor_views.get(block.id) %}
+          <p class="problem-subnote">Enter equations and points in teacher-friendly rows. Saving converts them into the canonical graph config that powers both preview and Classic rendering.</p>
+          <p>
+            <label for="block_{{ block.id }}_graph_x_min">X range</label><br>
+            <input id="block_{{ block.id }}_graph_x_min" type="number" step="any" name="block_{{ block.id }}_graph_x_min" value="{{ graph_editor.viewport.x_min }}">
+            to
+            <input id="block_{{ block.id }}_graph_x_max" type="number" step="any" name="block_{{ block.id }}_graph_x_max" value="{{ graph_editor.viewport.x_max }}">
+          </p>
+          <p>
+            <label for="block_{{ block.id }}_graph_y_min">Y range</label><br>
+            <input id="block_{{ block.id }}_graph_y_min" type="number" step="any" name="block_{{ block.id }}_graph_y_min" value="{{ graph_editor.viewport.y_min }}">
+            to
+            <input id="block_{{ block.id }}_graph_y_max" type="number" step="any" name="block_{{ block.id }}_graph_y_max" value="{{ graph_editor.viewport.y_max }}">
+          </p>
+          <p>
+            <label for="block_{{ block.id }}_graph_x_label">X label</label><br>
+            <input id="block_{{ block.id }}_graph_x_label" type="text" name="block_{{ block.id }}_graph_x_label" value="{{ graph_editor.viewport.x_label }}">
+          </p>
+          <p>
+            <label for="block_{{ block.id }}_graph_y_label">Y label</label><br>
+            <input id="block_{{ block.id }}_graph_y_label" type="text" name="block_{{ block.id }}_graph_y_label" value="{{ graph_editor.viewport.y_label }}">
+          </p>
+          <p>
+            <label>
+              <input type="checkbox" name="block_{{ block.id }}_graph_show_grid" value="1" {% if graph_editor.viewport.show_grid %}checked{% endif %}>
+              Show grid
+            </label>
+          </p>
+          <div class="graph-editor-section">
+            <div class="problem-block-toolbar">
+              <h4>Equations</h4>
+              <div class="problem-block-actions">
+                <button type="submit" formmethod="post" formaction="{{ url_for('admin.problem_graph_element_add', problem_id=problem.id, block_id=block.id, graph_element_type='equation') }}">Add Equation</button>
+              </div>
+            </div>
+            <p class="problem-subnote">Supported forms: linear, quadratic, exponential, sine, and cosine with required <code>y =</code> syntax.</p>
+            {% if not graph_editor.equations %}
+            <p class="problem-subnote">No saved equation rows yet. Add one to start plotting a function trace.</p>
+            {% endif %}
+            {% for equation in graph_editor.equations %}
+            <div class="problem-block-editor" style="background:#fff;">
+              <div class="graph-row-grid">
+                <p>
+                  <label for="block_{{ block.id }}_equation_{{ equation.id }}_equation_text">Equation</label><br>
+                  <input id="block_{{ block.id }}_equation_{{ equation.id }}_equation_text" type="text" name="block_{{ block.id }}_equation_{{ equation.id }}_equation_text" value="{{ equation.equation_text }}" placeholder="y = 2x + 1">
+                </p>
+                <p>
+                  <label for="block_{{ block.id }}_equation_{{ equation.id }}_x_min">x min</label><br>
+                  <input id="block_{{ block.id }}_equation_{{ equation.id }}_x_min" type="number" step="any" name="block_{{ block.id }}_equation_{{ equation.id }}_x_min" value="{{ equation.x_min }}">
+                </p>
+                <p>
+                  <label for="block_{{ block.id }}_equation_{{ equation.id }}_x_max">x max</label><br>
+                  <input id="block_{{ block.id }}_equation_{{ equation.id }}_x_max" type="number" step="any" name="block_{{ block.id }}_equation_{{ equation.id }}_x_max" value="{{ equation.x_max }}">
+                </p>
+                <p style="margin-bottom:0;">
+                  <button type="submit" formaction="{{ url_for('admin.problem_graph_element_delete', problem_id=problem.id, block_id=block.id, element_id=equation.id) }}">Remove</button>
+                </p>
+              </div>
+              <div class="graph-inline-meta">
+                <p>
+                  <label for="block_{{ block.id }}_equation_{{ equation.id }}_label">Label (optional)</label><br>
+                  <input id="block_{{ block.id }}_equation_{{ equation.id }}_label" type="text" name="block_{{ block.id }}_equation_{{ equation.id }}_label" value="{{ equation.label or '' }}">
+                </p>
+                <p>
+                  <label for="block_{{ block.id }}_equation_{{ equation.id }}_color">Color (optional)</label><br>
+                  <input id="block_{{ block.id }}_equation_{{ equation.id }}_color" type="text" name="block_{{ block.id }}_equation_{{ equation.id }}_color" value="{{ equation.color or '' }}" placeholder="#1f77b4">
+                </p>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+
+          <div class="graph-editor-section">
+            <div class="problem-block-toolbar">
+              <h4>Points</h4>
+              <div class="problem-block-actions">
+                <button type="submit" formmethod="post" formaction="{{ url_for('admin.problem_graph_element_add', problem_id=problem.id, block_id=block.id, graph_element_type='point') }}">Add Point</button>
+              </div>
+            </div>
+            <p class="problem-subnote">Accepted coordinate formats: <code>x,y</code>, <code>x;y</code>, <code>(x, y)</code>, or <code>(x; y)</code>.</p>
+            {% if not graph_editor.points %}
+            <p class="problem-subnote">No point rows yet. Add one to mark a coordinate on the graph.</p>
+            {% endif %}
+            {% for point in graph_editor.points %}
+            <div class="problem-block-editor" style="background:#fff;">
+              <div class="graph-point-row-grid">
+                <p>
+                  <label for="block_{{ block.id }}_point_{{ point.id }}_label">Label (optional)</label><br>
+                  <input id="block_{{ block.id }}_point_{{ point.id }}_label" type="text" name="block_{{ block.id }}_point_{{ point.id }}_label" value="{{ point.label or '' }}">
+                </p>
+                <p>
+                  <label for="block_{{ block.id }}_point_{{ point.id }}_coordinates_text">Coordinates</label><br>
+                  <input id="block_{{ block.id }}_point_{{ point.id }}_coordinates_text" type="text" name="block_{{ block.id }}_point_{{ point.id }}_coordinates_text" value="{{ point.coordinates_text }}" placeholder="(2, 3)">
+                </p>
+                <p style="margin-bottom:0;">
+                  <button type="submit" formaction="{{ url_for('admin.problem_graph_element_delete', problem_id=problem.id, block_id=block.id, element_id=point.id) }}">Remove</button>
+                </p>
+              </div>
+              <input type="hidden" name="block_{{ block.id }}_point_{{ point.id }}_color" value="{{ point.color or '' }}">
+            </div>
+            {% endfor %}
+          </div>
+
+          {% if graph_editor.unsupported_elements %}
+          <div class="graph-editor-section">
+            <h4>Preserved Legacy Elements</h4>
+            <p class="problem-subnote">These saved graph elements do not map cleanly back into equation rows yet. They will still be preserved when you save this block.</p>
+            {% for element in graph_editor.unsupported_elements %}
+            <div class="graph-unsupported-card">
+              <strong>{{ element.family.replace('_', ' ').title() }}</strong>
+              {% if element.label %}<span> - {{ element.label }}</span>{% endif %}
+              <p class="problem-subnote">{{ element.summary }}</p>
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+          {% else %}
+          <p class="problem-preview-unsupported">Unsupported block type in Slice 1.</p>
+          {% endif %}
+
+          <div class="problem-inline-add">
+            <strong>Add below:</strong>
+            {% for value, label in block_type_choices %}
+            <button type="submit" formmethod="post" formaction="{{ url_for('admin.problem_block_add', problem_id=problem.id, block_type=value, after_block_id=block.id) }}">{{ label }}</button>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+      {% if answer_type_value == 'text_input' %}
+      <div class="problem-editor-card" id="text-answer-section" {% if create_mode and answer_type_value != 'text_input' %}style="display:none;"{% endif %}>
+        <h3 style="margin-top:0;">Accepted Answers</h3>
+        <p class="problem-subnote">
+          Enter one accepted answer per line. Validation is case-insensitive and ignores extra spaces only.
+        </p>
+        <p>
+          <label for="accepted_answers_text">Accepted variants</label><br>
+          <textarea id="accepted_answers_text" name="accepted_answers_text" rows="6">{{ accepted_answers_text }}</textarea>
+        </p>
+      </div>
+      {% endif %}
+
+      {% if answer_type_value == 'multiple_choice' %}
+      <div class="problem-editor-card" id="mc-answer-section" {% if create_mode and answer_type_value != 'multiple_choice' %}style="display:none;"{% endif %}>
+        <div class="problem-block-toolbar">
+          <h3 style="margin:0;">Multiple-Choice Options</h3>
+          <div class="problem-block-actions" {% if create_mode %}style="display:none;"{% endif %}>
+            {% if not create_mode %}
+            <button type="submit" formaction="{{ url_for('admin.problem_choice_option_add', problem_id=problem.id) }}">Add Option</button>
+            {% endif %}
+          </div>
+        </div>
+        <p class="problem-subnote">
+          Exactly one option must be marked correct.
+        </p>
+        {% if not create_mode and not problem.choice_options %}
+        <p class="problem-subnote" style="margin-top:0;">No saved multiple-choice options yet.</p>
+        {% endif %}
+
+        {% for option in problem.choice_options %}
+        <div class="problem-block-editor">
+          <div class="problem-block-toolbar">
+            <strong>#{{ option.position }} - choice</strong>
+            <div class="problem-block-actions">
+              <button type="submit" formaction="{{ url_for('admin.problem_choice_option_move', problem_id=problem.id, option_id=option.id) }}" name="direction" value="up">Move Up</button>
+              <button type="submit" formaction="{{ url_for('admin.problem_choice_option_move', problem_id=problem.id, option_id=option.id) }}" name="direction" value="down">Move Down</button>
+              <button type="submit" formaction="{{ url_for('admin.problem_choice_option_delete', problem_id=problem.id, option_id=option.id) }}">Delete</button>
+            </div>
+          </div>
+          <p>
+            <label>
+              <input type="radio" name="correct_option_id" value="{{ option.id }}" {% if option.is_correct %}checked{% endif %}>
+              Correct option
+            </label>
+          </p>
+          <p class="problem-subnote">Option text supports inline LaTeX and **bold** only.</p>
+          <p>
+            <label for="choice_{{ option.id }}_option_text">Option text</label><br>
+            <textarea id="choice_{{ option.id }}_option_text" name="choice_{{ option.id }}_option_text" rows="3">{{ option.option_text or '' }}</textarea>
+          </p>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <p class="problem-bootstrap-actions">
+        <button type="submit">Save Problem</button>
+        <a href="{{ url_for('admin.problems') }}">Back to problems</a>
+      </p>
+    </div>
+
+    <div class="problem-content-column">
+      <div class="problem-preview-card">
+        <h3 style="margin-top:0;">Preview</h3>
+        {% if body_view.uses_legacy_fallback %}
+        <p class="problem-subnote">Preview is currently using legacy prompt/image fallback because no saved body blocks existed before this editor was opened.</p>
+        {% else %}
+        <p class="problem-subnote">Preview uses the block-body adapter that later gameplay rendering can reuse.</p>
+        {% endif %}
+        <div class="problem-preview-frame">
+          {% include 'admin/_problem_body_preview.html' %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</form>
+<script>
+  (function () {
+    var subjectSel = document.getElementById('subject_helper');
+    var topicGrid = document.getElementById('topic-choice-grid');
+    var topicGroup = document.getElementById('topic-choice-group');
+    var topicEmpty = document.getElementById('topic-choice-empty');
+    var submitButton = document.getElementById('create-problem-submit');
+
+    function topicCardMarkup(topic) {
+      var wrapper = document.createElement('label');
+      var input = document.createElement('input');
+      input.className = 'admin-choice-input';
+      input.type = 'radio';
+      input.name = 'topic_id';
+      input.value = String(topic.id);
+      var pill = document.createElement('span');
+      pill.className = 'admin-choice-pill admin-choice-card';
+      pill.innerHTML = '<strong>' + escapeHtml(topic.name) + '</strong><span>Topic</span>';
+      wrapper.appendChild(input);
+      wrapper.appendChild(pill);
+      return { wrapper: wrapper, input: input };
+    }
+
+    function syncTopicEmptyState(hasTopics) {
+      if (topicEmpty) {
+        topicEmpty.hidden = hasTopics;
+      }
+      if (submitButton) {
+        submitButton.disabled = !hasTopics;
+      }
+    }
+
+    function loadTopics(subjectId, keepTopicId) {
+      fetch('/admin/topics/by_subject/' + subjectId)
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          topicGrid.innerHTML = '';
+          var selectedInput = null;
+          data.topics.forEach(function (t, index) {
+            var topicCard = topicCardMarkup(t);
+            if ((keepTopicId !== null && t.id === keepTopicId) || (!keepTopicId && index === 0)) {
+              topicCard.input.checked = true;
+              selectedInput = topicCard.input;
+            }
+            topicGrid.appendChild(topicCard.wrapper);
+          });
+          if (!selectedInput) {
+            selectedInput = topicGrid.querySelector('input[name="topic_id"]');
+            if (selectedInput) {
+              selectedInput.checked = true;
+            }
+          }
+          syncTopicEmptyState(data.topics.length > 0);
+        });
+    }
+    if (subjectSel && topicGrid) {
+      subjectSel.addEventListener('change', function () {
+        loadTopics(parseInt(this.value, 10), null);
+      });
+      var initSubject = parseInt(subjectSel.value, 10);
+      var initTopic = topicGroup ? Number(topicGroup.getAttribute('data-selected-topic-id')) || null : null;
+      loadTopics(initSubject, initTopic);
+    }
+
+    var answerTypeInputs = document.querySelectorAll('input[name="answer_type"]');
+    var textSection = document.getElementById('text-answer-section');
+    var mcSection = document.getElementById('mc-answer-section');
+    function syncAnswerSections() {
+      var checked = document.querySelector('input[name="answer_type"]:checked');
+      if (!checked) return;
+      var isMc = checked.value === 'multiple_choice';
+      if (textSection) textSection.style.display = isMc ? 'none' : '';
+      if (mcSection) mcSection.style.display = isMc ? '' : 'none';
+    }
+    if (answerTypeInputs.length) {
+      answerTypeInputs.forEach(function (input) {
+        input.addEventListener('change', syncAnswerSections);
+      });
+      syncAnswerSections();
+    }
+  }());
+  if (window.renderProblemGraphs) {
+    window.renderProblemGraphs(document);
+  }
+</script>
+{% endblock %}

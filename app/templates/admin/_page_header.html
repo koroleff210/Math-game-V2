@@ -1,0 +1,30 @@
+<header class="admin-page-header">
+    <div>
+        {% if eyebrow %}
+        <div class="admin-page-eyebrow">{{ eyebrow }}</div>
+        {% endif %}
+        <div class="admin-page-heading-row">
+            <h1 class="admin-page-title">{{ title }}</h1>
+            {% if badge %}
+            <span class="admin-badge">{{ badge }}</span>
+            {% endif %}
+        </div>
+        {% if description %}
+        <p class="admin-page-description">{{ description }}</p>
+        {% endif %}
+    </div>
+
+    {% if primary_href or secondary_href or primary_html %}
+    <div class="admin-page-actions">
+        {% if secondary_href and secondary_label %}
+        <a class="admin-btn admin-btn-secondary" href="{{ secondary_href }}">{{ secondary_label }}</a>
+        {% endif %}
+        {% if primary_href and primary_label %}
+        <a class="admin-btn admin-btn-primary" href="{{ primary_href }}">{{ primary_label }}</a>
+        {% endif %}
+        {% if primary_html %}
+        {{ primary_html|safe }}
+        {% endif %}
+    </div>
+    {% endif %}
+</header>

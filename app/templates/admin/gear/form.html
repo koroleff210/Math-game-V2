@@ -1,0 +1,144 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block admin_content %}
+<h1>{{ title }}</h1>
+
+<p><a href="{{ url_for('admin.gear_index') }}" style="color:#007bff;">&larr; Back to Gear Catalog</a></p>
+
+{% if gear_item_view %}
+<div style="margin-bottom:16px; padding:12px; border:1px solid #dee2e6; border-radius:6px; max-width:220px; background:#fafafa;">
+    <div style="font-size:0.88em; color:#666; margin-bottom:8px;">Current icon preview</div>
+    <img src="{{ gear_item_view.icon_static_path }}" alt="{{ gear_item_view.name }}" style="width:96px; height:96px; object-fit:cover; border:1px solid #ddd; border-radius:8px; background:#fff;">
+</div>
+{% endif %}
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+        <div style="padding:10px; margin-bottom:8px; border-radius:4px;
+                    background:{% if category == 'success' %}#d4edda{% elif category == 'error' %}#f8d7da{% else %}#d1ecf1{% endif %};
+                    color:{% if category == 'success' %}#155724{% elif category == 'error' %}#721c24{% else %}#0c5460{% endif %};">
+            {{ message }}
+        </div>
+    {% endfor %}
+{% endwith %}
+
+<form method="POST" style="max-width:620px;">
+    {{ form.hidden_tag() }}
+
+    <p>
+        {{ form.item_id.label }}<br>
+        {{ form.item_id(size=40, readonly=gear_item is not none) }}
+        {% if form.item_id.errors %}
+            <span style="color:red; font-size:0.9em;">{{ form.item_id.errors[0] }}</span>
+        {% endif %}
+    </p>
+
+    <p>
+        {{ form.name.label }}<br>
+        {{ form.name(size=50) }}
+        {% if form.name.errors %}
+            <span style="color:red; font-size:0.9em;">{{ form.name.errors[0] }}</span>
+        {% endif %}
+    </p>
+
+    <p>
+        {{ form.slot_type.label }}<br>
+        {{ form.slot_type() }}
+        {% if form.slot_type.errors %}
+            <span style="color:red; font-size:0.9em;">{{ form.slot_type.errors[0] }}</span>
+        {% endif %}
+    </p>
+
+    <p>
+        {{ form.description.label }}<br>
+        {{ form.description(rows=4, cols=60) }}
+        {% if form.description.errors %}
+            <span style="color:red; font-size:0.9em;">{{ form.description.errors[0] }}</span>
+        {% endif %}
+    </p>
+
+    <p>
+        {{ form.image_key.label }}<br>
+        {{ form.image_key() }}
+        <span style="display:block; margin-top:4px; color:#666; font-size:0.9em;">
+            Shows files from <code>app/static/gear/&lt;selected slot&gt;/</code>. Avatar layers use this file, and hub icons resolve from the matching filename in <code>app/static/gear_icons/&lt;selected slot&gt;/</code>.
+        </span>
+        {% if form.image_key.errors %}
+            <span style="color:red; font-size:0.9em;">{{ form.image_key.errors[0] }}</span>
+        {% endif %}
+    </p>
+
+    {{ form.avatar_asset_key(type='hidden') }}
+
+    <p>
+        {{ form.diamond_cost.label }}<br>
+        {{ form.diamond_cost() }}
+        {% if form.diamond_cost.errors %}
+            <span style="color:red; font-size:0.9em;">{{ form.diamond_cost.errors[0] }}</span>
+        {% endif %}
+    </p>
+
+    <p>
+        {{ form.mine_gold_delta.label }}<br>
+        {{ form.mine_gold_delta() }}
+        {% if form.mine_gold_delta.errors %}
+            <span style="color:red; font-size:0.9em;">{{ form.mine_gold_delta.errors[0] }}</span>
+        {% endif %}
+    </p>
+
+    <p>
+        {{ form.steal_gold_delta.label }}<br>
+        {{ form.steal_gold_delta() }}
+        {% if form.steal_gold_delta.errors %}
+            <span style="color:red; font-size:0.9em;">{{ form.steal_gold_delta.errors[0] }}</span>
+        {% endif %}
+    </p>
+
+    <p>
+        {{ form.shield_duration_delta.label }}<br>
+        {{ form.shield_duration_delta() }}
+        {% if form.shield_duration_delta.errors %}
+            <span style="color:red; font-size:0.9em;">{{ form.shield_duration_delta.errors[0] }}</span>
+        {% endif %}
+    </p>
+
+    <p>{{ form.is_active() }} {{ form.is_active.label }}</p>
+    <p>{{ form.is_blacksmith_visible() }} {{ form.is_blacksmith_visible.label }}</p>
+
+    <p>{{ form.submit(style='padding:8px 20px; background:#007bff; color:white; border:none; border-radius:4px; cursor:pointer;') }}</p>
+</form>
+
+<script>
+  (function () {
+    var slotSelect = document.getElementById('{{ form.slot_type.id }}');
+    var imageSelect = document.getElementById('{{ form.image_key.id }}');
+    var imageChoicesBySlot = {{ gear_image_choices_by_slot | tojson }};
+
+    if (!slotSelect || !imageSelect) {
+      return;
+    }
+
+    function renderImageChoices() {
+      var selectedSlot = slotSelect.value;
+      var currentValue = imageSelect.value;
+      var choices = imageChoicesBySlot[selectedSlot] || [['', '-- None --']];
+
+      imageSelect.innerHTML = '';
+      choices.forEach(function (choice, index) {
+        var option = document.createElement('option');
+        option.value = choice[0];
+        option.textContent = choice[1];
+        if (choice[0] === currentValue || (!currentValue && index === 0)) {
+          option.selected = true;
+        }
+        imageSelect.appendChild(option);
+      });
+    }
+
+    slotSelect.addEventListener('change', renderImageChoices);
+    renderImageChoices();
+  }());
+</script>
+{% endblock %}

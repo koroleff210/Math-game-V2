@@ -1,0 +1,22 @@
+{% if body_view.blocks %}
+  {% for block in body_view.blocks %}
+    {% if block.type == 'rich_text' %}
+      <div class="problem-body-rich-text">{{ block.rendered_html|safe }}</div>
+    {% elif block.type == 'image' %}
+      <div class="problem-body-image">
+        <img
+          src="{{ url_for('static', filename=block.image_path) }}"
+          alt="Problem image"
+          style="max-width: {{ block.image_width_pct }}%;"
+        >
+      </div>
+    {% elif block.type == 'graph' %}
+      <div class="problem-body-graph" data-problem-graph-block>
+        <div class="problem-graph-canvas"></div>
+        <script type="application/json" class="problem-graph-payload">{{ block.graph_payload | tojson }}</script>
+      </div>
+    {% endif %}
+  {% endfor %}
+{% else %}
+  <p class="problem-body-empty">No problem body content yet.</p>
+{% endif %}
