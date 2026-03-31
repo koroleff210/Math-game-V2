@@ -221,6 +221,46 @@ All 48 exit tests passed (`test_classic_step_b.py`). Step A regression: 32/32 st
 
 ---
 
+## Entry 015 — 2026-03-30 — Documentation Checkpoint / Source-of-Truth Sync
+
+### Summary
+
+Active docs were synchronized to the current repo reality after substantial Classic/Hub/admin/player-page changes.
+
+Current source-of-truth docs are:
+- `docs/project_state.md`
+- `docs/system_architecture.md`
+- `docs/manual_test_guide.md`
+- `docs/bootstrap_prompt.txt`
+
+Historical/reference-only docs remain:
+- `docs/dev_log.md`
+- `docs/checkpoints/*`
+- `docs/archive/*`
+
+### What changed
+
+- updated active docs to reflect:
+  - current Classic-centered gameplay state
+  - center-stage Treasure overlay
+  - center-stage Steal overlay
+  - grouped Classic admin config UX
+  - new-problem bootstrap -> full content editor flow
+  - refresh/reconnect restoration for pending action and stage-event flows
+  - current asset/render responsibilities
+- archived outdated implementation prompts from active `docs/` root into:
+  - `docs/archive/prompts/`
+- added:
+  - `docs/checkpoints/2026-03-30/DOCS_CHECKPOINT.md`
+  - `docs/archive/README.md`
+
+### Notes
+
+- this was a docs-only checkpoint
+- code remained the source of truth; docs were updated to match current code behavior rather than future design
+
+---
+
 ### Migration Applied
 
 `3b6e8c2b3f19_store_item_player_inventory.py`

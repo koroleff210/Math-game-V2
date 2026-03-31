@@ -302,7 +302,7 @@ def avatar_face():
     selected_item_id = (request.form.get('selected_item') or '').strip() or None
 
     if _player_in_unfinished_session(current_user.id):
-        message = 'Avatar changes are unavailable during an active session.'
+        message = 'Avatar changes are unavailable after you join a session.'
         _flash_if_full_page(message, 'error')
         if _is_js_shell_request():
             return _render_gear_shell_partial(
@@ -345,11 +345,11 @@ def avatar_face():
 def blacksmith():
     """Player-facing Diamonds & upgrade shop.
 
-    Blocked while the player is enrolled in any non-finished session.
+    Blocked after the player joins any non-finished session.
     """
     active_session = _player_in_unfinished_session(current_user.id)
     if active_session:
-        flash('The Blacksmith is unavailable during an active session.', 'error')
+        flash('The Blacksmith is unavailable after you join a session.', 'error')
         return redirect(url_for('player.dashboard'))
 
     prog = PlayerProgression.query.filter_by(player_id=current_user.id).first()
@@ -393,7 +393,7 @@ def blacksmith_buy():
     """
     active_session = _player_in_unfinished_session(current_user.id)
     if active_session:
-        flash('The Blacksmith is unavailable during an active session.', 'error')
+        flash('The Blacksmith is unavailable after you join a session.', 'error')
         return redirect(url_for('player.dashboard'))
     upgrade_type = request.form.get('upgrade_type', '').strip()
 
@@ -420,7 +420,7 @@ def blacksmith_buy():
 def blacksmith_buy_gear():
     active_session = _player_in_unfinished_session(current_user.id)
     if active_session:
-        flash('The Blacksmith is unavailable during an active session.', 'error')
+        flash('The Blacksmith is unavailable after you join a session.', 'error')
         return redirect(url_for('player.dashboard'))
 
     item_id = (request.form.get('item_id') or '').strip()
@@ -463,3 +463,4 @@ def history():
         page_heading='History',
         page_description='Session and round history views will live here.',
     )
+

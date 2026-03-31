@@ -86,9 +86,6 @@ function initClassicSessionForm() {
     const stealMinCap = toNumber(fields.stealMinCap, 0);
     const stealMaxCap = toNumber(fields.stealMaxCap, 0);
 
-    const sideRewardSubtotal = gemTreasureChance + treasureStealChance + treasureShieldChance + treasureSecondChance;
-    const nothingChance = Math.max(0, 1 - sideRewardSubtotal);
-
     if (outputs.session) {
       outputs.session.textContent = buildSessionSummary(fields.problemSet, fields.group, fields.label);
     }
@@ -99,7 +96,12 @@ function initClassicSessionForm() {
       outputs.bonusSources.textContent = buildBonusSummary(timerDuration, timerGold, firstSolverCount, firstSolverMultiplier, gemMilestone, gemStreak);
     }
     if (outputs.sideRewards) {
-      outputs.sideRewards.textContent = 'Side-reward subtotal: ' + formatChance(sideRewardSubtotal) + '. Nothing chance: ' + formatChance(nothingChance) + '.';
+      outputs.sideRewards.textContent = buildTreasureChestSummary(
+        gemTreasureChance,
+        treasureStealChance,
+        treasureShieldChance,
+        treasureSecondChance
+      );
     }
     if (outputs.steal) {
       outputs.steal.textContent = buildStealSummary(stealPercent, stealMinCap, stealMaxCap, chestCount, winningChestCount);
@@ -111,9 +113,6 @@ function initClassicSessionForm() {
     const warnings = [];
     if (treasureMax < treasureMin) {
       warnings.push('Treasure max reward is below the minimum reward.');
-    }
-    if (sideRewardSubtotal > 1) {
-      warnings.push('Treasure side-reward subtotal is above 1.0.');
     }
     if (chestCount > 0 && winningChestCount > chestCount) {
       warnings.push('Winning chest count is greater than the total chest count.');
@@ -158,6 +157,26 @@ function buildStealSummary(stealPercent, stealMinCap, stealMaxCap, chestCount, w
     ? 'mini-game disabled'
     : chestCount + ' chests with ' + winningChestCount + ' winning chest' + (winningChestCount === 1 ? '' : 'es');
   return 'Steal takes about ' + percentText + '% of target gold, minimum ' + stealMinCap + ', ' + capText + '; ' + miniGameText + '.';
+}
+
+function buildTreasureChestSummary(gemTreasureChance, treasureStealChance, treasureShieldChance, treasureSecondChance) {
+  const parts = [];
+  if (gemTreasureChance > 0) {
+    parts.push('Gem chest ' + formatChance(gemTreasureChance));
+  }
+  if (treasureStealChance > 0) {
+    parts.push('Steal Token chest ' + formatChance(treasureStealChance));
+  }
+  if (treasureShieldChance > 0) {
+    parts.push('Shield Token chest ' + formatChance(treasureShieldChance));
+  }
+  if (treasureSecondChance > 0) {
+    parts.push('Second Chance chest ' + formatChance(treasureSecondChance));
+  }
+  if (!parts.length) {
+    return 'No treasure bonus chests are currently enabled.';
+  }
+  return parts.join('. ') + '. Each eligible chest fills independently, and only the selected chest can grant its reward.';
 }
 
 function buildDisabledStates(timerDuration, firstSolverCount, chestCount, stealMaxCap) {

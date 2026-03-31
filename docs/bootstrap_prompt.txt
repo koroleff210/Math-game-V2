@@ -11,33 +11,32 @@ Port:    5000
 Always use:
 - `.venv\Scripts\python.exe`
 
----
-
 CURRENT SNAPSHOT
 ----------------
-Date:    2026-03-25
-Head:    f1a2b3c4d5e6
-Focus:   the repo has moved beyond core problem-system buildout; current work is mainly Classic/Hub stabilization, gameplay-page polish, supervision visibility, and targeted authored-content quality-of-life
+Date: 2026-03-30
+Head: f1a2b3c4d5e6
 
-Current implemented baseline:
-- Problem System V1 is live
-- unified problem editor is the canonical create/edit path
-- graph authoring uses equation rows + point rows over normalized graph config
-- problem-set builder is live and server-rendered
-- Hub is the persistent prep space and Join is the runtime freeze boundary
-- Classic gameplay is playable end-to-end with the current reward/store/steal/history stack
-- Classic player page now has a stable 3-column contract
-- admin live supervision includes leaderboard, solve counts, and steal history
+Current repo reality:
+- Classic Mode is the main gameplay center and is playable end-to-end
+- Hub is the persistent prep/dashboard surface
+- authored-content stack is live:
+  - subjects
+  - topics
+  - problem bootstrap -> full content editor
+  - graph blocks
+  - problem-set builder
+- Classic admin config UX is grouped and uses current mechanic language
+- Classic player page uses a stable 3-column shell
+- Treasure and Steal now use center-stage overlays above the problem area
+- post-solve action choice, Treasure, Steal target selection, and Steal/Treasure reveal state are resumable across refresh/reconnect
 - shield semantics are aligned around:
   - `Second Chance`
   - `Shield Token`
   - `Protected`
 
----
-
 READ THESE FIRST
 ----------------
-Canonical docs:
+Canonical current docs:
 - `docs/project_state.md`
 - `docs/system_architecture.md`
 - `docs/manual_test_guide.md`
@@ -45,37 +44,48 @@ Canonical docs:
 Historical/reference only:
 - `docs/dev_log.md`
 - `docs/checkpoints/*`
-- `classic_mode_description_v1_0.txt`
-- `Diamonds_Upgrades_Roadmap_v1.txt`
-
----
+- `docs/archive/*`
 
 CRITICAL CURRENT INVARIANTS
 ---------------------------
 - `Problem` remains the root authored question entity
 - canonical content interpretation goes through `app/services/problem_content.py`
 - canonical graph storage remains `ProblemBlock.graph_config_json`
-- equation input is an authoring convenience layer, not a second graph storage format
-- admin preview and Classic gameplay should keep sharing the same problem/graph interpretation path
+- admin preview and Classic gameplay should keep sharing the interpreted content path
+- Hub is the live prep layer; Join is the runtime freeze boundary
 - `SessionParticipantSnapshot` is the frozen runtime source for progression-derived gameplay values
-- Hub is the live prep layer; active gameplay must not read live persistent upgrade/gear state directly
-- Join is the boundary where runtime values freeze
+- Classic gameplay should not read live persistent progression/gear rows directly for gameplay math
 - Classic player page should be extended incrementally, not structurally rebuilt by default
-- admin live supervision should extend through the existing Classic admin watch/socket path, not a second live-update system
-- when tests or manual validation create Classic sessions, explicitly end them before closing the task; do not leave live `waiting` or `active` sessions behind
+- Treasure and Steal mechanics are server-resolved; their stage-event presentation is template/JS-driven
+- pending post-solve action and stage-event restore logic now matter; do not break reconnect safety
+- when tests or manual validation create Classic sessions, explicitly end them before closing the task
 
----
-
-WHEN WORKING ON CURRENT AREAS
------------------------------
-- prefer local polish/stabilization over broad rewrites
-- preserve the current Classic 3-column gameplay-page contract unless the task explicitly changes it
-- preserve the current Hub server-rendered fragment model unless the task explicitly changes it
-- avoid inventing speculative roadmap features not already reflected in docs/code/tests
-- prefer source-of-truth doc updates over adding more checkpoint-style status files
-
----
-
-NEXT-CHAT DEFAULT ASSUMPTION
+CURRENT UI / SYSTEM HOTSPOTS
 ----------------------------
-Unless the next task says otherwise, assume the repo's current authored-content stack, Hub flow, Classic runtime, and supervision path are already live and should be extended or polished incrementally rather than rebuilt.
+- player gameplay shell:
+  - left rail
+  - center problem window + workflow panel + stage-event overlays
+  - right rail
+- Treasure overlay:
+  - one selected chest can grant reward
+  - independent chest-fill semantics
+- Steal overlay:
+  - target avatar in scene
+  - selected-only reveal in current visual pass
+- admin Classic new/manage flows:
+  - grouped config language
+  - live supervision
+  - next-round editor
+
+ASSET / RENDER NOTES
+--------------------
+- avatar layers come from `app/services/avatar.py` and `app/static/gear/`
+- Treasure/Steal stage-event assets live under `app/static/classic_ui/`
+- gameplay template contains explicit overlay layout maps and dev-only overlay tuning tools
+
+WORKING STYLE DEFAULT
+---------------------
+- prefer incremental stabilization/polish over broad rewrites
+- preserve current mechanics unless the task explicitly changes them
+- keep docs aligned to code reality, not hoped-for future design
+- if code and docs diverge, update docs to match code unless the task is explicitly a code correction

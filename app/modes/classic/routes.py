@@ -14,16 +14,17 @@
 #   POST /admin/classic/<id>/end     → end the round and session
 #
 # Player flow:
-#   POST /classic/join/<id>  → explicit join endpoint; freezes session-scoped upgrade snapshot
-#   GET  /classic/lobby/<id> → waiting room (before round starts)
-#   GET  /classic/game/<id>  → game screen (real-time via Socket.IO)
+#   POST /classic/join/<id>  → explicit Hub Join endpoint; creates participation and freezes session-scoped snapshot state
+#   GET  /classic/play       → routing entry path into the current Classic waiting/active flow; does not create participation
+#   GET  /classic/lobby/<id> → participant-only waiting room (before round starts)
+#   GET  /classic/game/<id>  → participant-only game screen (real-time via Socket.IO)
 
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
 from flask import (
     Blueprint, render_template, redirect, url_for,
-    flash, request, abort, make_response,
+    flash, request, abort, make_response, jsonify,
 )
 from flask_login import login_required, current_user
 
@@ -44,6 +45,7 @@ from app.modes.classic.admin_summary import (
 from app.services.progression import ensure_session_participant_snapshot, ensure_all_session_participant_snapshots
 from app.services.avatar import build_player_avatar_view
 from app.models.gear import PlayerGearLoadout
+from app.services.overlay_layouts import build_overlay_asset_payload, load_overlay_layouts, save_overlay_layouts
 
 # Config fields that map 1:1 between NextRoundForm and ClassicRoundConfig.
 # Used to pre-fill the next-round form and to build a new config from submitted data.
@@ -206,7 +208,6 @@ def new_session():
             steal_fallback_gold=form.steal_fallback_gold.data,
             steal_chest_count=form.steal_chest_count.data,
             steal_winning_chest_count=form.steal_winning_chest_count.data,
-            shield_duration=form.active_shield_duration.data,
             active_shield_duration=form.active_shield_duration.data,
             reactive_shield_duration=form.reactive_shield_duration.data,
             treasure_steal_token_chance=form.treasure_steal_token_chance.data,
@@ -219,7 +220,7 @@ def new_session():
         # Notify Hub-connected players that a session is available.
         _emit_hub_session_available(game_session)
 
-        flash(f'Classic session #{game_session.id} created. Direct players to the lobby, then press Start.', 'success')
+        flash(f'Classic session #{game_session.id} created. Players can use the Hub Join flow when you are ready, then you can press Start.', 'success')
         return redirect(url_for('classic_admin.manage', session_id=game_session.id))
 
     return render_template('admin/classic/new.html', form=form)
@@ -287,6 +288,30 @@ def manage(session_id):
         history_count=history_count,
         broken_active_ended=broken_active_ended,
     )
+
+
+@classic_admin_bp.route('/layout-lab')
+@login_required
+@admin_required
+def layout_lab():
+    """Dev-only stage-event overlay layout tuning page."""
+    return render_template(
+        'admin/classic/layout_lab.html',
+        overlay_layouts=load_overlay_layouts(),
+        overlay_assets=build_overlay_asset_payload(),
+    )
+
+
+@classic_admin_bp.route('/layout-lab/save', methods=['POST'])
+@login_required
+@admin_required
+def layout_lab_save():
+    """Persist stage-event overlay layout changes to the shared app-side JSON source."""
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({'ok': False, 'error': 'Layout payload must be a JSON object.'}), 400
+    saved = save_overlay_layouts(payload)
+    return jsonify({'ok': True, 'overlay_layouts': saved})
 
 
 @classic_admin_bp.route('/<int:session_id>/repair_waiting', methods=['POST'])
@@ -820,7 +845,11 @@ def join_session():
 @classic_player_bp.route('/play')
 @login_required
 def play():
-    """Unified player entry point — always routes to the current active/waiting session."""
+    """Unified player routing entry point.
+
+    This path does not create participation. It only routes an already eligible
+    player into the current Classic waiting/active session flow.
+    """
     active = GameSession.query.filter(
         GameSession.mode == 'classic',
         GameSession.status.in_(['waiting', 'active'])
@@ -924,6 +953,8 @@ def game(session_id):
         round_config=(game_round.classic_config if game_round else None),
         game_round=game_round,
         gear_avatar=build_player_avatar_view(current_user, loadout),
+        overlay_layouts=load_overlay_layouts(),
+        overlay_assets=build_overlay_asset_payload(),
     )
 
 

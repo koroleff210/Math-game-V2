@@ -24,6 +24,7 @@
 #   is_closed).  This deviation is documented in docs/dev_log.md.
 
 import random
+from types import SimpleNamespace
 
 from flask import render_template
 from flask_socketio import emit, join_room
@@ -32,12 +33,14 @@ from datetime import datetime, timezone
 
 from app.extensions import db
 from app.models.game import GameSession, GameRound, RoundPlayer
+from app.models.player import Player
 from app.models.problems import Problem
 from app.models.classic import (
     ClassicRoundConfig, PlayerWallet, PlayerClassicState,
     PlayerProblemState, ProblemSolverCount, StealEvent,
     StoreItem, PlayerInventory,
 )
+from app.models.gear import PlayerGearLoadout
 from app.core.problem_engine import check_answer
 from app.modes.classic import engine, state, store as classic_store
 from app.modes.classic.routes import player_in_session_group
@@ -48,14 +51,15 @@ from app.services.problem_content import (
 )
 from app.modes.classic.admin_summary import render_admin_supervision_summary_payload
 from app.services.progression import get_session_player_modifiers
+from app.services.avatar import build_player_avatar_view
 
 
 def _manual_shield_base_duration(config) -> int:
-    return getattr(config, 'active_shield_duration', None) or getattr(config, 'shield_duration', 60)
+    return getattr(config, 'active_shield_duration', 60) or 60
 
 
 def _reactive_shield_base_duration(config) -> int:
-    return getattr(config, 'reactive_shield_duration', None) or getattr(config, 'shield_duration', 60)
+    return getattr(config, 'reactive_shield_duration', 60) or 60
 
 
 def _render_problem_body_html(problem) -> str:
@@ -69,6 +73,269 @@ def _build_problem_choice_payload(problem) -> dict:
         'answer_type': choice_view['answer_type'],
         'choice_options': choice_view['options'],
     }
+
+
+def _empty_avatar_loadout():
+    return SimpleNamespace(
+        head_item_id=None,
+        chest_item_id=None,
+        boots_item_id=None,
+        main_hand_item_id=None,
+        off_hand_item_id=None,
+        pocket1_item_id=None,
+        pocket2_item_id=None,
+    )
+
+
+def _build_player_avatar_payload(player_id: int) -> dict | None:
+    player = db.session.get(Player, player_id)
+    if not player:
+        return None
+    loadout = PlayerGearLoadout.query.filter_by(player_id=player_id).first() or _empty_avatar_loadout()
+    avatar_view = build_player_avatar_view(player, loadout)
+    return {
+        'player_id': player.id,
+        'username': player.username,
+        'face_label': avatar_view['face_label'],
+        'layers': [
+            {
+                'label': layer['label'],
+                'static_path': layer['static_path'],
+            }
+            for layer in avatar_view['layers']
+        ],
+    }
+
+
+def _has_second_chance_capacity(player_id: int, session_id: int) -> bool:
+    active_count = (
+        PlayerInventory.query
+        .join(StoreItem, PlayerInventory.item_id == StoreItem.id)
+        .filter(
+            PlayerInventory.player_id == player_id,
+            PlayerInventory.session_id == session_id,
+            StoreItem.bonus_type == 'shield',
+            PlayerInventory.used_at == None,  # noqa: E711
+        )
+        .count()
+    )
+    return active_count < 1
+
+
+def _build_treasure_eligibility(config, player_id: int, session_id: int, wallet, token_cap: int) -> dict:
+    return {
+        'gem': getattr(config, 'gem_treasure_chance', 0.0) > 0.0,
+        'steal_token': (
+            getattr(config, 'treasure_steal_token_chance', 0.0) > 0.0
+            and wallet is not None
+            and wallet.steal_tokens < token_cap
+        ),
+        'shield_token': getattr(config, 'treasure_active_shield_chance', 0.0) > 0.0,
+        'second_chance': (
+            getattr(config, 'treasure_second_chance_chance', 0.0) > 0.0
+            and _has_second_chance_capacity(player_id, session_id)
+        ),
+    }
+
+
+def _treasure_reward_label(reward_type: str) -> str:
+    return {
+        'gem': 'Gem',
+        'steal_token': 'Steal Token',
+        'shield_token': 'Shield Token',
+        'second_chance': 'Second Chance',
+    }.get(reward_type, reward_type.replace('_', ' ').title())
+
+
+_TREASURE_CHEST_VARIANTS = (1, 2, 3, 4, 5, 6)
+_STEAL_SLOT_KEYS = ('item1', 'item2', 'item3', 'item4', 'item5', 'item6', 'item7')
+_STEAL_BAG_VARIANTS = (1, 2, 3, 4, 5, 6, 7, 8)
+
+
+def _assign_treasure_display_state(chests: list[dict]) -> list[dict]:
+    skins = list(_TREASURE_CHEST_VARIANTS)
+    random.shuffle(skins)
+    result = []
+    for idx, chest in enumerate(chests):
+        item = dict(chest)
+        item['skin_id'] = skins[idx % len(skins)]
+        result.append(item)
+    return result
+
+
+def _build_steal_display_state(chest_count: int) -> list[dict]:
+    active_count = max(1, min(7, int(chest_count or 0)))
+    slot_keys = list(_STEAL_SLOT_KEYS)
+    random.shuffle(slot_keys)
+    bag_skins = list(_STEAL_BAG_VARIANTS)
+    random.shuffle(bag_skins)
+    return [
+        {
+            'index': index + 1,
+            'slot_key': slot_key,
+            'skin_id': bag_skins[index % len(bag_skins)],
+        }
+        for index, slot_key in enumerate(slot_keys[:active_count])
+    ]
+
+
+def _serialize_treasure_chests(chests: list[dict], *, revealed: bool = False) -> list[dict]:
+    payload = []
+    for chest in chests:
+        item = {
+            'index': chest['index'],
+            'revealed': revealed,
+        }
+        if chest.get('skin_id') is not None:
+            item['skin_id'] = chest['skin_id']
+        if revealed:
+            item['filled'] = chest['filled']
+            item['reward_label'] = _treasure_reward_label(chest['reward_type']) if chest['filled'] else 'Empty'
+            item['reward_type'] = chest['reward_type'] if chest['filled'] else None
+        payload.append(item)
+    return payload
+
+
+def _serialize_pending_treasure(payload: dict | None) -> dict | None:
+    if not payload:
+        return None
+    result = {
+        'phase': payload.get('phase', 'selecting'),
+        'selected_chest': payload.get('selected_chest'),
+        'chests': _serialize_treasure_chests(
+            payload.get('chests', []),
+            revealed=payload.get('phase') == 'revealing',
+        ),
+    }
+    if payload.get('reveal_result'):
+        result['reveal_result'] = payload['reveal_result']
+    return result
+
+
+def _serialize_pending_steal(payload: dict | None) -> dict | None:
+    if not payload:
+        return None
+    result = {
+        'phase': payload.get('phase', 'selecting'),
+        'selected_chest': payload.get('selected_chest'),
+        'chest_count': payload.get('chest_count', 0),
+        'winning_chest_count': payload.get('winning_chest_count', 0),
+        'containers': [
+            {
+                'index': container['index'],
+                'slot_key': container['slot_key'],
+                'skin_id': container['skin_id'],
+            }
+            for container in payload.get('containers', [])
+        ],
+        'target': _build_player_avatar_payload(payload['target_id']) if payload.get('target_id') else None,
+    }
+    if payload.get('reveal_result'):
+        result['reveal_result'] = payload['reveal_result']
+    return result
+
+
+def _serialize_pending_action(payload: dict | None) -> dict | None:
+    if not payload or not isinstance(payload, dict):
+        return None
+    return {
+        'problem_id': payload.get('problem_id'),
+        'solver_rank': payload.get('solver_rank', 1),
+        'timer_active': bool(payload.get('timer_active', False)),
+        'steal_available': bool(payload.get('steal_available', False)),
+    }
+
+
+def _build_choose_action_prompt_payload(
+    *,
+    problem_id: int,
+    solver_rank: int,
+    timer_active: bool,
+    steal_available: bool,
+) -> dict:
+    return {
+        'problem_id': problem_id,
+        'solver_rank': solver_rank,
+        'timer_active': bool(timer_active),
+        'steal_available': bool(steal_available),
+    }
+
+
+def _serialize_pending_steal_targets(*, player_id: int, session_id: int, intent: dict | None) -> dict | None:
+    if not intent or intent.get('session_id') != session_id:
+        return None
+
+    all_wallets = PlayerWallet.query.filter_by(session_id=session_id).all()
+    all_pcs = PlayerClassicState.query.filter_by(session_id=session_id).all()
+    states_map = {p.player_id: p for p in all_pcs}
+    targets = engine.build_steal_targets(all_wallets, states_map, player_id)
+
+    return {
+        'problem_id': intent.get('problem_id'),
+        'targets': targets,
+    }
+
+
+def _grant_treasure_reward(reward_type: str, *, player, session_id: int, wallet, steal_token_cap: int) -> dict:
+    granted = False
+    reward_label = _treasure_reward_label(reward_type)
+    details = {
+        'reward_type': reward_type,
+        'reward_label': reward_label,
+        'gems_gained': 0,
+        'token_awarded': False,
+        'shield_token_granted': False,
+        'second_chance_granted': False,
+        'grant_message': '',
+    }
+
+    if reward_type == 'gem':
+        wallet.gems += 1
+        granted = True
+        details['gems_gained'] = 1
+        details['grant_message'] = 'Selected chest granted 1 Gem.'
+    elif reward_type == 'steal_token':
+        granted = engine.try_award_steal_token(wallet, max_cap=steal_token_cap)
+        details['token_awarded'] = granted
+        details['grant_message'] = (
+            'Selected chest granted 1 Steal Token.'
+            if granted else
+            'Selected chest held a Steal Token, but your token count is already full.'
+        )
+    elif reward_type == 'shield_token':
+        sys_item = classic_store.get_or_create_system_shield_token(session_id)
+        inv = PlayerInventory(
+            player_id=player.id,
+            session_id=session_id,
+            item_id=sys_item.id,
+            purchased_at=datetime.now(timezone.utc),
+            used_at=None,
+        )
+        db.session.add(inv)
+        db.session.flush()
+        granted = True
+        details['shield_token_granted'] = True
+        details['grant_message'] = 'Selected chest granted 1 Shield Token.'
+    elif reward_type == 'second_chance':
+        if _has_second_chance_capacity(player.id, session_id):
+            sys_item = classic_store.get_or_create_system_sc(session_id)
+            inv = PlayerInventory(
+                player_id=player.id,
+                session_id=session_id,
+                item_id=sys_item.id,
+                purchased_at=datetime.now(timezone.utc),
+                used_at=None,
+            )
+            db.session.add(inv)
+            db.session.flush()
+            granted = True
+            details['second_chance_granted'] = True
+            details['grant_message'] = 'Selected chest granted Second Chance.'
+        else:
+            details['grant_message'] = 'Selected chest held Second Chance, but you already have one.'
+
+    details['granted'] = granted
+    return details
 
 
 def register_classic_handlers(socketio):
@@ -245,6 +512,18 @@ def register_classic_handlers(socketio):
             _join_mods = get_session_player_modifiers(session_id, player.id)
             steal_token_max_cap = _join_mods.effective_steal_token_cap
 
+        pending_treasure = _serialize_pending_treasure(state.get_treasure_chests(player.id))
+        pending_steal = _serialize_pending_steal(state.get_steal_minigame(player.id))
+        pending_action = (
+            _serialize_pending_action(state.get_pending_action_for_round(player.id, game_round.id))
+            if game_round else None
+        )
+        pending_steal_targets = _serialize_pending_steal_targets(
+            player_id=player.id,
+            session_id=session_id,
+            intent=state.get_steal_intent(player.id),
+        )
+
         # Notify the room that a player joined (updates lobby player lists)
         enrolled_now = RoundPlayer.query.filter_by(session_id=session_id).all()
         player_names = [rp.player.username for rp in enrolled_now]
@@ -265,8 +544,12 @@ def register_classic_handlers(socketio):
             'problem_list':       problem_list,
             'store_items':        store_items,
             'active_bonuses':     active_bonuses,
-            'leaderboard':        leaderboard,
-        })
+              'leaderboard':        leaderboard,
+              'pending_action_prompt': pending_action,
+              'pending_steal_targets': pending_steal_targets,
+              'pending_treasure':   pending_treasure,
+              'pending_steal':      pending_steal,
+          })
 
     # ── classic_submit_answer ─────────────────────────────────────────────────
 
@@ -426,21 +709,32 @@ def register_classic_handlers(socketio):
         # The streak is read back in classic_choose_action for gem calculation.
         state.increment_streak(player.id, game_round.id)
 
-        # Record pending action so choose_action is only accepted after this event
-        state.set_pending_action(player.id, game_round.id, problem_id)
-
         # Determine if steal is available (has token to spend)
         steal_wallet = PlayerWallet.query.filter_by(
             player_id=player.id, session_id=session_id
         ).first()
         steal_available = bool(steal_wallet and steal_wallet.steal_tokens >= 1)
+        prompt_payload = _build_choose_action_prompt_payload(
+            problem_id=problem_id,
+            solver_rank=solver_rank,
+            timer_active=timer_active,
+            steal_available=steal_available,
+        )
 
-        emit('choose_action_prompt', {
-            'problem_id':      problem_id,
-            'solver_rank':     solver_rank,
-            'timer_active':    timer_active,
-            'steal_available': steal_available,
-        })
+        # Record pending action so choose_action is only accepted after this event.
+        # The payload is persisted in runtime state so refresh/reconnect can restore
+        # the unresolved post-solve action opportunity without rerolling context.
+        state.set_pending_action(
+            player.id,
+            game_round.id,
+            problem_id,
+            session_id=session_id,
+            solver_rank=solver_rank,
+            timer_active=timer_active,
+            steal_available=steal_available,
+        )
+
+        emit('choose_action_prompt', prompt_payload)
 
     # ── classic_choose_action ─────────────────────────────────────────────────
 
@@ -484,7 +778,8 @@ def register_classic_handlers(socketio):
             return
 
         # Require a pending action for this specific problem
-        if not state.has_pending_action(player.id, game_round.id, problem_id):
+        pending_action = state.get_pending_action(player.id, game_round.id, problem_id)
+        if not pending_action:
             emit('error', {'msg': 'no pending action for this problem'})
             return
 
@@ -533,7 +828,7 @@ def register_classic_handlers(socketio):
                     round_id=game_round.id,
                     actor_id=player.id,
                     target_id=None,
-                    outcome='no_targets_fallback',
+                    outcome='stranger_no_targets',
                     gold_exchanged=config.steal_fallback_gold,
                     mini_game_pick=None,
                     created_at=datetime.now(timezone.utc),
@@ -541,18 +836,16 @@ def register_classic_handlers(socketio):
                 db.session.add(evt)
                 db.session.commit()
 
-                log_entry = (
-                    f'You received {config.steal_fallback_gold} gold from a stranger '
-                    f'(no valid targets)'
-                )
+                log_entry = f'You gained {config.steal_fallback_gold} gold from a stranger steal (no valid targets).'
                 state.append_action_log(player.id, session_id, log_entry)
 
                 emit('steal_result', {
-                    'outcome':    'no_targets_fallback',
+                    'outcome':    'stranger_no_targets',
                     'gold_gained': config.steal_fallback_gold,
                     'new_balance': wallet.gold,
                     'new_tokens':  wallet.steal_tokens,
                     'winning_chests': [],
+                    'selected_chest': None,
                     'log_entry':  log_entry,
                 })
 
@@ -568,13 +861,14 @@ def register_classic_handlers(socketio):
 
         # ── Calculate reward (mine / treasure_search) ─────────────────────────
 
-        # Re-read solver rank from DB (most accurate under concurrency)
-        psc = ProblemSolverCount.query.filter_by(
-            round_id=game_round.id, problem_id=problem_id
-        ).first()
-        solver_rank = psc.solver_count if psc else 1
+        # Reuse the solver/timer context captured at correct-answer time so a refresh
+        # or delay cannot silently change the earned post-solve opportunity.
+        if not isinstance(pending_action, dict):
+            emit('error', {'msg': 'pending action context is invalid'})
+            return
 
-        timer_active = state.is_timer_active(session_id, config.bonus_timer_duration)
+        solver_rank = int(pending_action.get('solver_rank') or 1)
+        timer_active = bool(pending_action.get('timer_active', False))
 
         x2_active    = False
         treasure_roll = None   # only set for treasure_search actions
@@ -616,71 +910,7 @@ def register_classic_handlers(socketio):
 
         wallet.gold += gold_gained
 
-        # ── [D4] Treasure side reward (at most one, weighted selection) ────────
-        token_found   = False
-        token_awarded = False
-        treasure_gem_won = False
-        treasure_gem_gained = 0
-        treasure_shield_token_granted = False
-        treasure_second_chance_granted = False
-
-        if action == 'treasure_search':
-            side_reward = engine.pick_treasure_side_reward(
-                getattr(config, 'gem_treasure_chance', 0.0),
-                getattr(config, 'treasure_steal_token_chance', 0.0),
-                getattr(config, 'treasure_active_shield_chance', 0.0),
-                getattr(config, 'treasure_second_chance_chance', 0.0),
-            )
-
-            if side_reward == 'gem':
-                treasure_gem_gained = 1
-                treasure_gem_won = True
-
-            elif side_reward == 'steal_token':
-                token_found = True
-                token_awarded = engine.try_award_steal_token(
-                    wallet, max_cap=mods.effective_steal_token_cap
-                )
-
-            elif side_reward == 'active_shield':
-                sys_item = classic_store.get_or_create_system_shield_token(session_id)
-                inv = PlayerInventory(
-                    player_id=player.id,
-                    session_id=session_id,
-                    item_id=sys_item.id,
-                    purchased_at=datetime.now(timezone.utc),
-                    used_at=None,
-                )
-                db.session.add(inv)
-                db.session.flush()
-                treasure_shield_token_granted = True
-
-            elif side_reward == 'second_chance':
-                # Capacity check: max 1 active Second Chance (any source)
-                store_sc_active = (
-                    PlayerInventory.query
-                    .join(StoreItem, PlayerInventory.item_id == StoreItem.id)
-                    .filter(
-                        PlayerInventory.player_id  == player.id,
-                        PlayerInventory.session_id == session_id,
-                        StoreItem.bonus_type       == 'shield',
-                        PlayerInventory.used_at    == None,   # noqa: E711
-                    )
-                    .count()
-                )
-                if store_sc_active < 1:
-                    sys_item = classic_store.get_or_create_system_sc(session_id)
-                    inv = PlayerInventory(
-                        player_id=player.id,
-                        session_id=session_id,
-                        item_id=sys_item.id,
-                        purchased_at=datetime.now(timezone.utc),
-                        used_at=None,
-                    )
-                    db.session.add(inv)
-                    db.session.flush()
-                    treasure_second_chance_granted = True
-                # else: blocked by capacity → resolve to nothing
+        # Treasure Search now resolves base gold first, then an optional chest phase.
 
         # ── Gem awards (milestone + streak, both actions) ─────────────────────
         # Milestone: count solved problems for this player in this round (DB-authoritative).
@@ -694,7 +924,7 @@ def register_classic_handlers(socketio):
             solved_count, config.gem_milestone_count,
             current_streak, config.gem_streak_count,
         )
-        gems_gained = gem_result['gems'] + treasure_gem_gained
+        gems_gained = gem_result['gems']
         gem_reason  = gem_result['reason']
 
         wallet.gems += gems_gained
@@ -706,61 +936,80 @@ def register_classic_handlers(socketio):
         # Consume the pending action
         state.clear_pending_action(player.id, game_round.id, problem_id)
 
-        # ── Action log ────────────────────────────────────────────────────────
         if action == 'mine':
-            state.append_action_log(player.id, session_id,
-                                    f'You mined {gold_gained} gold')
-        else:  # treasure_search
-            side_parts = []
-            if token_found and token_awarded:
-                side_parts.append('a steal token')
-            if treasure_shield_token_granted:
-                side_parts.append('a shield token')
-            if treasure_second_chance_granted:
-                side_parts.append('a Second Chance')
-            if treasure_gem_won:
-                side_parts.append('a gem')
-            if side_parts:
-                side_str = ' and '.join(side_parts)
-                state.append_action_log(player.id, session_id,
-                    f'You found treasure: {gold_gained} gold and {side_str}')
-            else:
-                state.append_action_log(player.id, session_id,
-                    f'You searched for treasure: {gold_gained} gold')
+            log_entry = f'You mined {gold_gained} gold'
+            state.append_action_log(player.id, session_id, log_entry)
+            emit('reward_applied', {
+                'gold_gained': gold_gained,
+                'breakdown': breakdown,
+                'new_balance': new_balance,
+                'gems_gained': gems_gained,
+                'new_gems': new_gems,
+                'gem_reason': gem_reason,
+                'x2_active': x2_active,
+                'treasure_roll': treasure_roll,
+                'active_bonuses': classic_store.get_active_counts(player.id, session_id),
+                'log_entry': log_entry,
+            })
+            _emit_leaderboard(socketio, session_id)
+            return
 
-        # ── Emit reward to this player ────────────────────────────────────────
-
-        emit('reward_applied', {
-            'gold_gained':         gold_gained,
-            'breakdown':           breakdown,
-            'new_balance':         new_balance,
-            'gems_gained':         gems_gained,
-            'new_gems':            new_gems,
-            'gem_reason':          gem_reason,
-            'treasure_gem_won':    treasure_gem_won,
-            'x2_active':           x2_active,
-            'treasure_roll':       treasure_roll,
-            'token_found':         token_found,
-            'token_awarded':       token_awarded,
-            'treasure_shield_token_granted': treasure_shield_token_granted,
-            'treasure_second_chance_granted': treasure_second_chance_granted,
-            'active_bonuses': classic_store.get_active_counts(player.id, session_id),
-        })
-
-        # ── Broadcast leaderboard to the room ────────────────────────────────
-
-        wallets = (
-            PlayerWallet.query
-            .filter_by(session_id=session_id)
-            .order_by(PlayerWallet.gold.desc())
-            .all()
+        eligibility = _build_treasure_eligibility(
+            config, player.id, session_id, wallet, mods.effective_steal_token_cap
         )
-        leaderboard = [
-            {'username': w.player.username, 'gold': w.gold, 'gems': w.gems}
-            for w in wallets
-        ]
-        room = f'classic_{session_id}'
-        socketio.emit('leaderboard_update', {'leaderboard': leaderboard}, room=room)
+        candidates = engine.build_treasure_chest_candidates(config, eligibility)
+        if not candidates:
+            log_entry = f'Treasure Search: +{gold_gained} gold (chest phase skipped: no eligible rewards).'
+            state.append_action_log(player.id, session_id, log_entry)
+            emit('reward_applied', {
+                'gold_gained': gold_gained,
+                'breakdown': breakdown,
+                'new_balance': new_balance,
+                'gems_gained': gems_gained,
+                'new_gems': new_gems,
+                'gem_reason': gem_reason,
+                'treasure_roll': treasure_roll,
+                'treasure_phase': 'skipped_no_eligible_rewards',
+                'treasure_base_gold': gold_gained,
+                'active_bonuses': classic_store.get_active_counts(player.id, session_id),
+                'log_entry': log_entry,
+            })
+            _emit_leaderboard(socketio, session_id)
+            return
+
+        chests = _assign_treasure_display_state(engine.roll_treasure_chests(candidates))
+        state.set_treasure_chests(
+            player.id,
+            session_id=session_id,
+            round_id=game_round.id,
+            problem_id=problem_id,
+            chests=chests,
+            base_gold=gold_gained,
+            breakdown=list(breakdown),
+            new_balance=new_balance,
+            gems_gained=gems_gained,
+            new_gems=new_gems,
+            gem_reason=gem_reason,
+            treasure_roll=treasure_roll,
+            steal_token_cap=mods.effective_steal_token_cap,
+            phase='selecting',
+            selected_chest=None,
+            reveal_result=None,
+        )
+        state.append_action_log(player.id, session_id, f'Treasure Search: +{gold_gained} gold (choose 1 chest).')
+        emit('treasure_chest_offer', {
+            'base_gold_gained': gold_gained,
+            'breakdown': breakdown,
+            'new_balance': new_balance,
+            'gems_gained': gems_gained,
+            'new_gems': new_gems,
+            'gem_reason': gem_reason,
+            'treasure_roll': treasure_roll,
+            'chests': _serialize_treasure_chests(chests, revealed=False),
+        })
+        _emit_leaderboard(socketio, session_id)
+        return
+
 
     # ── classic_buy_item ──────────────────────────────────────────────────────
 
@@ -814,6 +1063,9 @@ def register_classic_handlers(socketio):
             'store_items':   classic_store.store_items_for(session_id),
             'active_bonuses': classic_store.get_active_counts(player.id, session_id),
         })
+        if ok:
+            _emit_leaderboard(socketio, session_id)
+            _emit_admin_summary_update(socketio, session_id)
 
     # ── classic_steal_pick_target ─────────────────────────────────────────────
 
@@ -889,38 +1141,19 @@ def register_classic_handlers(socketio):
         )
 
         if not target_valid:
-            # Target became invalid between intent and pick (e.g. spent gold or got shielded).
-            # Per locked design: confirmation already happened — token is consumed and the
-            # attempt is logged as mini_game_fail (AD-28).
             actor_wallet.steal_tokens -= 1
             state.clear_steal_intent(player.id)
             state.clear_pending_action(player.id, game_round.id, problem_id)
-
-            evt = StealEvent(
-                session_id=session_id,
-                round_id=game_round.id,
-                actor_id=player.id,
-                target_id=target_player_id,
-                outcome='target_invalid',
-                gold_exchanged=0,
-                mini_game_pick=None,
-                created_at=datetime.now(timezone.utc),
+            _resolve_stranger_steal(
+                socketio, session_id, game_round.id,
+                player, actor_wallet,
+                config.steal_fallback_gold,
+                target_player_id=target_player_id,
+                outcome='stranger_target_invalid',
+                log_entry=(
+                    f'Your target was no longer valid, so you gained {config.steal_fallback_gold} gold from a stranger steal.'
+                ),
             )
-            db.session.add(evt)
-            db.session.commit()
-            _emit_admin_summary_update(socketio, session_id)
-
-            log_entry = 'Your steal attempt failed (target no longer valid)'
-            state.append_action_log(player.id, session_id, log_entry)
-
-            emit('steal_result', {
-                'outcome':        'target_invalid',
-                'gold_gained':    0,
-                'new_balance':    actor_wallet.gold,
-                'new_tokens':     actor_wallet.steal_tokens,
-                'winning_chests': [],
-                'log_entry':      log_entry,
-            })
             return
 
         # ── Consume token (AD-28) ─────────────────────────────────────────────
@@ -937,8 +1170,6 @@ def register_classic_handlers(socketio):
         )
 
         if config.steal_chest_count == 0:
-            # Mini-game disabled — instant success
-            # D4: compute target's effective shield duration from frozen modifiers
             _target_mods  = get_session_player_modifiers(session_id, target_player_id)
             _eff_shield_s = engine.calc_effective_shield_duration(
                 _reactive_shield_base_duration(config),
@@ -958,6 +1189,8 @@ def register_classic_handlers(socketio):
             winning_chests = engine.generate_winning_chests(
                 config.steal_chest_count, config.steal_winning_chest_count
             )
+            containers = _build_steal_display_state(config.steal_chest_count)
+            target_payload = _build_player_avatar_payload(target_player_id)
             state.set_steal_minigame(
                 player.id,
                 target_id=target_player_id,
@@ -965,11 +1198,21 @@ def register_classic_handlers(socketio):
                 steal_amount=steal_amount,
                 session_id=session_id,
                 round_id=game_round.id,
+                chest_count=config.steal_chest_count,
+                winning_chest_count=config.steal_winning_chest_count,
+                containers=containers,
+                phase='selecting',
+                selected_chest=None,
+                reveal_result=None,
             )
             db.session.commit()   # commit token consumption before mini-game starts
             emit('steal_mini_game_start', {
                 'chest_count':         config.steal_chest_count,
                 'winning_chest_count': config.steal_winning_chest_count,
+                'target': target_payload,
+                'containers': containers,
+                'phase': 'selecting',
+                'selected_chest': None,
             })
 
     # ── classic_steal_cancel ──────────────────────────────────────────────────
@@ -1016,30 +1259,66 @@ def register_classic_handlers(socketio):
             emit('error', {'msg': 'round ended'})
             return
 
-        config = game_round.classic_config
-
         if not state.has_pending_action(player.id, game_round.id, problem_id):
             emit('error', {'msg': 'no pending action'})
             return
-
-        # Re-read solver rank and timer for a fresh choose_action_prompt
-        psc = ProblemSolverCount.query.filter_by(
-            round_id=game_round.id, problem_id=problem_id
-        ).first()
-        solver_rank  = psc.solver_count if psc else 1
-        timer_active = state.is_timer_active(session_id, config.bonus_timer_duration)
 
         wallet = PlayerWallet.query.filter_by(
             player_id=player.id, session_id=session_id
         ).first()
         steal_available = bool(wallet and wallet.steal_tokens >= 1)
+        pending_action = state.get_pending_action(player.id, game_round.id, problem_id)
+        if not isinstance(pending_action, dict):
+            emit('error', {'msg': 'pending action context is invalid'})
+            return
 
-        emit('choose_action_prompt', {
-            'problem_id':      problem_id,
-            'solver_rank':     solver_rank,
-            'timer_active':    timer_active,
-            'steal_available': steal_available,
-        })
+        pending_action['steal_available'] = steal_available
+        emit('choose_action_prompt', _build_choose_action_prompt_payload(
+            problem_id=problem_id,
+            solver_rank=int(pending_action.get('solver_rank') or 1),
+            timer_active=bool(pending_action.get('timer_active', False)),
+            steal_available=steal_available,
+        ))
+
+    @socketio.on('classic_treasure_select_chest')
+    def handle_treasure_select_chest(data):
+        if not current_user.is_authenticated:
+            emit('error', {'msg': 'not authenticated'})
+            return
+
+        session_id = int(data.get('session_id', 0))
+        chest_index = int(data.get('chest_index', 0))
+        pending = state.get_treasure_chests(current_user.id)
+        if not pending or pending.get('session_id') != session_id or pending.get('phase') == 'revealing':
+            return
+        selected = next((c for c in pending.get('chests', []) if c['index'] == chest_index), None)
+        if not selected:
+            return
+        state.update_treasure_chests(
+            current_user.id,
+            selected_chest=chest_index,
+            phase='selected_pending_confirm',
+        )
+
+    @socketio.on('classic_steal_select_container')
+    def handle_steal_select_container(data):
+        if not current_user.is_authenticated:
+            emit('error', {'msg': 'not authenticated'})
+            return
+
+        session_id = int(data.get('session_id', 0))
+        chest_index = int(data.get('chest_index', 0))
+        minigame = state.get_steal_minigame(current_user.id)
+        if not minigame or minigame.get('session_id') != session_id or minigame.get('phase') == 'revealing':
+            return
+        selected = next((c for c in minigame.get('containers', []) if c['index'] == chest_index), None)
+        if not selected:
+            return
+        state.update_steal_minigame(
+            current_user.id,
+            selected_chest=chest_index,
+            phase='selected_pending_confirm',
+        )
 
     # ── classic_steal_mini_game_pick ──────────────────────────────────────────
 
@@ -1065,6 +1344,9 @@ def register_classic_handlers(socketio):
         minigame = state.get_steal_minigame(player.id)
         if not minigame or minigame['session_id'] != session_id:
             emit('error', {'msg': 'no active steal mini-game'})
+            return
+        if minigame.get('phase') == 'revealing' and minigame.get('reveal_result'):
+            emit('steal_result', minigame['reveal_result'])
             return
 
         game_session = db.session.get(GameSession, session_id)
@@ -1101,9 +1383,7 @@ def register_classic_handlers(socketio):
             player_id=target_player_id, session_id=session_id
         ).first()
 
-        state.clear_steal_minigame(player.id)
-
-        # OQ-4: re-validate target; if now shielded or broke → mini_game_fail
+        # Re-validate target at chest resolution time; invalid targets convert to Stranger steal.
         target_still_valid = (
             target_wallet is not None
             and target_wallet.gold > 0
@@ -1111,6 +1391,11 @@ def register_classic_handlers(socketio):
         )
 
         won_chest = chest_index in winning_chests
+        state.update_steal_minigame(
+            player.id,
+            selected_chest=chest_index,
+            phase='revealing',
+        )
 
         # D4: compute target's effective shield duration from frozen modifiers
         _target_mods  = get_session_player_modifiers(session_id, target_player_id)
@@ -1130,37 +1415,138 @@ def register_classic_handlers(socketio):
                 shield_duration_s=_eff_shield_s,
             )
         else:
-            # Terminal failure — distinguish target_invalid from a wrong-chest mini_game_fail
             if not target_still_valid:
-                outcome_str = 'target_invalid'
-                log_entry   = 'Your steal attempt failed (target no longer valid)'
+                outcome_str = 'stranger_target_invalid'
+                log_entry = (
+                    f'Your target was no longer valid, so you gained {config.steal_fallback_gold} gold from a stranger steal.'
+                )
             else:
-                outcome_str = 'mini_game_fail'
-                log_entry   = 'Your steal attempt failed'
+                outcome_str = 'stranger_chest'
+                log_entry = (
+                    f'You picked a stranger chest and gained {config.steal_fallback_gold} gold.'
+                )
 
-            evt = StealEvent(
-                session_id=session_id,
-                round_id=game_round.id,
-                actor_id=player.id,
-                target_id=target_player_id,
-                outcome=outcome_str,
-                gold_exchanged=0,
+            _resolve_stranger_steal(
+                socketio, session_id, game_round.id,
+                player, actor_wallet,
+                config.steal_fallback_gold,
+                target_player_id=target_player_id,
                 mini_game_pick=chest_index,
-                created_at=datetime.now(timezone.utc),
+                outcome=outcome_str,
+                log_entry=log_entry,
+                winning_chests=winning_chests,
             )
-            db.session.add(evt)
-            db.session.commit()
 
-            state.append_action_log(player.id, session_id, log_entry)
+    @socketio.on('classic_treasure_pick_chest')
+    def handle_treasure_pick_chest(data):
+        if not current_user.is_authenticated:
+            emit('error', {'msg': 'not authenticated'})
+            return
 
-            emit('steal_result', {
-                'outcome':        outcome_str,
-                'gold_gained':    0,
-                'new_balance':    actor_wallet.gold if actor_wallet else 0,
-                'new_tokens':     actor_wallet.steal_tokens if actor_wallet else 0,
-                'winning_chests': sorted(winning_chests),
-                'log_entry':      log_entry,
-            })
+        session_id = int(data.get('session_id', 0))
+        chest_index = int(data.get('chest_index', 0))
+        player = current_user
+
+        pending = state.get_treasure_chests(player.id)
+        if not pending or pending.get('session_id') != session_id:
+            emit('error', {'msg': 'no active treasure chest phase'})
+            return
+        if pending.get('phase') == 'revealing' and pending.get('reveal_result'):
+            emit('treasure_chest_result', pending['reveal_result'])
+            return
+
+        wallet = PlayerWallet.query.filter_by(
+            player_id=player.id, session_id=session_id
+        ).first()
+        if not wallet:
+            emit('error', {'msg': 'wallet not found'})
+            state.clear_treasure_chests(player.id)
+            return
+
+        selected = next((c for c in pending['chests'] if c['index'] == chest_index), None)
+        if not selected:
+            emit('error', {'msg': 'invalid chest selection'})
+            return
+
+        reward_details = None
+        if selected['filled']:
+            reward_details = _grant_treasure_reward(
+                selected['reward_type'],
+                player=player,
+                session_id=session_id,
+                wallet=wallet,
+                steal_token_cap=pending['steal_token_cap'],
+            )
+
+        db.session.commit()
+        active_bonuses = classic_store.get_active_counts(player.id, session_id)
+        reveal_payload = _serialize_treasure_chests(pending['chests'], revealed=True)
+
+        if reward_details and reward_details['grant_message']:
+            log_entry = (
+                f'Treasure Search: +{pending["base_gold"]} gold. {reward_details["grant_message"]}'
+            )
+            extra_gems = reward_details.get('gems_gained', 0)
+        elif selected['filled']:
+            log_entry = f'Treasure Search: +{pending["base_gold"]} gold. Selected chest reward could not be granted.'
+            extra_gems = 0
+        else:
+            log_entry = f'Treasure Search: +{pending["base_gold"]} gold. Selected chest was empty.'
+            extra_gems = 0
+        state.append_action_log(player.id, session_id, log_entry)
+
+        result_payload = {
+            'base_gold_gained': pending['base_gold'],
+            'breakdown': pending['breakdown'],
+            'new_balance': wallet.gold,
+            'gems_gained': pending['gems_gained'] + extra_gems,
+            'new_gems': wallet.gems,
+            'gem_reason': pending['gem_reason'],
+            'treasure_roll': pending['treasure_roll'],
+            'selected_chest': chest_index,
+            'selected_reward_granted': bool(reward_details and reward_details.get('granted')),
+            'selected_reward_label': reward_details['reward_label'] if reward_details and reward_details.get('granted') else None,
+            'selected_chest_empty': not selected['filled'],
+            'treasure_phase': (
+                'selected_reward_granted'
+                if reward_details and reward_details.get('granted')
+                else 'selected_chest_empty'
+                if not selected['filled']
+                else 'selected_reward_blocked'
+            ),
+            'grant_message': reward_details.get('grant_message') if reward_details else 'Selected chest was empty.',
+            'chests': reveal_payload,
+            'active_bonuses': active_bonuses,
+            'steal_tokens': wallet.steal_tokens,
+            'log_entry': log_entry,
+        }
+        state.update_treasure_chests(
+            player.id,
+            selected_chest=chest_index,
+            phase='revealing',
+            reveal_result=result_payload,
+        )
+        emit('treasure_chest_result', result_payload)
+        _emit_leaderboard(socketio, session_id)
+
+    @socketio.on('classic_stage_event_closed')
+    def handle_stage_event_closed(data):
+        if not current_user.is_authenticated:
+            emit('error', {'msg': 'not authenticated'})
+            return
+
+        session_id = int(data.get('session_id', 0))
+        event_type = (data.get('event_type') or '').strip()
+        player_id = current_user.id
+
+        if event_type == 'treasure':
+            pending = state.get_treasure_chests(player_id)
+            if pending and pending.get('session_id') == session_id and pending.get('phase') == 'revealing':
+                state.clear_treasure_chests(player_id)
+        elif event_type == 'steal':
+            pending = state.get_steal_minigame(player_id)
+            if pending and pending.get('session_id') == session_id and pending.get('phase') == 'revealing':
+                state.clear_steal_minigame(player_id)
 
     # ── classic_activate_steal_shield ─────────────────────────────────────────
 
@@ -1319,6 +1705,54 @@ def _emit_admin_summary_update(socketio, session_id: int) -> None:
     socketio.emit('admin_summary_update', payload, room=f'classic_{session_id}')
 
 
+def _resolve_stranger_steal(
+    socketio, session_id, round_id,
+    actor_player, actor_wallet,
+    gold_amount: int,
+    *,
+    target_player_id=None,
+    mini_game_pick=None,
+    outcome='stranger_chest',
+    log_entry=None,
+    winning_chests=None,
+):
+    actor_wallet.gold += gold_amount
+    evt = StealEvent(
+        session_id=session_id,
+        round_id=round_id,
+        actor_id=actor_player.id,
+        target_id=target_player_id,
+        outcome=outcome,
+        gold_exchanged=gold_amount,
+        mini_game_pick=mini_game_pick,
+        created_at=datetime.now(timezone.utc),
+    )
+    db.session.add(evt)
+    db.session.commit()
+    if not log_entry:
+        log_entry = f'You gained {gold_amount} gold from a stranger steal.'
+    state.append_action_log(actor_player.id, session_id, log_entry)
+    result_payload = {
+        'outcome': outcome,
+        'gold_gained': gold_amount,
+        'new_balance': actor_wallet.gold,
+        'new_tokens': actor_wallet.steal_tokens,
+        'winning_chests': sorted(winning_chests or []),
+        'selected_chest': mini_game_pick,
+        'log_entry': log_entry,
+    }
+    if mini_game_pick is not None:
+        state.update_steal_minigame(
+            actor_player.id,
+            selected_chest=mini_game_pick,
+            phase='revealing',
+            reveal_result=result_payload,
+        )
+    emit('steal_result', result_payload)
+    _emit_leaderboard(socketio, session_id)
+    _emit_admin_summary_update(socketio, session_id)
+
+
 def _resolve_steal_success(
     socketio, session_id, round_id,
     actor_player, actor_wallet,
@@ -1360,7 +1794,7 @@ def _resolve_steal_success(
         round_id=round_id,
         actor_id=actor_player.id,
         target_id=target_player_id,
-        outcome='success',
+        outcome='targeted_success',
         gold_exchanged=actual_stolen,
         mini_game_pick=mini_game_pick,
         created_at=datetime.now(timezone.utc),
@@ -1378,14 +1812,24 @@ def _resolve_steal_success(
     state.append_action_log(target_player_id, session_id, victim_log)
 
     # Emit steal_result to actor
-    emit('steal_result', {
+    result_payload = {
         'outcome':        'success',
+        'resolved_outcome': 'targeted_success',
         'gold_gained':    actual_stolen,
         'new_balance':    actor_wallet.gold,
         'new_tokens':     actor_wallet.steal_tokens,
         'winning_chests': [] if mini_game_pick is None else [mini_game_pick],
+        'selected_chest': mini_game_pick,
         'log_entry':      actor_log,
-    })
+    }
+    if mini_game_pick is not None:
+        state.update_steal_minigame(
+            actor_player.id,
+            selected_chest=mini_game_pick,
+            phase='revealing',
+            reveal_result=result_payload,
+        )
+    emit('steal_result', result_payload)
 
     # Notify victim in their own private room
     shield_iso = new_expiry.isoformat() if new_expiry else None

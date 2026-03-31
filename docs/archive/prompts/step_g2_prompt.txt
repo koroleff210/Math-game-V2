@@ -1,4 +1,4 @@
-PHASE 4 STEP G2A — SUBJECT FOUNDATION + SAFE TOPIC LINK
+PHASE 4 STEP G2A � SUBJECT FOUNDATION + SAFE TOPIC LINK
 =======================================================
 Paste this file after docs/bootstrap_prompt.txt at the start of a new conversation.
 Do NOT start coding until this file has been read.
@@ -9,8 +9,8 @@ OVERVIEW
 --------
 This step implements only the SUBJECT FOUNDATION for the problem bank hierarchy.
 
-Current hierarchy:   Topic → Problem
-Target foundation:   Subject → Topic → Problem
+Current hierarchy:   Topic > Problem
+Target foundation:   Subject > Topic > Problem
 
 This is an admin/problem-bank step only.
 No Classic Mode gameplay changes.
@@ -32,7 +32,7 @@ Implement G2a only:
 4. Keep the legacy topic subject string field/data in place for now.
 5. Add minimal Subject admin CRUD.
 6. Add minimal Topic admin support for assigning/editing Subject manually.
-7. Preserve all existing Topic → Problem behavior.
+7. Preserve all existing Topic > Problem behavior.
 
 Stop after this step, even if later G2 work seems easy.
 
@@ -216,7 +216,7 @@ Required:
 - topic create/edit pages allow assigning/changing Subject
 - topic edit preselects current Subject
 - topics list shows Subject column
-- if topic has no Subject, show "—" or equivalent
+- if topic has no Subject, show "�" or equivalent
 
 This is minimal integration only.
 Do NOT change Problem create/edit UX yet.
@@ -270,7 +270,7 @@ At minimum verify:
 6. Backfill logic creates Subject rows from legacy topic subject strings conservatively.
 7. Blank/null legacy subject values remain safely unmapped.
 8. Duplicate normalized legacy values do not create duplicate Subject rows.
-9. Existing Topic → Problem behavior still works after schema change.
+9. Existing Topic > Problem behavior still works after schema change.
 10. All prior tests remain green.
 
 If the repo already has a migration-testing pattern, use it.
@@ -301,7 +301,7 @@ This step is COMPLETE only when all of the following are true:
 5. Subject admin CRUD exists and deletion guard works.
 6. Topic admin create/edit supports optional Subject assignment.
 7. Topics list shows Subject column.
-8. Existing Topic → Problem behavior is preserved.
+8. Existing Topic > Problem behavior is preserved.
 9. Targeted tests for this step pass.
 10. All previously passing tests still pass.
 11. No new migrations are left pending.

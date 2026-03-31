@@ -5,7 +5,7 @@ Verifies:
   - accepted-answer normalization + legacy fallback
   - block-body view model + legacy fallback
   - admin content editor scaffolding
-  - new problem bootstraps default block + accepted answer row
+  - new problem bootstraps the canonical editor shell and defers answers to content save
 """
 
 import os
@@ -210,8 +210,8 @@ def test_services_and_admin():
             created = Problem.query.filter_by(title='New Slice1 Problem').first()
             check('PS1-13: new problem gets a default rich_text block',
                   created is not None and len(created.blocks) == 1 and created.blocks[0].block_type == PROBLEM_BLOCK_TYPE_RICH_TEXT)
-            check('PS1-14: new problem gets one accepted-answer row from legacy answer_text',
-                  created is not None and len(created.accepted_answers) == 1 and created.accepted_answers[0].answer_text == 'Brand new answer')
+            check('PS1-14: new problem create stays lightweight and defers accepted answers to content save',
+                  created is not None and len(created.accepted_answers) == 0 and (created.answer_text or '') == '')
 
         with flask_app.app_context():
             created = Problem.query.filter_by(title='New Slice1 Problem').first()
@@ -274,22 +274,22 @@ def test_services_and_admin():
                 'title': 'Block Problem',
                 'topic_id': first_topic_id,
                 'subject_helper': 0,
-                'prompt_text': 'Edited legacy prompt should not win',
-                'answer_text': 'Edited legacy answer should not win',
                 'difficulty': 2,
-                'image_path': 'images/edited-legacy.png',
+                'answer_type': 'text_input',
+                'accepted_answers_text': '(2,3)\n(2;3)',
+                f'block_{block_problem.blocks[0].id}_text_content': 'First **block**',
             },
             follow_redirects=True,
         )
-        check('PS1-22: metadata edit route still saves safe fields for structured problems',
+        check('PS1-22: compatibility edit route still posts through the canonical content-save contract',
               r.status_code == 200)
         with flask_app.app_context():
             block_problem = Problem.query.filter_by(title='Block Problem').first()
             block_view = build_problem_body_view(block_problem)
-            check('PS1-23: structured body remains authoritative after legacy metadata edit',
-                  block_view['blocks'][0]['text_content'] == 'First **block**' and block_problem.prompt_text == 'Old prompt')
-            check('PS1-24: structured accepted answers remain authoritative after legacy metadata edit',
-                  check_problem_text_input_answer(block_problem, '(2;3)') and block_problem.answer_text == 'fallback only')
+            check('PS1-23: structured body remains authoritative and syncs the legacy prompt mirror on save',
+                  block_view['blocks'][0]['text_content'] == 'First **block**' and block_problem.prompt_text == 'First **block**')
+            check('PS1-24: structured accepted answers remain authoritative and sync the legacy answer mirror on save',
+                  check_problem_text_input_answer(block_problem, '(2;3)') and block_problem.answer_text == '(2,3)')
 
 
 if __name__ == '__main__':

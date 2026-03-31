@@ -16,6 +16,7 @@ from app.models.classic import (
     PlayerWallet,
     PlayerClassicState,
     PlayerProblemState,
+    StoreItem,
 )
 
 
@@ -152,8 +153,11 @@ def _setup_db():
         )
 
         db.session.add(RoundPlayer(session_id=active_session.id, player_id=admin.id))
+        db.session.add(RoundPlayer(session_id=active_session.id, player_id=player.id))
         db.session.add(PlayerWallet(player_id=admin.id, session_id=active_session.id, gold=10, gems=0, steal_tokens=1))
+        db.session.add(PlayerWallet(player_id=player.id, session_id=active_session.id, gold=20, gems=0, steal_tokens=0))
         db.session.add(PlayerClassicState(player_id=admin.id, session_id=active_session.id))
+        db.session.add(PlayerClassicState(player_id=player.id, session_id=active_session.id))
         db.session.add(
             PlayerProblemState(
                 player_id=admin.id,
@@ -162,6 +166,19 @@ def _setup_db():
                 attempts_used=0,
                 is_solved=False,
                 is_closed=False,
+            )
+        )
+        db.session.add(
+            StoreItem(
+                session_id=active_session.id,
+                name='Live Summary Pickaxe',
+                description='Store purchase leaderboard refresh test',
+                cost=5,
+                currency='gold',
+                bonus_type='x2_mine',
+                session_stock=-1,
+                per_player_limit=-1,
+                is_system=False,
             )
         )
         db.session.commit()
@@ -209,6 +226,15 @@ def test_manage_page_regions_and_live_updates():
             and '>1<' in summary_event['args'][0]['solve_counts_html'],
         )
 
+        with flask_app.app_context():
+            player_wallet = PlayerWallet.query.filter_by(
+                player_id=_IDS['player_id'],
+                session_id=_IDS['active_session_id'],
+            ).first()
+            if player_wallet:
+                player_wallet.gold = 0
+                db.session.commit()
+
         admin_socket.emit('classic_choose_action', {
             'session_id': _IDS['active_session_id'],
             'problem_id': _IDS['problem_id'],
@@ -250,12 +276,67 @@ def test_round_start_pushes_empty_summary_reset():
         )
 
 
+def test_store_purchase_pushes_leaderboard_and_summary_refresh():
+    with flask_app.test_client() as admin_client:
+        _login(admin_client, '__classic_admin_live_admin__')
+
+        with flask_app.app_context():
+            buyer_wallet = PlayerWallet.query.filter_by(
+                player_id=_IDS['admin_id'],
+                session_id=_IDS['active_session_id'],
+            ).first()
+            if buyer_wallet:
+                buyer_wallet.gold = 10
+                db.session.commit()
+            store_item = StoreItem.query.filter_by(
+                session_id=_IDS['active_session_id'],
+                name='Live Summary Pickaxe',
+            ).first()
+            item_id = store_item.id if store_item else 0
+
+        admin_socket = socketio.test_client(flask_app, flask_test_client=admin_client)
+        check('CLS-08: admin socket connects for store refresh watch', admin_socket.is_connected())
+        admin_socket.emit('classic_admin_watch', {'session_id': _IDS['active_session_id']})
+        admin_socket.get_received()
+        check('CLS-09: watcher socket is ready for store purchase', admin_socket.is_connected())
+
+        admin_socket.emit('classic_buy_item', {
+            'session_id': _IDS['active_session_id'],
+            'item_id': item_id,
+        })
+
+        events = admin_socket.get_received()
+        buy_result = next((e for e in events if e['name'] == 'buy_result'), None)
+        leaderboard_event = next((e for e in events if e['name'] == 'leaderboard_update'), None)
+        summary_event = next((e for e in events if e['name'] == 'admin_summary_update'), None)
+
+        check(
+            'CLS-10: store purchase succeeds and buyer wallet updates immediately',
+            buy_result is not None
+            and buy_result['args'][0]['ok'] is True
+            and buy_result['args'][0]['new_balance'] == 5,
+        )
+        check(
+            'CLS-11: store purchase pushes immediate leaderboard refresh',
+            leaderboard_event is not None
+            and any(
+                row['username'] == '__classic_admin_live_admin__' and row['gold'] == 5
+                for row in leaderboard_event['args'][0].get('leaderboard', [])
+            ),
+        )
+        check(
+            'CLS-12: store purchase pushes admin summary refresh event',
+            summary_event is not None,
+        )
+
+
 if __name__ == '__main__':
     print('\nClassic Admin Live Supervision - Tests')
     print('-' * 60)
     _setup_db()
     test_manage_page_regions_and_live_updates()
     test_round_start_pushes_empty_summary_reset()
+    test_store_purchase_pushes_leaderboard_and_summary_refresh()
     print('-' * 60)
     print(f'Results: {passed} passed, {failed} failed out of {passed + failed} tests.')
     if failed == 0:

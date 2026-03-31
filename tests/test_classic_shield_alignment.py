@@ -232,6 +232,18 @@ def run():
             and 'player-shield-status' in html
             and 'shield-status-message' in html
             and 'context-log-panel' in html
+            and 'treasure-overlay' in html
+            and 'confirmTreasureSelection' in html
+            and 'TREASURE_SLOT_LAYOUTS' in html
+            and 'steal-overlay' in html
+            and 'confirmStealSelection' in html
+            and 'STEAL_SLOT_LAYOUTS' in html
+            and 'STEAL_AVATAR_LAYOUT' in html
+            and 'overlay_layouts' not in html
+            and 'copyTreasureOverlayLayout' not in html
+            and 'copyStealOverlayLayout' not in html
+            and 'OVERLAY_LAYOUT_DEBUG' not in html
+            and 'renderOverlayDebugGuide' not in html
             and 'shield-tokens-display' not in html
             and 'id="problem-window"' in html
             and '.prob-btn.available' in html

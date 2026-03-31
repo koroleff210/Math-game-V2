@@ -80,7 +80,18 @@ from app.models.gear import GearItemDefinition, PlayerGearLoadout, PlayerGearOwn
 from app.models.groups import PlayerGroup
 from app.models.history import RoundHistory, RoundPlayerResult
 from app.models.player import Player
-from app.models.problems import Problem, ProblemSet, Topic, problem_set_problems
+from app.models.problems import (
+    PROBLEM_ANSWER_TYPE_MULTIPLE_CHOICE,
+    PROBLEM_ANSWER_TYPE_TEXT_INPUT,
+    PROBLEM_BLOCK_TYPE_RICH_TEXT,
+    Problem,
+    ProblemAcceptedAnswer,
+    ProblemBlock,
+    ProblemChoiceOption,
+    ProblemSet,
+    Topic,
+    problem_set_problems,
+)
 from app.models.progression import (
     DiamondTransaction,
     PlayerProgression,
@@ -89,6 +100,7 @@ from app.models.progression import (
 )
 from app.models.subjects import Subject
 from app.services.gear import ensure_sample_gear_items
+from app.services.problem_content import sync_problem_legacy_compat_fields
 
 
 # ---------------------------------------------------------------------------
@@ -538,6 +550,74 @@ def _do_full_wipe() -> None:
     db.session.execute(text('DELETE FROM player'))
 
 
+def _seed_structured_problem(
+    *,
+    topic_id: int,
+    title: str,
+    prompt: str,
+    difficulty: int,
+    accepted_answers: list[str] | None = None,
+    choice_options: list[tuple[str, bool]] | None = None,
+) -> Problem:
+    """Create a seeded problem through the canonical structured content path."""
+    answer_type = (
+        PROBLEM_ANSWER_TYPE_MULTIPLE_CHOICE
+        if choice_options is not None
+        else PROBLEM_ANSWER_TYPE_TEXT_INPUT
+    )
+    problem = Problem(
+        topic_id=topic_id,
+        title=title,
+        prompt_text='',
+        answer_text='',
+        answer_type=answer_type,
+        difficulty=difficulty,
+    )
+    db.session.add(problem)
+    db.session.flush()
+
+    db.session.add(
+        ProblemBlock(
+            problem_id=problem.id,
+            position=1,
+            block_type=PROBLEM_BLOCK_TYPE_RICH_TEXT,
+            text_content=prompt,
+        )
+    )
+
+    if answer_type == PROBLEM_ANSWER_TYPE_MULTIPLE_CHOICE:
+        if not choice_options:
+            raise ValueError('Seeded multiple-choice problems require choice options.')
+        correct_count = sum(1 for _, is_correct in choice_options if is_correct)
+        if correct_count != 1:
+            raise ValueError('Seeded multiple-choice problems must have exactly one correct option.')
+        for position, (option_text, is_correct) in enumerate(choice_options, start=1):
+            db.session.add(
+                ProblemChoiceOption(
+                    problem_id=problem.id,
+                    position=position,
+                    option_text=option_text,
+                    is_correct=is_correct,
+                )
+            )
+    else:
+        cleaned_answers = [(answer or '').strip() for answer in (accepted_answers or []) if (answer or '').strip()]
+        if not cleaned_answers:
+            raise ValueError('Seeded text-input problems require at least one accepted answer.')
+        for position, answer_text in enumerate(cleaned_answers, start=1):
+            db.session.add(
+                ProblemAcceptedAnswer(
+                    problem_id=problem.id,
+                    position=position,
+                    answer_text=answer_text,
+                )
+            )
+
+    db.session.flush()
+    sync_problem_legacy_compat_fields(problem)
+    return problem
+
+
 def _do_seed() -> dict:
     """Seed minimal test data.  Returns a summary dict."""
     # ── Players ───────────────────────────────────────────────────────────────
@@ -563,14 +643,13 @@ def _do_seed() -> dict:
     # ── Problems ──────────────────────────────────────────────────────────────
     problems = []
     for (topic_idx, title, prompt, answer, diff) in _SEED_PROBLEMS:
-        pr = Problem(
-            topic_id    = topics[topic_idx].id,
-            title       = title,
-            prompt_text = prompt,
-            answer_text = answer,
-            difficulty  = diff,
+        pr = _seed_structured_problem(
+            topic_id=topics[topic_idx].id,
+            title=title,
+            prompt=prompt,
+            difficulty=diff,
+            accepted_answers=[answer],
         )
-        db.session.add(pr)
         problems.append(pr)
     db.session.flush()
 

@@ -1,0 +1,875 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}Layout Lab{% endblock %}
+
+{% block admin_content %}
+{% set title = 'Overlay Layout Lab' %}
+{% set eyebrow = 'Dev Tools' %}
+{% set description = 'Tune Treasure and Steal stage layouts against the same JSON-backed source used by runtime overlay rendering.' %}
+{% include "admin/_page_header.html" %}
+
+<style>
+    .layout-lab-shell {
+        display: grid;
+        grid-template-columns: minmax(320px, 360px) minmax(0, 1fr);
+        gap: 24px;
+        align-items: start;
+    }
+
+    .layout-lab-panel {
+        background: #fff;
+        border: 1px solid #d8e0ea;
+        border-radius: 16px;
+        padding: 20px;
+        box-shadow: 0 12px 30px rgba(26, 36, 52, 0.06);
+    }
+
+    .layout-lab-panel h2,
+    .layout-lab-panel h3 {
+        margin: 0 0 12px;
+    }
+
+    .layout-lab-help {
+        margin: 0 0 18px;
+        color: #506074;
+        line-height: 1.5;
+    }
+
+    .layout-lab-field + .layout-lab-field {
+        margin-top: 16px;
+    }
+
+    .layout-lab-field label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 700;
+        color: #203040;
+    }
+
+    .layout-lab-field select,
+    .layout-lab-field button,
+    .layout-lab-field textarea,
+    .layout-lab-chip-list button,
+    .layout-lab-action-row button {
+        font: inherit;
+    }
+
+    .layout-lab-field select,
+    .layout-lab-field textarea {
+        width: 100%;
+        border: 1px solid #c7d2df;
+        border-radius: 12px;
+        padding: 10px 12px;
+        background: #fff;
+    }
+
+    .layout-lab-chip-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .layout-lab-chip {
+        border: 1px solid #b9c8d8;
+        background: #f5f8fb;
+        color: #24425f;
+        padding: 8px 12px;
+        border-radius: 999px;
+        cursor: pointer;
+    }
+
+    .layout-lab-chip.is-active {
+        background: #17324a;
+        border-color: #17324a;
+        color: #fff;
+    }
+
+    .layout-lab-value-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .layout-lab-value {
+        background: #f7f9fc;
+        border: 1px solid #dce4ee;
+        border-radius: 12px;
+        padding: 10px 12px;
+    }
+
+    .layout-lab-value strong {
+        display: block;
+        font-size: 0.78rem;
+        color: #5c6d80;
+        margin-bottom: 4px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+
+    .layout-lab-action-row,
+    .layout-lab-nudge-grid,
+    .layout-lab-scale-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .layout-lab-action-row button,
+    .layout-lab-nudge-grid button,
+    .layout-lab-scale-row button {
+        border: 1px solid #b8c7d6;
+        background: #fff;
+        color: #18324a;
+        border-radius: 12px;
+        padding: 10px 14px;
+        cursor: pointer;
+    }
+
+    .layout-lab-action-row button.primary {
+        background: #17324a;
+        color: #fff;
+        border-color: #17324a;
+    }
+
+    .layout-lab-status {
+        min-height: 20px;
+        margin-top: 12px;
+        color: #42576d;
+        font-size: 0.95rem;
+    }
+
+    .layout-lab-status.is-error {
+        color: #9b2c2c;
+    }
+
+    .layout-lab-stage-panel {
+        display: grid;
+        gap: 16px;
+    }
+
+    .layout-lab-scene-shell {
+        background: linear-gradient(180deg, #f6f9fc 0%, #eaf1f7 100%);
+        border: 1px solid #d5dfea;
+        border-radius: 20px;
+        padding: 18px;
+    }
+
+    .layout-lab-scene {
+        position: relative;
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        border-radius: 18px;
+        overflow: hidden;
+        background-position: center;
+        background-size: cover;
+        background-repeat: no-repeat;
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+        user-select: none;
+        touch-action: none;
+    }
+
+    .layout-lab-treasure-slot,
+    .layout-lab-steal-slot,
+    .layout-lab-avatar-shell {
+        position: absolute;
+        left: 0;
+        top: 0;
+        transform: translate(-50%, -50%);
+    }
+
+    .layout-lab-treasure-slot {
+        width: calc(210px * var(--slot-scale, 1));
+        height: calc(210px * var(--slot-scale, 1));
+    }
+
+    .layout-lab-steal-slot {
+        width: calc(156px * var(--slot-scale, 1));
+        height: calc(156px * var(--slot-scale, 1));
+    }
+
+    .layout-lab-slot-image,
+    .layout-lab-filler-image {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        pointer-events: none;
+    }
+
+    .layout-lab-avatar-shell {
+        width: var(--avatar-width);
+        aspect-ratio: 11 / 12;
+        border: 2px dashed rgba(255, 255, 255, 0.9);
+        border-radius: 18px;
+        background: linear-gradient(180deg, rgba(23, 50, 74, 0.78), rgba(55, 93, 126, 0.82));
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        padding: 12px;
+        box-shadow: 0 10px 24px rgba(8, 15, 24, 0.22);
+    }
+
+    .layout-lab-filler-image {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        pointer-events: none;
+    }
+
+    .layout-lab-slot-label {
+        position: absolute;
+        left: 50%;
+        bottom: -28px;
+        transform: translateX(-50%);
+        background: rgba(19, 35, 52, 0.82);
+        color: #fff;
+        padding: 5px 10px;
+        border-radius: 999px;
+        font-size: 0.74rem;
+        letter-spacing: 0.04em;
+        white-space: nowrap;
+        pointer-events: none;
+    }
+
+    .layout-lab-anchor {
+        position: absolute;
+        width: 20px;
+        height: 20px;
+        transform: translate(-50%, -50%);
+        border-radius: 999px;
+        border: 2px solid #fff;
+        background: #e4572e;
+        box-shadow: 0 0 0 3px rgba(15, 30, 45, 0.25);
+        cursor: grab;
+    }
+
+    .layout-lab-anchor.is-selected {
+        background: #0f5f9c;
+        box-shadow: 0 0 0 4px rgba(15, 95, 156, 0.22);
+    }
+
+    .layout-lab-anchor:active {
+        cursor: grabbing;
+    }
+
+    .layout-lab-anchor-label {
+        position: absolute;
+        left: 50%;
+        top: calc(100% + 8px);
+        transform: translateX(-50%);
+        background: rgba(18, 33, 50, 0.85);
+        color: #fff;
+        font-size: 0.72rem;
+        padding: 4px 8px;
+        border-radius: 999px;
+        white-space: nowrap;
+        pointer-events: none;
+    }
+
+    .layout-lab-export {
+        min-height: 180px;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 0.82rem;
+        background: #0f1720;
+        color: #dce9f8;
+    }
+
+    .layout-lab-kicker {
+        margin: 0 0 8px;
+        color: #637588;
+        font-size: 0.82rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+    }
+
+    @media (max-width: 1120px) {
+        .layout-lab-shell {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<div class="admin-callout admin-callout-warning" style="margin-bottom:18px;">
+    <h3>Dev-only shared layout tool</h3>
+    <p>
+        Save writes the canonical overlay layout JSON used by both this lab and live runtime rendering.
+        Export/Copy remains available as a backup and for easy checkpointing.
+    </p>
+</div>
+
+<div class="layout-lab-shell">
+    <section class="layout-lab-panel">
+        <h2>Controls</h2>
+        <p class="layout-lab-help">
+            Switch modes, pick a variant, drag anchors directly on the stage, then save when the placement feels right.
+            Coordinates are stored as percentages so layouts stay resolution-independent.
+        </p>
+
+        <div class="layout-lab-field">
+            <label for="layout-lab-mode">Mode</label>
+            <select id="layout-lab-mode">
+                <option value="treasure">Treasure</option>
+                <option value="steal">Steal</option>
+            </select>
+        </div>
+
+        <div class="layout-lab-field" id="layout-lab-treasure-variants">
+            <label>Treasure layout</label>
+            <div class="layout-lab-chip-list" id="layout-lab-variant-list"></div>
+        </div>
+
+        <div class="layout-lab-field">
+            <label>Anchors</label>
+            <div class="layout-lab-chip-list" id="layout-lab-anchor-list"></div>
+        </div>
+
+        <div class="layout-lab-field">
+            <label>Selected values</label>
+            <div class="layout-lab-value-grid">
+                <div class="layout-lab-value">
+                    <strong>X</strong>
+                    <span id="layout-lab-value-x">-</span>
+                </div>
+                <div class="layout-lab-value">
+                    <strong>Y</strong>
+                    <span id="layout-lab-value-y">-</span>
+                </div>
+                <div class="layout-lab-value">
+                    <strong id="layout-lab-scale-label">Scale</strong>
+                    <span id="layout-lab-value-scale">-</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="layout-lab-field">
+            <label>Move selected anchor</label>
+            <div class="layout-lab-nudge-grid">
+                <button type="button" onclick="nudgeSelection(0, -0.5)">Up</button>
+                <button type="button" onclick="nudgeSelection(-0.5, 0)">Left</button>
+                <button type="button" onclick="nudgeSelection(0.5, 0)">Right</button>
+                <button type="button" onclick="nudgeSelection(0, 0.5)">Down</button>
+            </div>
+        </div>
+
+        <div class="layout-lab-field">
+            <label>Scale / width</label>
+            <div class="layout-lab-scale-row">
+                <button type="button" onclick="adjustSelectionScale(-0.1)">Scale -</button>
+                <button type="button" onclick="adjustSelectionScale(0.1)">Scale +</button>
+            </div>
+        </div>
+
+        <div class="layout-lab-field">
+            <label>Actions</label>
+            <div class="layout-lab-action-row">
+                <button type="button" class="primary" onclick="saveLayoutDraft()">Save</button>
+                <button type="button" onclick="resetCurrentLayout()">Reset</button>
+                <button type="button" onclick="copyDraftJson()">Copy JSON</button>
+            </div>
+            <div class="layout-lab-status" id="layout-lab-status"></div>
+        </div>
+
+        <div class="layout-lab-field">
+            <label for="layout-lab-export">Current draft JSON</label>
+            <textarea id="layout-lab-export" class="layout-lab-export" readonly spellcheck="false"></textarea>
+        </div>
+    </section>
+
+    <section class="layout-lab-stage-panel">
+        <div class="layout-lab-panel">
+            <p class="layout-lab-kicker" id="layout-lab-stage-kicker">Treasure</p>
+            <h2 id="layout-lab-stage-title">Treasure layout preview</h2>
+            <p class="layout-lab-help" id="layout-lab-stage-help">
+                Drag the red anchors to reposition each chest. Save writes to the shared overlay layout file used by runtime rendering.
+            </p>
+            <div class="layout-lab-scene-shell">
+                <div id="layout-lab-scene" class="layout-lab-scene"></div>
+            </div>
+        </div>
+    </section>
+</div>
+
+<script>
+(function () {
+    const saveUrl = {{ url_for('classic_admin.layout_lab_save') | tojson }};
+    const csrfToken = {{ csrf_token() | tojson }};
+    const initialLayouts = {{ overlay_layouts | tojson }};
+    const OVERLAY_ASSETS = {{ overlay_assets | tojson }};
+    const treasureBackgrounds = OVERLAY_ASSETS.treasure.backgrounds;
+    const treasureChestVariants = [1, 2, 3, 4, 5, 6];
+    const treasureContainerUrls = OVERLAY_ASSETS.treasure.containers;
+    const stealBackground = OVERLAY_ASSETS.steal.background;
+    const stealContainerUrls = OVERLAY_ASSETS.steal.containers;
+    const stealBagVariants = [1, 2, 3, 4, 5, 6, 7, 8];
+    const stealFillers = OVERLAY_ASSETS.steal.fillers;
+    const treasureVariantCounts = [1, 2, 3, 4];
+    const stealSlotKeys = ['item1', 'item2', 'item3', 'item4', 'item5', 'item6', 'item7'];
+
+    let savedLayouts = clone(initialLayouts);
+    let draftLayouts = clone(initialLayouts);
+    const state = {
+        mode: 'treasure',
+        treasureCount: 3,
+        selection: null,
+        drag: null,
+    };
+
+    const modeSelect = document.getElementById('layout-lab-mode');
+    const variantList = document.getElementById('layout-lab-variant-list');
+    const variantWrap = document.getElementById('layout-lab-treasure-variants');
+    const anchorList = document.getElementById('layout-lab-anchor-list');
+    const scene = document.getElementById('layout-lab-scene');
+    const exportEl = document.getElementById('layout-lab-export');
+    const statusEl = document.getElementById('layout-lab-status');
+    const titleEl = document.getElementById('layout-lab-stage-title');
+    const kickerEl = document.getElementById('layout-lab-stage-kicker');
+    const helpEl = document.getElementById('layout-lab-stage-help');
+    const valueXEl = document.getElementById('layout-lab-value-x');
+    const valueYEl = document.getElementById('layout-lab-value-y');
+    const valueScaleEl = document.getElementById('layout-lab-value-scale');
+    const scaleLabelEl = document.getElementById('layout-lab-scale-label');
+
+    function clone(value) {
+        return JSON.parse(JSON.stringify(value));
+    }
+
+    function roundValue(value) {
+        return Math.round(value * 10) / 10;
+    }
+
+    function clamp(value, minimum, maximum) {
+        return Math.max(minimum, Math.min(maximum, value));
+    }
+
+    function treasureChestImageUrl(skinId) {
+        return treasureContainerUrls.closed[String(skinId)] || treasureContainerUrls.closed['1'];
+    }
+
+    function stealBagImageUrl(skinId) {
+        return stealContainerUrls.closed[String(skinId)] || stealContainerUrls.closed['1'];
+    }
+
+    function setStatus(message, isError) {
+        statusEl.textContent = message || '';
+        statusEl.classList.toggle('is-error', !!isError);
+    }
+
+    function getTreasureSlots(count) {
+        return draftLayouts.treasure.slot_layouts[String(count)] || [];
+    }
+
+    function getStealSlots() {
+        return draftLayouts.steal.slot_layouts || {};
+    }
+
+    function getStealAvatar() {
+        return draftLayouts.steal.avatar;
+    }
+
+    function ensureSelection() {
+        if (state.mode === 'treasure') {
+            const slots = getTreasureSlots(state.treasureCount);
+            if (!slots.length) {
+                state.selection = null;
+                return;
+            }
+            if (!state.selection || state.selection.mode !== 'treasure' || state.selection.variant !== state.treasureCount) {
+                state.selection = { mode: 'treasure', variant: state.treasureCount, key: slots[0].name };
+                return;
+            }
+            const exists = slots.some(function (slot) { return slot.name === state.selection.key; });
+            if (!exists) {
+                state.selection = { mode: 'treasure', variant: state.treasureCount, key: slots[0].name };
+            }
+            return;
+        }
+
+        const slots = getStealSlots();
+        if (!state.selection || state.selection.mode !== 'steal') {
+            state.selection = { mode: 'steal', key: 'item1' };
+            return;
+        }
+        if (state.selection.key !== 'avatar' && !slots[state.selection.key]) {
+            state.selection = { mode: 'steal', key: 'item1' };
+        }
+    }
+
+    function getSelectionTarget() {
+        ensureSelection();
+        if (!state.selection) return null;
+        if (state.selection.mode === 'treasure') {
+            return getTreasureSlots(state.selection.variant).find(function (slot) {
+                return slot.name === state.selection.key;
+            }) || null;
+        }
+        if (state.selection.key === 'avatar') {
+            return getStealAvatar();
+        }
+        return getStealSlots()[state.selection.key] || null;
+    }
+
+    function setSelection(mode, key, variant) {
+        if (mode === 'treasure') {
+            state.selection = { mode: 'treasure', key: key, variant: variant || state.treasureCount };
+        } else {
+            state.selection = { mode: 'steal', key: key };
+        }
+        renderLab();
+    }
+
+    function updateSelectionValues() {
+        const target = getSelectionTarget();
+        if (!target) {
+            valueXEl.textContent = '-';
+            valueYEl.textContent = '-';
+            valueScaleEl.textContent = '-';
+            scaleLabelEl.textContent = 'Scale';
+            return;
+        }
+        valueXEl.textContent = target.x.toFixed(1) + '%';
+        valueYEl.textContent = target.y.toFixed(1) + '%';
+        if (state.mode === 'steal' && state.selection && state.selection.key === 'avatar') {
+            scaleLabelEl.textContent = 'Width';
+            valueScaleEl.textContent = target.width.toFixed(1) + '%';
+        } else {
+            scaleLabelEl.textContent = 'Scale';
+            valueScaleEl.textContent = target.scale.toFixed(1);
+        }
+    }
+
+    function renderVariantButtons() {
+        variantWrap.hidden = state.mode !== 'treasure';
+        variantList.innerHTML = '';
+        if (state.mode !== 'treasure') return;
+        treasureVariantCounts.forEach(function (count) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'layout-lab-chip' + (state.treasureCount === count ? ' is-active' : '');
+            btn.textContent = count + ' chest' + (count === 1 ? '' : 's');
+            btn.onclick = function () {
+                state.treasureCount = count;
+                ensureSelection();
+                renderLab();
+            };
+            variantList.appendChild(btn);
+        });
+    }
+
+    function renderAnchorButtons() {
+        anchorList.innerHTML = '';
+        if (state.mode === 'treasure') {
+            getTreasureSlots(state.treasureCount).forEach(function (slot) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'layout-lab-chip' + (state.selection && state.selection.mode === 'treasure' && state.selection.key === slot.name && state.selection.variant === state.treasureCount ? ' is-active' : '');
+                btn.textContent = slot.name;
+                btn.onclick = function () {
+                    setSelection('treasure', slot.name, state.treasureCount);
+                };
+                anchorList.appendChild(btn);
+            });
+            return;
+        }
+
+        stealSlotKeys.concat(['avatar']).forEach(function (key) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'layout-lab-chip' + (state.selection && state.selection.mode === 'steal' && state.selection.key === key ? ' is-active' : '');
+            btn.textContent = key;
+            btn.onclick = function () {
+                setSelection('steal', key);
+            };
+            anchorList.appendChild(btn);
+        });
+    }
+
+    function getScenePoint(event) {
+        const rect = scene.getBoundingClientRect();
+        if (!rect.width || !rect.height) return null;
+        const x = roundValue(clamp(((event.clientX - rect.left) / rect.width) * 100, 0, 100));
+        const y = roundValue(clamp(((event.clientY - rect.top) / rect.height) * 100, 0, 100));
+        return { x: x, y: y };
+    }
+
+    function startDrag(mode, key, variant, event) {
+        event.preventDefault();
+        setSelection(mode, key, variant);
+        state.drag = { mode: mode, key: key, variant: variant || null };
+    }
+
+    function applyDrag(point) {
+        if (!state.drag || !point) return;
+        if (state.drag.mode === 'treasure') {
+            const slot = getTreasureSlots(state.drag.variant).find(function (entry) {
+                return entry.name === state.drag.key;
+            });
+            if (!slot) return;
+            slot.x = point.x;
+            slot.y = point.y;
+        } else if (state.drag.key === 'avatar') {
+            const avatar = getStealAvatar();
+            avatar.x = point.x;
+            avatar.y = point.y;
+        } else {
+            const slot = getStealSlots()[state.drag.key];
+            if (!slot) return;
+            slot.x = point.x;
+            slot.y = point.y;
+        }
+        renderLab();
+    }
+
+    function stopDrag() {
+        state.drag = null;
+    }
+
+    function renderTreasureScene() {
+        const count = state.treasureCount;
+        scene.style.backgroundImage = 'url("' + treasureBackgrounds[count] + '")';
+        scene.innerHTML = '';
+        kickerEl.textContent = 'Treasure';
+        titleEl.textContent = 'Treasure layout preview';
+        helpEl.textContent = 'Drag chest anchors directly on the stage. The selected anchor can also be nudged or scaled from the control panel.';
+        const skins = treasureChestVariants.slice();
+        getTreasureSlots(count).forEach(function (slot, index) {
+            const slotEl = document.createElement('div');
+            slotEl.className = 'layout-lab-treasure-slot';
+            slotEl.style.left = slot.x + '%';
+            slotEl.style.top = slot.y + '%';
+            slotEl.style.setProperty('--slot-scale', String(slot.scale));
+
+            const img = document.createElement('img');
+            img.className = 'layout-lab-slot-image';
+            img.alt = '';
+            img.src = treasureChestImageUrl(skins[index % skins.length]);
+            slotEl.appendChild(img);
+
+            const label = document.createElement('div');
+            label.className = 'layout-lab-slot-label';
+            label.textContent = slot.name;
+            slotEl.appendChild(label);
+            scene.appendChild(slotEl);
+
+            const anchor = document.createElement('button');
+            anchor.type = 'button';
+            anchor.className = 'layout-lab-anchor' + (state.selection && state.selection.mode === 'treasure' && state.selection.key === slot.name && state.selection.variant === count ? ' is-selected' : '');
+            anchor.style.left = slot.x + '%';
+            anchor.style.top = slot.y + '%';
+            anchor.onpointerdown = function (event) {
+                startDrag('treasure', slot.name, count, event);
+            };
+            anchor.onclick = function () {
+                setSelection('treasure', slot.name, count);
+            };
+
+            const anchorLabel = document.createElement('div');
+            anchorLabel.className = 'layout-lab-anchor-label';
+            anchorLabel.textContent = slot.name;
+            anchor.appendChild(anchorLabel);
+            scene.appendChild(anchor);
+        });
+    }
+
+    function renderStealScene() {
+        scene.style.backgroundImage = 'url("' + stealBackground + '")';
+        scene.innerHTML = '';
+        kickerEl.textContent = 'Steal';
+        titleEl.textContent = 'Steal layout preview';
+        helpEl.textContent = 'Tune bag positions and the avatar anchor against the same shared layout data the live steal overlay now reads.';
+
+        Object.keys(stealFillers).forEach(function (slotKey) {
+            if (getStealSlots()[slotKey]) return;
+            const filler = document.createElement('img');
+            filler.className = 'layout-lab-filler-image';
+            filler.alt = '';
+            filler.src = stealFillers[slotKey];
+            filler.dataset.slot = slotKey;
+            scene.appendChild(filler);
+        });
+
+        const avatar = getStealAvatar();
+        const avatarShell = document.createElement('div');
+        avatarShell.className = 'layout-lab-avatar-shell';
+        avatarShell.style.left = avatar.x + '%';
+        avatarShell.style.top = avatar.y + '%';
+        avatarShell.style.setProperty('--avatar-width', avatar.width + '%');
+        avatarShell.textContent = 'Target Avatar';
+        scene.appendChild(avatarShell);
+
+        const avatarAnchor = document.createElement('button');
+        avatarAnchor.type = 'button';
+        avatarAnchor.className = 'layout-lab-anchor' + (state.selection && state.selection.mode === 'steal' && state.selection.key === 'avatar' ? ' is-selected' : '');
+        avatarAnchor.style.left = avatar.x + '%';
+        avatarAnchor.style.top = avatar.y + '%';
+        avatarAnchor.onpointerdown = function (event) {
+            startDrag('steal', 'avatar', null, event);
+        };
+        avatarAnchor.onclick = function () {
+            setSelection('steal', 'avatar');
+        };
+        const avatarLabel = document.createElement('div');
+        avatarLabel.className = 'layout-lab-anchor-label';
+        avatarLabel.textContent = 'avatar';
+        avatarAnchor.appendChild(avatarLabel);
+        scene.appendChild(avatarAnchor);
+
+        const skins = stealBagVariants.slice();
+        stealSlotKeys.forEach(function (slotKey, index) {
+            const slot = getStealSlots()[slotKey];
+            if (!slot) return;
+            const slotEl = document.createElement('div');
+            slotEl.className = 'layout-lab-steal-slot';
+            slotEl.style.left = slot.x + '%';
+            slotEl.style.top = slot.y + '%';
+            slotEl.style.setProperty('--slot-scale', String(slot.scale));
+
+            const img = document.createElement('img');
+            img.className = 'layout-lab-slot-image';
+            img.alt = '';
+            img.src = stealBagImageUrl(skins[index % skins.length]);
+            slotEl.appendChild(img);
+
+            const label = document.createElement('div');
+            label.className = 'layout-lab-slot-label';
+            label.textContent = slotKey;
+            slotEl.appendChild(label);
+            scene.appendChild(slotEl);
+
+            const anchor = document.createElement('button');
+            anchor.type = 'button';
+            anchor.className = 'layout-lab-anchor' + (state.selection && state.selection.mode === 'steal' && state.selection.key === slotKey ? ' is-selected' : '');
+            anchor.style.left = slot.x + '%';
+            anchor.style.top = slot.y + '%';
+            anchor.onpointerdown = function (event) {
+                startDrag('steal', slotKey, null, event);
+            };
+            anchor.onclick = function () {
+                setSelection('steal', slotKey);
+            };
+
+            const anchorLabel = document.createElement('div');
+            anchorLabel.className = 'layout-lab-anchor-label';
+            anchorLabel.textContent = slotKey;
+            anchor.appendChild(anchorLabel);
+            scene.appendChild(anchor);
+        });
+    }
+
+    function renderExport() {
+        exportEl.value = JSON.stringify(draftLayouts, null, 2);
+    }
+
+    function renderLab() {
+        ensureSelection();
+        renderVariantButtons();
+        renderAnchorButtons();
+        if (state.mode === 'treasure') {
+            renderTreasureScene();
+        } else {
+            renderStealScene();
+        }
+        updateSelectionValues();
+        renderExport();
+    }
+
+    function nudgeSelection(dx, dy) {
+        const target = getSelectionTarget();
+        if (!target) return;
+        target.x = roundValue(clamp(target.x + dx, 0, 100));
+        target.y = roundValue(clamp(target.y + dy, 0, 100));
+        renderLab();
+    }
+
+    function adjustSelectionScale(delta) {
+        const target = getSelectionTarget();
+        if (!target) return;
+        if (state.mode === 'steal' && state.selection && state.selection.key === 'avatar') {
+            target.width = roundValue(clamp(target.width + delta, 8, 40));
+        } else {
+            const max = state.mode === 'treasure' ? 1.4 : 0.8;
+            target.scale = roundValue(clamp(target.scale + delta, 0.1, max));
+        }
+        renderLab();
+    }
+
+    async function saveLayoutDraft() {
+        setStatus('Saving layout draft...');
+        try {
+            const response = await fetch(saveUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                },
+                body: JSON.stringify(draftLayouts),
+            });
+            const payload = await response.json();
+            if (!response.ok || !payload.ok) {
+                throw new Error(payload.error || 'Layout save failed.');
+            }
+            savedLayouts = clone(payload.overlay_layouts);
+            draftLayouts = clone(payload.overlay_layouts);
+            setStatus('Layout saved to the shared overlay JSON source.');
+            renderLab();
+        } catch (error) {
+            setStatus(error.message || 'Layout save failed.', true);
+        }
+    }
+
+    function resetCurrentLayout() {
+        if (state.mode === 'treasure') {
+            draftLayouts.treasure.slot_layouts[String(state.treasureCount)] = clone(
+                savedLayouts.treasure.slot_layouts[String(state.treasureCount)] || []
+            );
+        } else {
+            draftLayouts.steal = clone(savedLayouts.steal);
+        }
+        setStatus('Reset current layout to the last saved version.');
+        renderLab();
+    }
+
+    async function copyDraftJson() {
+        renderExport();
+        exportEl.focus();
+        exportEl.select();
+        try {
+            await navigator.clipboard.writeText(exportEl.value);
+            setStatus('Draft JSON copied.');
+        } catch (_error) {
+            document.execCommand('copy');
+            setStatus('Draft JSON copied.');
+        }
+    }
+
+    window.nudgeSelection = nudgeSelection;
+    window.adjustSelectionScale = adjustSelectionScale;
+    window.saveLayoutDraft = saveLayoutDraft;
+    window.resetCurrentLayout = resetCurrentLayout;
+    window.copyDraftJson = copyDraftJson;
+
+    modeSelect.addEventListener('change', function () {
+        state.mode = modeSelect.value;
+        setStatus('');
+        ensureSelection();
+        renderLab();
+    });
+
+    document.addEventListener('pointermove', function (event) {
+        if (!state.drag) return;
+        applyDrag(getScenePoint(event));
+    });
+
+    document.addEventListener('pointerup', stopDrag);
+    document.addEventListener('pointercancel', stopDrag);
+
+    ensureSelection();
+    renderLab();
+})();
+</script>
+{% endblock %}

@@ -1,13 +1,13 @@
 # Manual Test Guide
 
-_Updated: 2026-03-25_
+_Updated: 2026-03-30_
 
-This guide is intentionally current and concise.
-It focuses on the repo's current admin authoring flows, Hub behavior, Classic gameplay smoke paths, supervision visibility, and shield clarity.
+This guide stays intentionally current and practical.
+It focuses on current admin authoring/config flows, Hub behavior, Classic gameplay smoke paths, Treasure/Steal overlays, reconnect safety, and asset/avatar sanity.
 
-Use [project_state.md](C:\Users\korol\OneDrive\Desktop\Game\Game v2\docs\project_state.md) for status and [system_architecture.md](C:\Users\korol\OneDrive\Desktop\Game\Game v2\docs\system_architecture.md) for structure.
-
----
+Use:
+- [C:\Users\korol\OneDrive\Desktop\Game\Game v2\docs\project_state.md](C:\Users\korol\OneDrive\Desktop\Game\Game v2\docs\project_state.md) for status
+- [C:\Users\korol\OneDrive\Desktop\Game\Game v2\docs\system_architecture.md](C:\Users\korol\OneDrive\Desktop\Game\Game v2\docs\system_architecture.md) for architecture
 
 ## 1. Environment
 
@@ -30,355 +30,384 @@ Recommended player accounts:
 - `player3`
 
 Session hygiene:
-- if you create Classic sessions during testing, end them when the test is complete
-- do not leave `waiting` or `active` test sessions in the database
+- if you create Classic sessions during testing, end them when done
+- do not leave `waiting` or `active` test sessions behind
 
----
+## 2. Recommended Manual Order
 
-## 2. Recommended Manual Test Order
+1. admin shell sanity
+2. subject/topic/problem/problem-set authoring
+3. Hub / gear / avatar sanity
+4. Classic session create/manage
+5. Classic gameplay
+6. Treasure / Steal overlays
+7. refresh/reconnect safety
+8. supervision / history sanity
 
-1. subject/topic setup
-2. unified problem editor
-3. graph authoring
-4. problem-set builder
-5. Hub flow
-6. Classic session smoke
-7. admin supervision / shield checks
+## 3. Admin Shell and CRUD Sanity
 
----
-
-## 3. Subject / Topic Setup
-
-### MT-01: Create subjects and topics
+### MT-01: Admin shell navigation
 1. Log in as admin.
-2. Create at least 2 subjects.
-3. Under each subject, create at least 2 topics.
+2. Verify sidebar links load without error:
+   - Players
+   - Classes
+   - Subjects
+   - Topics
+   - Problems
+   - Problem Sets
+   - Gear Catalog
+   - Classic Mode
+   - History
+   - Diamonds
 
 Expected:
-- subjects save cleanly
-- topics belong to the selected subject
-- topic lists load correctly in problem authoring
+- admin shell routes load
+- no broken nav links
+- grouped admin pages render without template errors
 
----
+### MT-02: Subjects / topics / players / groups quick sanity
+1. Create or edit:
+   - one Subject
+   - one Topic under that Subject
+   - one Player
+   - one Group/Class
+2. Add a player to a class.
 
-## 4. Unified Problem Editor
+Expected:
+- CRUD pages submit and reload correctly
+- Topic shows Subject correctly
+- player/group pages remain usable
 
-### MT-02: Create a text-input problem
+## 4. Problem Authoring
+
+### MT-03: New Problem bootstrap -> full editor
 1. Open `New Problem`.
 2. Fill:
    - title
-   - subject
+   - subject helper
    - topic
+   - answer type
    - difficulty
-   - answer type = `Text input`
-3. Enter:
-   - question seed
-   - first accepted answer
-4. Create the problem.
+   - seed prompt
+3. Submit.
 
 Expected:
-- creation happens on the unified editor surface
-- redirect lands on the same canonical editor in edit mode
-- first rich-text block exists
-- accepted-answer section is active
-- preview shows the saved text block
+- problem is created
+- flow lands in the full content editor
+- the new problem is editable immediately
 
-### MT-03: Create a multiple-choice problem
-1. Open `New Problem`.
-2. Fill metadata.
-3. Set answer type = `Multiple choice`.
-4. Enter question seed.
-5. Fill option rows and mark exactly one as correct.
-6. Create the problem.
-
-Expected:
-- redirect lands on the same canonical editor
-- MC options are active
-- accepted answers are not the visible answer editor
-- Classic-compatible option rows are saved
-
-### MT-04: Edit metadata / answer type
-1. Open an existing problem.
-2. Edit title/topic/difficulty.
-3. Change answer type if needed.
-4. Save.
-
-Expected:
-- metadata changes persist
-- answer-type-specific section remains coherent
-- no accidental write-on-GET behavior
-
----
-
-## 5. Body Block Authoring
-
-### MT-05: Rich text / image / graph body flow
-1. Open a problem in the editor.
-2. Add a rich-text block below an existing block.
-3. Add an image block below that.
-4. Add a graph block below that.
-
-Expected:
-- add-below actions return to the edited block area
-- block ordering stays top-to-bottom
-- preview reflects the saved order
-
-### MT-06: Rich text preview
-1. Edit a rich-text block with:
-   - paragraphs
-   - line breaks
-   - `**bold**`
-   - inline LaTeX delimiters
-2. Save.
-
-Expected:
-- preview updates
-- text block remains visible and readable
-
-### MT-07: Image preview
-1. Set a valid image path.
-2. Adjust width percent.
+### MT-04: Text-input problem authoring
+1. In the content editor, keep answer type = `Text input`.
+2. Add/update:
+   - rich-text blocks
+   - accepted answers
 3. Save.
 
 Expected:
-- preview shows the image
-- width percent affects preview size
+- accepted answers persist
+- preview reflects current body blocks
 
----
+### MT-05: Multiple-choice problem authoring
+1. Create or edit a problem with answer type = `Multiple choice`.
+2. Add/update MC options.
+3. Ensure exactly one option is correct.
 
-## 6. Graph Authoring
+Expected:
+- MC options persist
+- preview remains coherent
+- gameplay later respects the stored correct option
 
-### MT-08: Create a graph from equations and points
+### MT-06: Graph block authoring
 1. Add a graph block.
-2. Set viewport:
-   - x min / max
-   - y min / max
-   - x label / y label
-   - show grid
-3. Add one or more equation rows.
-4. Add one or more point rows.
-5. Save.
+2. Configure:
+   - viewport
+   - one or more equation rows
+   - one or more points
+3. Save.
 
 Expected:
 - graph preview renders
-- Plotly zoom/pan/hover works in admin preview
-- graph block remains in body order with other blocks
+- Plotly interactions work
+- graph remains part of the ordered problem body
 
-### MT-09: Accepted equation forms
-Try examples such as:
-- `y = 2x + 1`
-- `y = x^2`
-- `y = 2*3^x`
-- `y = sin(x)`
-- `y = cos(x)`
+## 5. Problem Set Builder
 
-Expected:
-- accepted forms save and render
-
-### MT-10: Equation range
-1. On an equation row, set optional `x min` / `x max`.
-2. Save.
-
-Expected:
-- only that function trace uses the narrowed x-range
-
-### MT-11: Points
-Try point formats:
-- `2,3`
-- `2;3`
-- `(2, 3)`
-- `(2; 3)`
-
-Expected:
-- accepted formats save as point markers
-
----
-
-## 7. Problem Set Builder
-
-### MT-12: Filter and preview
+### MT-07: Filter, preview, membership
 1. Open an existing problem set.
-2. Choose a subject.
-3. Tick one or more topics.
-4. Optionally choose difficulty.
-5. Choose one answer type.
-6. Click `Filter`.
+2. Filter by:
+   - subject
+   - topic
+   - difficulty
+   - answer type
+3. Add one problem.
+4. Remove one problem.
 
 Expected:
-- left column shows only matching available problems
-- middle preview shows the clicked problem
-- right column shows current set membership
+- left list filters correctly
+- middle preview updates
+- right membership updates immediately
 
-### MT-13: Immediate add/remove
-1. Add a left-column problem.
-2. Remove a right-column problem.
+## 6. Hub / Gear / Avatar Sanity
 
-Expected:
-- membership changes immediately
-- page returns to the builder workspace rather than the top of the page
-- active filters remain intact
-
----
-
-## 8. Hub / Preparation Flow
-
-### MT-14: Hub readiness and session control
-1. Log in as a player and open the Hub.
-2. Observe the `Active Gear Bonuses` area.
-3. Verify Join/Return behavior for:
+### MT-08: Hub readiness and session control
+1. Log in as a player and open Hub.
+2. Verify session control behavior for:
    - no joinable session
    - joinable session
    - unfinished enrolled session
 
 Expected:
-- no top session banner
-- no standalone Session Status placeholder block
-- session control lives inside the Hub status/bonus area
+- session control is integrated into the Hub status area
+- no separate stale banner/placeholder flow appears
 
-### MT-15: Face / equip async refresh
+### MT-09: Face / gear refresh
 1. Change face.
-2. Equip gear.
-3. Unequip gear.
+2. Equip an item.
+3. Unequip an item.
 
 Expected:
 - no full page reload
 - avatar preview updates
 - equipped slots update
 - inventory state updates
-- selected item stays correct
 
----
-
-## 9. Classic Gameplay Smoke
-
-### MT-16: Structured problem rendering in Classic
-1. Create a problem set containing:
-   - text-input problem
-   - multiple-choice problem
-   - graph problem
-2. Create a Classic session with that set.
-3. Join as a player.
-4. Start the round.
+### MT-10: Asset sanity
+1. Verify avatar renders use actual layered art.
+2. Verify gameplay Treasure/Steal overlays can load their background/container/icon art.
 
 Expected:
-- body blocks render in Classic
-- legacy-only problems still display if present
-- graph blocks render in the gameplay body area
+- no missing-image icons
+- no obvious broken static paths
 
-### MT-17: Text-input answer flow
-1. Solve a text-input problem with an accepted variant.
+## 7. Classic Session Create / Manage
+
+### MT-11: New session grouped config UX
+1. Open `Classic Mode` -> new session.
+2. Verify grouped sections:
+   - Session
+   - Core Round / Economy
+   - Bonuses
+   - Treasure
+   - Steal & Protection
+   - Review
 
 Expected:
-- validation uses accepted answers
-- existing text-input flow still works
+- grouped config page renders cleanly
+- labels reflect current mechanics:
+  - chest fill chance
+  - Stranger steal gold
+  - Shield Token / reactive protection wording
 
-### MT-18: Multiple-choice answer flow
-1. Open a multiple-choice problem.
-2. Select an option.
-3. Confirm on the selected option.
+### MT-12: Between-round editor grouped UX
+1. Create a Classic session.
+2. End round 1 so the session is in `waiting`.
+3. Open the between-round editor in manage page.
+
+Expected:
+- next-round editor uses the same grouped language as session creation
+- fields still submit correctly
+
+### MT-13: Broken-session recovery safety
+1. If a dev session lands in:
+   - session `active`
+   - latest round already ended
+2. Open manage page.
+
+Expected:
+- warning/recovery path is visible
+- page is not a no-button dead end
+
+## 8. Classic Gameplay Core
+
+### MT-14: 3-column gameplay contract
+1. Join a live Classic session as a player.
+2. Open gameplay page on normal PC/iPad landscape-sized viewport.
+
+Expected:
+- left rail = Player / Status, Actions, This Round or Store
+- center = tabs, problem window, workflow panel
+- right rail = Leaderboard, Round Context, Action Log
+
+### MT-15: Text-input answer flow
+1. Open a text-input problem.
+2. Submit a correct answer.
 
 Expected:
 - prompt stays in the problem window
-- MC controls stay in the workflow panel
-- submission uses option ID
-- correctness matches the stored correct option
+- answer control stays in workflow panel
+- solve advances into post-solve action choice
 
-### MT-19: Gameplay-page fit / rail structure
-1. Open the gameplay page on a normal PC or iPad landscape-sized viewport.
-2. Verify:
-   - left rail groups remain stable
-   - center problem window + workflow panel remain visible
-   - right rail contains leaderboard, round context, action log
+### MT-16: Multiple-choice answer flow
+1. Open an MC problem.
+2. Select one option.
+3. Confirm on the selected option.
 
 Expected:
-- page keeps the current 3-column contract
-- action log remains fixed-height
-- store replaces the lower left-rail slot rather than stacking height
+- MC controls stay in workflow panel
+- prompt remains in the problem window
+- correctness matches stored option data
 
----
+## 9. Treasure Overlay
 
-## 10. Shield / Store / Steal Clarity
-
-### MT-20: Shield Token and Protected state
-1. Ensure a player has a `Shield Token`.
-2. Activate it while not protected.
-3. Wait for protection to expire.
+### MT-17: Treasure center-stage overlay
+1. Solve correctly.
+2. Choose `Treasure Search`.
+3. Trigger cases with:
+   - no eligible chest rewards
+   - 1 visible chest
+   - multiple visible chests
 
 Expected:
-- `Shield Token` count is visible in the Actions area
-- `Protected` appears near identity/avatar with remaining time
-- activation while inactive consumes one token
-- indicator disappears when protection expires
+- Treasure no longer uses the cramped workflow mini-area
+- center-stage overlay appears above problem area
+- correct cave background loads for chest count
+- one-chest case reveals immediately on tap
+- multi-chest case uses select -> confirm -> reveal -> auto-close
+- only the selected chest grants a reward
+- unselected chests reveal only as missed outcomes
 
-### MT-21: Blocked manual activation
-1. While already `Protected`, try to activate a `Shield Token` again.
+### MT-18: Treasure messaging sanity
+1. Trigger Treasure outcomes that give:
+   - Gem
+   - Shield Token
+   - Steal Token
+   - Second Chance
+   - empty chest
+
+Expected:
+- base gold is separate from chest reveal icons
+- empty chest shows junk
+- reward messages/logs reflect selected chest only
+
+## 10. Steal Overlay
+
+### MT-19: Steal center-stage overlay
+1. Solve correctly.
+2. Choose `Steal`.
+3. Pick a valid target.
+
+Expected:
+- Steal target pick happens in workflow panel
+- Steal mini-game itself opens as a center-stage overlay
+- actual target avatar appears in scene
+- bag/container slots render in the scene
+
+### MT-20: Steal reveal semantics
+1. Complete Steal with:
+   - winning result
+   - non-winning result
+
+Expected:
+- selected bag/container is emphasized
+- only the selected container opens/reveals in current visual pass
+- reveal icon is `gold` or `junk_01`
+- overlay auto-closes and gameplay resumes cleanly
+
+### MT-21: Stranger steal / no-target sanity
+1. Test Steal when:
+   - no valid targets exist
+   - target becomes invalid before resolution if reproducible
+
+Expected:
+- spent steal token still leads to positive actor outcome
+- target is unaffected on Stranger steal
+- reactive protection only happens on true targeted steal success
+
+## 11. Refresh / Reconnect Safety
+
+### MT-22: Refresh during post-solve action choice
+1. Solve correctly.
+2. Stop at the action choice step.
+3. Refresh.
+
+Expected:
+- problem remains solved
+- pending action choice is restored
+- reward opportunity is not lost
+
+### MT-23: Refresh during steal target selection
+1. Solve correctly.
+2. Choose `Steal`.
+3. Stop at target-selection step.
+4. Refresh.
+
+Expected:
+- pending steal target selection restores
+- player is not kicked back to normal selection flow
+
+### MT-24: Refresh during Treasure overlay
+1. Open Treasure overlay.
+2. Refresh during selection or pending confirm.
+
+Expected:
+- same Treasure overlay restores
+- chest outcome is not rerolled
+
+### MT-25: Refresh during Steal overlay
+1. Open Steal overlay.
+2. Refresh during selection or pending confirm.
+
+Expected:
+- same Steal overlay restores
+- slot assignment/outcome is not rerolled
+
+## 12. Shield / Store / Status Clarity
+
+### MT-26: Shield Token and Protected state
+1. Ensure the player has a `Shield Token`.
+2. Activate it.
+3. Wait for expiry.
+
+Expected:
+- Shield Token count is visible in `Actions`
+- `Protected` appears near avatar/identity
+- countdown is visible
+- layout does not jump when it appears/disappears
+
+### MT-27: Blocked manual activation
+1. While `Protected`, try activating again.
 
 Expected:
 - activation is blocked
-- token count does not change
-- blocked feedback is visible
+- token is not consumed
+- feedback is visible without expanding the Actions block permanently
 
-### MT-22: Reactive protection after successful steal
-1. Use two players in an active round.
-2. Complete a successful steal against a victim.
-
-Expected:
-- victim receives automatic `Protected` state
-- victim stop being a valid steal target during the runtime protection window
-- wording stays distinct from token gain
-
-### MT-23: Treasure token reward messaging
-1. Trigger a treasure result that grants anti-steal protection inventory.
+### MT-28: Reactive protection after targeted steal
+1. Complete a true targeted steal against another player.
 
 Expected:
-- message/log says `Shield Token` gained
-- it does not imply immediate protection
+- victim gets `Protected`
+- protected victim becomes an invalid steal target during protection window
 
----
+## 13. Admin Supervision / History
 
-## 11. Admin Live Supervision
-
-### MT-24: Leaderboard / solve counts / steal history
-1. Open the Classic admin manage page for a live session.
-2. During live play:
-   - solve problems
-   - trigger steal events
+### MT-29: Live supervision
+1. Open Classic admin manage page during live play.
+2. Solve problems and trigger steal events.
 
 Expected:
 - leaderboard updates live
 - solve counts update live
-- steal-history / stolen-gold summary updates live
-- no manual refresh is required
+- steal history updates live
 
-### MT-25: Broken-session recovery safety
-1. If a dev/test session lands in the state:
-   - session `active`
-   - latest round already ended
-2. Open the admin manage page.
+### MT-30: Round history
+1. End one or more rounds.
+2. Open Classic history.
 
 Expected:
-- the page does not become a no-action dead end
-- recovery path or warning is visible
+- frozen round history renders
+- results are read-only
+- export/archive controls behave as expected
 
----
+## 14. Optional Dev-Only Overlay Tuning
 
-## 12. Optional Reset / Seed Prep
+### MT-31: Overlay debug mode
+1. Open gameplay with `?overlay_debug=1` or enable `classicOverlayDebug` in `localStorage`.
+2. Trigger Treasure or Steal.
 
-For a fresh manual pass, you can:
-- clear sessions
-- clear authored subjects/topics/problems/problem sets
-- keep only admin + a few player accounts
-- reseed a small content bank for UI verification
+Expected:
+- debug grid appears only in debug mode
+- slot anchors are visible
+- Treasure/Steal layout export tools work
 
-This is useful when testing Hub/gameplay polish so the visible content remains small and predictable.
-
----
-
-## 13. Not Covered Here
-
-This guide does not try to exhaustively re-document:
-- every historical Classic regression edge case
-- older checkpoint-only milestones
-- non-current planned UI redesign work
-
-Those still exist as reference material, but this manual guide stays focused on the current supported flows.
+This is optional and development-only, not a player-facing acceptance path.

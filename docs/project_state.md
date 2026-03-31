@@ -1,125 +1,136 @@
 # Project State
 
-_Updated: 2026-03-25_
+_Updated: 2026-03-30_
 
-This is the current product-status document.
-Use [system_architecture.md](C:\Users\korol\OneDrive\Desktop\Game\Game v2\docs\system_architecture.md) for boundaries/data flow and [manual_test_guide.md](C:\Users\korol\OneDrive\Desktop\Game\Game v2\docs\manual_test_guide.md) for practical verification.
+This is the current product-status document for `math_game_v2`.
+Code is the real source of truth. This file describes what is implemented now, what is stable enough to build on, and what is intentionally still deferred.
 
-Historical/progress docs:
+Use:
+- [C:\Users\korol\OneDrive\Desktop\Game\Game v2\docs\system_architecture.md](C:\Users\korol\OneDrive\Desktop\Game\Game v2\docs\system_architecture.md) for boundaries and runtime/data-flow rules
+- [C:\Users\korol\OneDrive\Desktop\Game\Game v2\docs\manual_test_guide.md](C:\Users\korol\OneDrive\Desktop\Game\Game v2\docs\manual_test_guide.md) for practical verification paths
+- [C:\Users\korol\OneDrive\Desktop\Game\Game v2\docs\bootstrap_prompt.txt](C:\Users\korol\OneDrive\Desktop\Game\Game v2\docs\bootstrap_prompt.txt) for fresh-thread onboarding
+
+Historical/reference docs:
 - `docs/dev_log.md`
 - `docs/checkpoints/*`
+- `docs/archive/*`
 
-Those are reference-only and should not be treated as the current source of truth.
-
----
+Those are not active specs.
 
 ## Current Snapshot
 
 Current date:
-- `2026-03-25`
+- `2026-03-30`
 
 Current Alembic head:
 - `f1a2b3c4d5e6`
 
 Current repo posture:
-- Problem System V1 is live and is now the normal authored-content path
-- Classic Mode is playable end-to-end and includes the current session/store/steal/history stack
-- Hub is the persistent player preparation space before Join
-- recent work has shifted from core architecture building into stabilization, UI fit/polish, and supervision visibility
+- Classic Mode is the gameplay center and is playable end-to-end
+- the authored-content stack is live and no longer in bootstrap-only status
+- Hub is the persistent prep surface before Join
+- recent work has focused on stabilization, clarity, reconnect safety, and stage-event presentation rather than foundational rewrites
 
-Current documentation split:
-- `project_state.md` = current implemented state and current deferred items
-- `system_architecture.md` = architectural boundaries and data flow
-- `manual_test_guide.md` = current manual verification paths
-- `bootstrap_prompt.txt` = compact fresh-chat bootstrap
-- `dev_log.md` / `docs/checkpoints/*` = historical context only
+## Major Implemented Pillars
 
----
+### Admin shell and CRUD
+- admin shell includes:
+  - players
+  - classes/groups
+  - subjects
+  - topics
+  - problems
+  - problem sets
+  - gear catalog
+  - Classic Mode
+  - history
+  - diamonds
+- subject/topic/problem/problem-set CRUD are active
+- player/class/group CRUD is active
+- diamonds and gear admin surfaces are active
 
-## Implemented Systems
-
-### Core Admin / Auth
-- Flask auth via Flask-Login
-- admin and player roles
-- player CRUD
-- class/group CRUD
-- subject CRUD
-- topic CRUD
-
-### Problem System V1
-- `Problem` remains the root authored-question entity
-- structured body content under `ProblemBlock`
-- supported block types:
+### Problem authoring
+- `Problem` remains the root authored entity
+- canonical answer types:
+  - `text_input`
+  - `multiple_choice`
+- body blocks under `ProblemBlock` support:
   - `rich_text`
   - `image`
   - `graph`
-- text-input accepted answers under `ProblemAcceptedAnswer`
-- multiple-choice options under `ProblemChoiceOption`
-- legacy compatibility remains in place for older `Problem` fields
+- accepted text answers live under `ProblemAcceptedAnswer`
+- MC options live under `ProblemChoiceOption`
+- legacy problem fields still exist for compatibility fallback
 
-### Unified Problem Editor
-- one canonical create/edit page
-- full-width metadata and answer-type controls
-- lower workspace:
-  - left = body blocks + answer section
-  - right = preview
-- answer-mode-specific authoring:
-  - `text_input`
-  - `multiple_choice`
-- preview and gameplay share the same problem-content interpretation path
+### New Problem bootstrap -> full editor flow
+- `New Problem` is a lightweight bootstrap form
+- creating a problem redirects into the full content editor
+- the editor is the canonical structured-authoring surface for:
+  - body blocks
+  - accepted answers
+  - multiple-choice options
+  - preview
+- admin preview and gameplay both use the shared interpreted-content path
 
-### Graph Authoring / Rendering
-- canonical saved graph state remains `ProblemBlock.graph_config_json`
-- admin graph authoring uses:
+### Graph authoring and rendering
+- canonical graph storage remains `ProblemBlock.graph_config_json`
+- admin graph authoring supports:
   - graph settings
   - equation rows
   - point rows
-- parser/converter supports:
+- current supported function families:
   - linear
   - quadratic
   - exponential
   - sine
   - cosine
-- optional per-equation `x_min` / `x_max`
-- Plotly remains the shared rendering layer for admin preview and Classic gameplay
+- Plotly remains the renderer for admin preview and Classic gameplay
 
-### Problem Set Builder
-- current builder is a server-rendered 3-column workspace
-- top filters:
+### Problem-set builder
+- current builder is server-rendered
+- filters include:
   - subject
   - topic
   - difficulty
   - answer type
-- workspace:
-  - left = filtered candidates
+- workspace remains:
+  - left = available filtered problems
   - middle = preview
   - right = set membership
 - add/remove is immediate and DB-backed
 
-### Classic Mode Runtime
-- session create/manage flow
-- multi-round lifecycle:
-  - create
-  - waiting
-  - active
-  - waiting between rounds
-  - finished
-- player flow:
-  - `/classic/play`
-  - lobby
-  - gameplay page
-  - round-over / return routing
-- live Socket.IO gameplay events
-- current gameplay supports:
-  - text-input answers
-  - multiple-choice answers by option ID
-  - graph block rendering
-  - mine / treasure / steal / store actions
-  - gems and streaks
-  - round history
+### Hub and persistent preparation
+- Hub is the persistent player dashboard/prep page
+- face/equip/unequip updates use fragment refresh, not full SPA state
+- Join/Return session control is integrated into the Hub status surface
+- Join is the runtime freeze boundary for progression-derived values
 
-### Classic Player Gameplay Page
-- current page uses a stable 3-column structure
+### Persistent progression, gear, and avatar
+- diamonds progression is active
+- persistent gear catalog / ownership / equip / loadout is active
+- runtime avatar rendering uses layered assets from `static/gear`
+- target/player avatar rendering is reused in Hub and Classic gameplay
+- current runtime gameplay should read frozen session snapshot values, not live progression rows
+
+### Classic admin experience
+- new-session config page uses grouped sections:
+  - Session
+  - Core Round / Economy
+  - Bonuses
+  - Treasure
+  - Steal & Protection
+  - Review
+- between-round settings editor now uses the same grouped config language
+- manage page also supports:
+  - live leaderboard
+  - solve counts
+  - steal history
+  - store management
+  - next-round transition
+  - broken active+ended-round recovery
+
+### Classic player gameplay page
+- current page uses a stable 3-column contract
 - left rail:
   - `Player / Status`
   - `Actions`
@@ -128,151 +139,157 @@ Current documentation split:
   - problem tabs
   - fixed problem window
   - fixed workflow panel
+  - center-stage overlay layer above the problem area
 - right rail:
   - `Leaderboard`
   - `Round Context`
   - `Action Log`
-- workflow panel uses explicit state modes:
-  - solve
-  - action choice
-  - steal target
-  - steal mini-game
-  - result
 
-### Hub / Persistent Preparation
-- Hub is the persistent player preparation/dashboard page
-- Join is the runtime boundary where session values freeze
-- no full document reload on face/equip/unequip actions
-- current Hub uses server-rendered fragment refresh, not SPA state
-- session readiness/join controls now live inside the Hub gear/status surface rather than a separate banner/placeholder card
+### Classic answer/action flow
+- solving a problem correctly advances into a post-solve action state
+- action choices:
+  - Mine
+  - Treasure Search
+  - Steal
+- text-input and MC both keep prompt content in the problem window and controls in the workflow panel
+- MC uses compact select + confirm-on-option behavior
 
-### Persistent Progression / Gear
-- diamonds progression
-- upgrades
-- persistent gear catalog
-- ownership / equip / loadout
-- avatar preview layering
-- frozen runtime read path through `SessionParticipantSnapshot`
+### Treasure system
+- Treasure Search always grants base gold first
+- optional bonus phase uses independent chest-fill logic
+- one visible chest per eligible reward type
+- each visible chest fills independently
+- only the selected chest can grant a reward
+- current center-stage Treasure overlay is implemented
+- overlay uses:
+  - cave backgrounds by chest count
+  - randomized chest skins
+  - reward/junk reveal icons
+  - select -> confirm -> reveal -> auto-close flow
+- one-chest Treasure skips confirm and reveals immediately on tap
 
-### Admin Live Supervision
-- admin leaderboard already updates live
-- solve-count summary also updates live
-- steal-history / stolen-gold summary also updates live
-- same Classic admin Socket.IO watch path is reused for supervision updates
+### Steal system
+- Steal no longer has a zero-value spent-token outcome
+- outcomes are:
+  - targeted steal
+  - Stranger steal
+- current center-stage Steal overlay is implemented
+- overlay uses:
+  - `steal_bg_main`
+  - target avatar in scene
+  - active bag/container slots
+  - filler overlays for inactive slots
+  - select -> confirm -> reveal -> auto-close flow
+- current first-pass visual reveal only distinguishes:
+  - `gold`
+  - `junk_01`
+- targeted vs Stranger visuals are not fully separated yet
 
-### Shield Model Alignment
-- one runtime timed anti-steal protection state:
+### Shield model and player-facing terms
+- runtime anti-steal protection state:
   - `PlayerClassicState.shield_expires_at`
-- two trigger paths:
-  - manual `Shield Token`
-  - reactive post-steal protection
-- separate base durations for:
-  - active/manual shield duration
-  - reactive shield duration
-- treasure "active shield" now grants a `Shield Token`, not immediate runtime protection
-- current player-facing terms are:
+- player-facing vocabulary is now:
   - `Second Chance`
   - `Shield Token`
   - `Protected`
+- manual and reactive protection use separate base durations
+- treasure shield rewards grant `Shield Token`, not immediate protection
 
----
+### Refresh/reconnect safety
+- pending Treasure and Steal stage events are resumable on refresh/reconnect
+- post-solve action choice is now resumable on refresh/reconnect
+- pending steal target selection is also restored
+- resolved stage events replay safely without duplicate grants
 
-## Current UX / UI Reality
+## Current Asset/UI Reality
 
-### Admin authored-content area
-- unified problem editor is functional and structured
-- graph editor is teacher-facing and practical, but not a final polished graphing tool
-- problem-set builder is stable and server-rendered; not a SPA
+### Stage-event asset pipeline
+- Treasure stage-event assets live under:
+  - `app/static/classic_ui/treasure/`
+- Steal stage-event assets live under:
+  - `app/static/classic_ui/steal/`
+- shared reward/junk icons live under:
+  - `app/static/classic_ui/icons/`
+- asset placement/layout data is currently explicit in the gameplay template
 
-### Player areas
-- Hub is stable enough for gameplay prep testing
-- Classic gameplay page has completed a cleanup sequence:
-  - center workspace hardened
-  - left rail consolidated
-  - store lower-slot replacement behavior implemented
-  - right rail consolidated
-  - naming normalized
-  - fit/spacing polished
-- current work in this area is polish/stabilization, not architecture rebuild
-
----
+### Debug/tuning tooling
+- Treasure and Steal overlays support dev-only debug/tuning mode
+- debug mode can show:
+  - grid
+  - slot anchors
+  - avatar anchor
+  - confirm anchor
+- draggable anchor tuning exists for:
+  - Steal
+  - Treasure
+- this is development-only and should not be treated as player UX
 
 ## Implemented vs Deferred
 
 ### Implemented now
-- structured authored problems in admin and Classic
-- MC authoring and gameplay
-- graph blocks in admin preview and Classic
-- equation/point graph authoring UI
-- problem-set builder workspace
-- Hub partial-refresh UX
-- Classic player-page cleanup and stable 3-column structure
-- admin live supervision for leaderboard, solve counts, and steal history
-- aligned shield semantics and player shield-status visibility
+- full Classic solve -> action -> reward loop
+- center-stage Treasure overlay
+- center-stage Steal overlay
+- resumable pending action / Treasure / Steal reconnect behavior
+- grouped Classic admin config UX for session creation and between-round editing
+- Hub fragment-refresh prep flow
+- subject-first problem bootstrap and full structured editor flow
+- avatar layering in Hub and gameplay
+- shield semantics alignment and current player HUD clarity
 
-### Still deferred / intentionally not built
-- problem-bank keyword search
-- drag/drop block ordering
-- drag/drop problem-set ordering
-- graph-as-answer mechanics
-- draggable graph objects
-- arbitrary symbolic graph parser
-- media library / image upload workflow
-- final art/theme pass for Hub or Classic gameplay page
+### Still deferred / intentionally not finished
+- final art/theme pass for Hub or Classic gameplay
+- final animation polish for Treasure/Steal overlays
+- stronger visual distinction between targeted steal and Stranger steal in the overlay reveal
 - mobile portrait redesign
-- broad admin styling overhaul
-- cleanup/migration pass removing all legacy problem fields
+- drag/drop problem-body block ordering
+- drag/drop problem-set ordering
+- graph-as-answer gameplay
+- student graph interaction mechanics
+- media library / image upload workflow
+- broad admin shell visual overhaul
+- full cleanup removal of all legacy problem fallback fields
 
----
-
-## Current Testing State
+## Current Testing Reality
 
 Current `tests/` inventory:
 - 59 Python test files
 
 Recent focused green areas include:
-- problem system slices 1-3
-- unified problem editor workflow
-- graph equation parser/converter and graph UI pass
+- problem system slices
+- graph block authoring/rendering
 - problem-set builder
-- Hub polish / avatar / gear refresh behavior
 - Classic admin live supervision
 - shield alignment
+- treasure/steal rework
+- refresh/reconnect restoration for Treasure, Steal, and pending post-solve action
 
-Testing policy note:
-- this document does not claim the entire suite runs on every change
-- use targeted suites relevant to the touched area
+Testing policy:
+- do not assume the entire suite runs on every task
+- run targeted suites for the touched area
 - when manual or automated testing creates Classic sessions, end them before closing the task
 
----
+## Near-Term Roadmap
 
-## Recommended Near-Term Roadmap
+Near-term work should stay incremental.
 
-Near-term work should be treated as incremental polish/stabilization, not foundational redesign.
+### 1. Classic stage-event polish
+- visual timing and readability polish for Treasure/Steal overlays
+- clearer targeted vs Stranger steal presentation
+- keep current mechanics stable while polishing presentation
 
-### 1. Classic player UX polish
-- continue fit/readability improvements on the stable gameplay page
-- improve small status/feedback visibility issues without changing the page contract
+### 2. Classic player UX polish
+- continue compactness/readability improvements on the stable gameplay shell
+- preserve the current 3-column contract
 
-### 2. Hub / progression usability
-- continue local Hub quality-of-life polish using the existing server-rendered fragment model
-- avoid SPA/frontend-state expansion unless clearly necessary
+### 3. Hub/progression quality-of-life
+- continue local QoL improvements using the current server-rendered fragment model
+- avoid unnecessary SPA expansion
 
-### 3. Admin supervision / operational clarity
-- extend or refine live supervision only through the existing Classic admin watch path
-- keep stale-session recovery and session hygiene practical for local testing
+### 4. Admin supervision and operations
+- refine session hygiene and live supervision clarity through the existing admin watch path
+- keep recovery tooling pragmatic for local testing
 
-### 4. Authored-content quality-of-life
-- small editor/builder polish is still reasonable
-- larger editor redesigns remain deferred
-
----
-
-## Historical Docs
-
-These remain useful background/reference docs but are not current specs:
-- `docs/dev_log.md`
-- `docs/checkpoints/2026-03-12/*`
-- `docs/checkpoints/2026-03-12-h0/*`
-- `classic_mode_description_v1_0.txt`
-- `Diamonds_Upgrades_Roadmap_v1.txt`
+### 5. Authored-content quality-of-life
+- incremental editor/builder polish remains reasonable
+- larger authoring redesigns are still deferred

@@ -57,15 +57,15 @@ class ClassicRoundConfig(db.Model):
     steal_fallback_gold         = db.Column(db.Integer, nullable=False, default=5)
     steal_chest_count           = db.Column(db.Integer, nullable=False, default=2)    # 0 = mini-game disabled
     steal_winning_chest_count   = db.Column(db.Integer, nullable=False, default=1)
-    shield_duration              = db.Column(db.Integer, nullable=False, default=60)   # deprecated shared fallback
+    shield_duration              = db.Column(db.Integer, nullable=False, default=60)   # deprecated schema residue; runtime uses split fields below
     active_shield_duration       = db.Column(db.Integer, nullable=False, default=60)   # manual shield-token activation
     reactive_shield_duration     = db.Column(db.Integer, nullable=False, default=60)   # victim protection after steal
     # treasure_steal_token_chance: probability that a Treasure Search action awards a steal token.
     # Named under the treasure system because it is a treasure reward, not a steal mechanic.
     treasure_steal_token_chance = db.Column(db.Float,   nullable=False, default=0.0)  # 0.0 = disabled
 
-    # [Step D4] Treasure Search side-reward probabilities (mutually exclusive single-roll).
-    # All four treasure side-reward chances share one weighted roll; total must be <= 1.
+    # Treasure chest fill chances. Each currently eligible reward type becomes one chest.
+    # Each shown chest rolls filled/empty independently.
     treasure_active_shield_chance = db.Column(db.Float, nullable=False, default=0.0)   # 0.0 = disabled
     treasure_second_chance_chance = db.Column(db.Float, nullable=False, default=0.0)   # 0.0 = disabled
 
@@ -270,14 +270,15 @@ class PlayerInventory(db.Model):
 class StealEvent(db.Model):
     """Audit log for every steal attempt in a Classic session.
 
-    outcome ∈ ['success', 'mini_game_fail', 'no_targets_fallback']
-      success       — gold transferred from target to actor
-      mini_game_fail — wrong chest chosen, or target shielded before chest pick (OQ-4)
-      no_targets_fallback — no valid targets; actor gets fallback_gold from a stranger
+    outcome ∈ ['targeted_success', 'stranger_chest', 'stranger_no_targets', 'stranger_target_invalid']
+      targeted_success      — gold transferred from target to actor
+      stranger_chest        — non-winning chest picked; actor gets Stranger steal gold
+      stranger_no_targets   — no valid targets existed; actor gets Stranger steal gold
+      stranger_target_invalid — target became invalid, so the attempt converted to Stranger steal
 
-    target_id is NULL when outcome='no_targets_fallback'.
-    mini_game_pick is NULL when the mini-game is disabled (steal_chest_count == 0).
-    gold_exchanged: stolen amount for success; 0 for mini_game_fail; fallback_gold for no_targets_fallback.
+    target_id is NULL when outcome='stranger_no_targets'.
+    mini_game_pick is NULL when the mini-game is disabled.
+    gold_exchanged stores the actor's gained gold for each outcome.
     """
     __tablename__ = 'steal_event'
 
@@ -285,8 +286,8 @@ class StealEvent(db.Model):
     session_id     = db.Column(db.Integer,  db.ForeignKey('game_session.id'), nullable=False, index=True)
     round_id       = db.Column(db.Integer,  db.ForeignKey('game_round.id'),   nullable=False)
     actor_id       = db.Column(db.Integer,  db.ForeignKey('player.id'),       nullable=False)
-    target_id      = db.Column(db.Integer,  db.ForeignKey('player.id'),       nullable=True)   # NULL for no_targets_fallback
-    outcome        = db.Column(db.String(20), nullable=False)   # 'success' | 'mini_game_fail' | 'no_targets_fallback'
+    target_id      = db.Column(db.Integer,  db.ForeignKey('player.id'),       nullable=True)   # NULL for stranger_no_targets
+    outcome        = db.Column(db.String(32), nullable=False)
     gold_exchanged = db.Column(db.Integer,  nullable=False)
     mini_game_pick = db.Column(db.Integer,  nullable=True)      # chest index chosen; NULL when mini-game disabled
     created_at     = db.Column(db.DateTime, nullable=False)

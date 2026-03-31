@@ -37,7 +37,9 @@ _round_start_times: dict = {}
 # session_locks[session_id] = threading.Lock()
 _session_locks: dict = {}
 
-# pending_actions[(player_id, round_id, problem_id)] = True
+# pending_actions[(player_id, round_id, problem_id)] = {
+#     session_id, round_id, problem_id, solver_rank, timer_active, steal_available
+# }
 # Set after a correct answer; cleared after choose_action is processed.
 _pending_actions: dict = {}
 
@@ -55,10 +57,20 @@ _player_streaks: dict = {}
 _pending_steal_intents: dict = {}
 
 # _pending_steal_minigames[player_id] = {
-#     target_id, winning_chests (frozenset), steal_amount, session_id, round_id
+#     target_id, winning_chests (frozenset), steal_amount, session_id, round_id,
+#     phase, selected_chest, reveal_result, containers
 # }
 # Set when a target is picked and the mini-game is enabled.
 _pending_steal_minigames: dict = {}
+
+# _pending_treasure_chests[player_id] = {
+#     session_id, round_id, problem_id, chests, base_gold, breakdown, new_balance,
+#     new_gems, gems_gained, gem_reason, active_bonuses, phase, selected_chest,
+#     reveal_result
+# }
+# Set after Treasure Search base gold resolves and the optional chest phase awaits
+# a player pick.
+_pending_treasure_chests: dict = {}
 
 # _action_logs[(player_id, session_id)] = deque(maxlen=10)
 # Rolling display log — cosmetic only; not persisted (AD-29).
@@ -78,13 +90,20 @@ def clear_session(session_id: int) -> None:
     """Remove all in-memory state for a session.  Called when the round ends."""
     _round_start_times.pop(session_id, None)
     _session_locks.pop(session_id, None)
-    # Pending actions and streaks are keyed by (player_id, round_id), not session_id.
+    # Pending actions are keyed by (player_id, round_id, problem_id); remove those for
+    # this session explicitly now that the payload stores session_id.
+    for key, payload in list(_pending_actions.items()):
+        if isinstance(payload, dict) and payload.get('session_id') == session_id:
+            _pending_actions.pop(key, None)
+    # Streaks are keyed by (player_id, round_id), not session_id.
     # They stay harmlessly in the dict; no validation can succeed once the round is gone.
     # Steal intents / mini-games are keyed by player_id; clear those whose session matches.
     for pid in [k for k, v in _pending_steal_intents.items() if v.get('session_id') == session_id]:
         _pending_steal_intents.pop(pid, None)
     for pid in [k for k, v in _pending_steal_minigames.items() if v.get('session_id') == session_id]:
         _pending_steal_minigames.pop(pid, None)
+    for pid in [k for k, v in _pending_treasure_chests.items() if v.get('session_id') == session_id]:
+        _pending_treasure_chests.pop(pid, None)
     # Action logs are keyed by (player_id, session_id); remove entries for this session.
     for key in [k for k in _action_logs if k[1] == session_id]:
         _action_logs.pop(key, None)
@@ -126,14 +145,32 @@ def is_timer_active(session_id: int, bonus_timer_duration: int) -> bool:
 
 # ── Pending action management ─────────────────────────────────────────────────
 
-def set_pending_action(player_id: int, round_id: int, problem_id: int) -> None:
+def set_pending_action(player_id: int, round_id: int, problem_id: int, **payload) -> None:
     """Mark that this player has a pending choose_action for this problem."""
-    _pending_actions[(player_id, round_id, problem_id)] = True
+    action_payload = {
+        'round_id': round_id,
+        'problem_id': problem_id,
+    }
+    action_payload.update(payload)
+    _pending_actions[(player_id, round_id, problem_id)] = action_payload
+
+
+def get_pending_action(player_id: int, round_id: int, problem_id: int) -> dict | None:
+    """Return the pending choose_action payload for this player+round+problem."""
+    return _pending_actions.get((player_id, round_id, problem_id))
+
+
+def get_pending_action_for_round(player_id: int, round_id: int) -> dict | None:
+    """Return any pending choose_action payload for this player+round."""
+    for (pid, rid, _problem_id), payload in _pending_actions.items():
+        if pid == player_id and rid == round_id:
+            return payload
+    return None
 
 
 def has_pending_action(player_id: int, round_id: int, problem_id: int) -> bool:
     """Return True if a pending choose_action exists for this player+round+problem."""
-    return _pending_actions.get((player_id, round_id, problem_id), False)
+    return (player_id, round_id, problem_id) in _pending_actions
 
 
 def clear_pending_action(player_id: int, round_id: int, problem_id: int) -> None:
@@ -189,16 +226,25 @@ def clear_steal_intent(player_id: int) -> None:
 
 # ── [Step D] Steal mini-game API ─────────────────────────────────────────────
 
-def set_steal_minigame(player_id: int, target_id: int, winning_chests: frozenset,
-                       steal_amount: int, session_id: int, round_id: int) -> None:
+def set_steal_minigame(
+    player_id: int,
+    target_id: int,
+    winning_chests: frozenset,
+    steal_amount: int,
+    session_id: int,
+    round_id: int,
+    **extra,
+) -> None:
     """Record the server-side mini-game state while the player picks a chest."""
-    _pending_steal_minigames[player_id] = {
+    payload = {
         'target_id':      target_id,
         'winning_chests': winning_chests,
         'steal_amount':   steal_amount,
         'session_id':     session_id,
         'round_id':       round_id,
     }
+    payload.update(extra)
+    _pending_steal_minigames[player_id] = payload
 
 
 def get_steal_minigame(player_id: int) -> dict | None:
@@ -209,6 +255,39 @@ def get_steal_minigame(player_id: int) -> dict | None:
 def clear_steal_minigame(player_id: int) -> None:
     """Remove the mini-game state after the player picks a chest."""
     _pending_steal_minigames.pop(player_id, None)
+
+
+def set_treasure_chests(player_id: int, **payload) -> None:
+    """Record the pending Treasure chest phase for a player."""
+    _pending_treasure_chests[player_id] = payload
+
+
+def get_treasure_chests(player_id: int) -> dict | None:
+    """Return the pending Treasure chest state dict for the player."""
+    return _pending_treasure_chests.get(player_id)
+
+
+def clear_treasure_chests(player_id: int) -> None:
+    """Remove the pending Treasure chest state after resolution."""
+    _pending_treasure_chests.pop(player_id, None)
+
+
+def update_steal_minigame(player_id: int, **updates) -> dict | None:
+    """Merge updates into the pending steal mini-game payload and return it."""
+    payload = _pending_steal_minigames.get(player_id)
+    if not payload:
+        return None
+    payload.update(updates)
+    return payload
+
+
+def update_treasure_chests(player_id: int, **updates) -> dict | None:
+    """Merge updates into the pending Treasure payload and return it."""
+    payload = _pending_treasure_chests.get(player_id)
+    if not payload:
+        return None
+    payload.update(updates)
+    return payload
 
 
 # ── [Step D] Action log API ───────────────────────────────────────────────────

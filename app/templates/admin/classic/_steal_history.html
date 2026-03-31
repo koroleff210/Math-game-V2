@@ -13,14 +13,14 @@
         <td>{{ ev.actor.username }}</td>
         <td>{% if ev.target %}{{ ev.target.username }}{% else %}<em>stranger</em>{% endif %}</td>
         <td>
-            {% if ev.outcome == 'success' %}
-                <span style="color:green;">✓ success</span>
-            {% elif ev.outcome == 'mini_game_fail' %}
-                <span style="color:#dc3545;">✗ mini-game fail</span>
-            {% elif ev.outcome == 'target_invalid' %}
-                <span style="color:#6c757d;">↩ target invalid</span>
+            {% if ev.outcome == 'targeted_success' %}
+                <span style="color:green;">✓ targeted steal</span>
+            {% elif ev.outcome == 'stranger_chest' %}
+                <span style="color:#0c5460;">↪ stranger steal (chest)</span>
+            {% elif ev.outcome == 'stranger_target_invalid' %}
+                <span style="color:#6c757d;">↪ stranger steal (target invalid)</span>
             {% else %}
-                <span style="color:#6c757d;">↩ no targets</span>
+                <span style="color:#6c757d;">↪ stranger steal (no targets)</span>
             {% endif %}
         </td>
         <td>{{ ev.gold_exchanged }}</td>

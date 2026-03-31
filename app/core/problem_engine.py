@@ -14,6 +14,7 @@ from app.services.problem_content import (
     PROBLEM_ANSWER_TYPE_TEXT_INPUT,
     check_problem_multiple_choice_answer,
     check_problem_text_input_answer,
+    get_legacy_problem_answer_text,
 )
 
 
@@ -54,11 +55,14 @@ def select_problem(topic_id=None, difficulty=None, exclude_ids=None):
 
 def check_answer(problem, submitted_text=None, *, selected_option_id=None):
     """
-    Compare a player's submitted answer to the correct answer.
+    Compare a player's submitted answer to the current canonical answer model.
 
-    Comparison is:
-    - case-insensitive
-    - strips leading/trailing whitespace from both sides
+    Current answer resolution is:
+    - text_input: canonical structured accepted answers, with legacy
+      problem.answer_text fallback only for compatibility
+    - multiple_choice: canonical structured ProblemChoiceOption correctness
+    - final direct problem.answer_text check: compatibility-only guard for older
+      callers / records outside the structured answer flow
 
     Args:
         problem        (Problem): The problem being answered.
@@ -72,6 +76,8 @@ def check_answer(problem, submitted_text=None, *, selected_option_id=None):
     if getattr(problem, 'answer_type', PROBLEM_ANSWER_TYPE_TEXT_INPUT) == PROBLEM_ANSWER_TYPE_MULTIPLE_CHOICE:
         return check_problem_multiple_choice_answer(problem, selected_option_id)
 
-    correct = problem.answer_text.strip().lower()
+    # Legacy-only compatibility fallback for callers/records that do not expose
+    # a structured answer type but still rely on root Problem.answer_text.
+    correct = get_legacy_problem_answer_text(problem).lower()
     submitted = submitted_text.strip().lower()
     return submitted == correct

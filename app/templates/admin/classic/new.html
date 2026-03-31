@@ -84,15 +84,15 @@
                 <summary class="admin-details-summary">
                     <span class="admin-details-summary-text">
                         <span class="admin-details-summary-title">4. Treasure</span>
-                        <span class="admin-details-summary-hint">Configure treasure side rewards without changing backend rules.</span>
+                        <span class="admin-details-summary-hint">Each eligible reward type becomes one chest with its own fill chance.</span>
                     </span>
                     <span class="admin-details-summary-icon">v</span>
                 </summary>
                 <div class="admin-details-body admin-form-grid">
-                    {{ render_field(form.gem_treasure_chance, hint='Chance that treasure also grants one gem.') }}
-                    {{ render_field(form.treasure_steal_token_chance, hint='Chance that treasure grants a steal token.') }}
-                    {{ render_field(form.treasure_active_shield_chance, hint='Chance that treasure grants a shield token.') }}
-                    {{ render_field(form.treasure_second_chance_chance, hint='Chance that treasure grants second chance protection.') }}
+                    {{ render_field(form.gem_treasure_chance, hint='Fill chance for the Gem chest when that chest is eligible.') }}
+                    {{ render_field(form.treasure_steal_token_chance, hint='Fill chance for the Steal Token chest when the player can receive one.') }}
+                    {{ render_field(form.treasure_active_shield_chance, hint='Fill chance for the Shield Token chest.') }}
+                    {{ render_field(form.treasure_second_chance_chance, hint='Fill chance for the Second Chance chest when the player can receive one.') }}
                 </div>
             </details>
 
@@ -100,7 +100,7 @@
                 <summary class="admin-details-summary">
                     <span class="admin-details-summary-text">
                         <span class="admin-details-summary-title">5. Steal &amp; Protection</span>
-                        <span class="admin-details-summary-hint">Steal caps, fallback flow, mini-game, and shield durations.</span>
+                        <span class="admin-details-summary-hint">Targeted steals, Stranger steal value, mini-game odds, and protection durations.</span>
                     </span>
                     <span class="admin-details-summary-icon">v</span>
                 </summary>
@@ -108,7 +108,7 @@
                     {{ render_field(form.steal_percent, hint='Decimal probability, for example 0.1 for 10 percent.') }}
                     {{ render_field(form.steal_min_cap, hint='Minimum gold stolen from a valid target.') }}
                     {{ render_field(form.steal_max_cap, hint='Use -1 for no steal max cap.') }}
-                    {{ render_field(form.steal_fallback_gold, hint='Gold awarded when no valid targets exist.') }}
+                    {{ render_field(form.steal_fallback_gold, hint='Gold awarded on any Stranger steal outcome.') }}
                     {{ render_field(form.steal_chest_count, hint='Set to 0 to disable the chest mini-game.') }}
                     {{ render_field(form.steal_winning_chest_count, hint='Must stay within the chest count when enabled.') }}
                     {{ render_field(form.active_shield_duration, hint='Manual shield token duration in seconds.') }}
@@ -144,7 +144,7 @@
                         </div>
 
                         <div class="admin-review-item">
-                            <h3>Treasure Side Rewards</h3>
+                            <h3>Treasure Chests</h3>
                             <div data-review="side-rewards">Waiting for form values.</div>
                         </div>
 

@@ -17,6 +17,18 @@ from app.models.problems import (
     ProblemChoiceOption,
 )
 
+# Structured problem-content helpers.
+#
+# Canonical authored content flows through structured rows:
+# - body content via ProblemBlock
+# - text-input answers via ProblemAcceptedAnswer
+# - multiple-choice correctness via ProblemChoiceOption
+#
+# Legacy fields on Problem (prompt_text, answer_text, image_path) remain in use
+# as compatibility mirrors and fallback-only reads for older content. New
+# authoring and shared rendering should treat the structured rows as the
+# primary source.
+
 
 ANSWER_TYPE_CHOICES = [
     (PROBLEM_ANSWER_TYPE_TEXT_INPUT, 'Text input'),
@@ -642,16 +654,39 @@ def normalize_text_input_answer(value: str | None) -> str:
     return collapsed.lower()
 
 
+def get_legacy_problem_prompt_text(problem) -> str:
+    """Return the legacy root prompt_text fallback for pre-structured records."""
+    return (getattr(problem, 'prompt_text', '') or '').strip()
+
+
+def get_legacy_problem_answer_text(problem) -> str:
+    """Return the legacy root answer_text fallback for compatibility-only reads."""
+    return (getattr(problem, 'answer_text', '') or '').strip()
+
+
+def get_legacy_problem_image_path(problem) -> str:
+    """Return the legacy root image_path fallback for pre-block body content."""
+    return (getattr(problem, 'image_path', '') or '').strip()
+
+
 def get_problem_answer_variants(problem) -> list[str]:
+    """Return accepted text answers from the canonical structured source first.
+
+    Structured ProblemAcceptedAnswer rows are authoritative for text-input
+    problems. problem.answer_text remains as a compatibility fallback for older
+    records that have not been initialized into structured answers yet.
+    """
     answers = [row.answer_text for row in problem.accepted_answers if (row.answer_text or '').strip()]
     if answers:
         return answers
-    if (problem.answer_text or '').strip():
-        return [problem.answer_text]
+    legacy_answer = get_legacy_problem_answer_text(problem)
+    if legacy_answer:
+        return [legacy_answer]
     return []
 
 
 def check_problem_text_input_answer(problem, submitted_text: str | None) -> bool:
+    """Validate text input against structured accepted answers with legacy fallback."""
     submitted = normalize_text_input_answer(submitted_text)
     if not submitted:
         return False
@@ -711,6 +746,7 @@ def has_saved_problem_choice_options(problem) -> bool:
 
 
 def uses_structured_problem_answers(problem) -> bool:
+    """Report whether the problem already participates in the structured answer model."""
     return (
         getattr(problem, 'answer_type', PROBLEM_ANSWER_TYPE_TEXT_INPUT) == PROBLEM_ANSWER_TYPE_MULTIPLE_CHOICE
         or has_saved_problem_accepted_answers(problem)
@@ -719,6 +755,7 @@ def uses_structured_problem_answers(problem) -> bool:
 
 
 def ensure_problem_default_block(problem) -> ProblemBlock:
+    """Bootstrap the first structured body block from legacy prompt_text if needed."""
     if problem.blocks:
         normalize_problem_block_positions(problem)
         return problem.blocks[0]
@@ -727,7 +764,7 @@ def ensure_problem_default_block(problem) -> ProblemBlock:
         problem_id=problem.id,
         position=1,
         block_type=PROBLEM_BLOCK_TYPE_RICH_TEXT,
-        text_content=(problem.prompt_text or '').strip(),
+        text_content=get_legacy_problem_prompt_text(problem),
     )
     db.session.add(block)
     db.session.flush()
@@ -735,9 +772,10 @@ def ensure_problem_default_block(problem) -> ProblemBlock:
 
 
 def ensure_problem_default_accepted_answer(problem) -> ProblemAcceptedAnswer | None:
+    """Bootstrap the first structured accepted-answer row from legacy answer_text."""
     if problem.accepted_answers:
         return problem.accepted_answers[0]
-    legacy_answer = (problem.answer_text or '').strip()
+    legacy_answer = get_legacy_problem_answer_text(problem)
     if not legacy_answer:
         return None
     answer = ProblemAcceptedAnswer(
@@ -770,6 +808,12 @@ def ensure_problem_default_choice_options(problem, *, count: int = 4) -> list[Pr
 
 
 def sync_problem_legacy_compat_fields(problem) -> None:
+    """Mirror canonical structured content back into legacy Problem fields.
+
+    This keeps prompt_text / image_path / answer_text populated for compatibility
+    with older code paths and fixtures. These mirrored fields are not the primary
+    authored source for new content.
+    """
     ordered_blocks = sorted(problem.blocks, key=lambda block: (block.position, block.id or 0))
     rich_text_segments = []
     first_image_path = None
@@ -1057,6 +1101,12 @@ def build_problem_choice_view(problem) -> dict:
 
 
 def build_problem_body_view(problem) -> dict:
+    """Build the rendered problem body with structured blocks as the canonical source.
+
+    When saved ProblemBlock rows exist, they fully define the body. Legacy
+    problem.prompt_text and problem.image_path are only used as a fallback view
+    for older records that have not been initialized into structured blocks yet.
+    """
     blocks = sorted(problem.blocks, key=lambda row: (row.position, row.id or 0))
     body_blocks = []
 
@@ -1089,20 +1139,22 @@ def build_problem_body_view(problem) -> dict:
                 })
         uses_legacy_fallback = False
     else:
-        if (problem.prompt_text or '').strip():
+        legacy_prompt = get_legacy_problem_prompt_text(problem)
+        legacy_image_path = get_legacy_problem_image_path(problem)
+        if legacy_prompt:
             body_blocks.append({
                 'id': None,
                 'type': PROBLEM_BLOCK_TYPE_RICH_TEXT,
                 'position': 1,
-                'text_content': problem.prompt_text or '',
-                'rendered_html': render_rich_text_html(problem.prompt_text or ''),
+                'text_content': legacy_prompt,
+                'rendered_html': render_rich_text_html(legacy_prompt),
             })
-        if (problem.image_path or '').strip():
+        if legacy_image_path:
             body_blocks.append({
                 'id': None,
                 'type': PROBLEM_BLOCK_TYPE_IMAGE,
                 'position': len(body_blocks) + 1,
-                'image_path': problem.image_path.strip(),
+                'image_path': legacy_image_path,
                 'image_width_pct': 100,
             })
         uses_legacy_fallback = True

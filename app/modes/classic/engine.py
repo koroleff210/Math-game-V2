@@ -207,35 +207,48 @@ def calc_treasure_gem_award(config) -> dict:
     return {'gems': 0, 'won': False}
 
 
-def pick_treasure_side_reward(gem_chance: float, token_chance: float,
-                              shield_chance: float, second_chance_chance: float):
-    """
-    Weighted single-roll selection for Treasure Search side rewards.
+def build_treasure_chest_candidates(config, eligibility: dict | None = None) -> list[dict]:
+    """Return the currently visible Treasure chest candidates.
 
-    At most ONE side reward is chosen.  The "nothing" probability is
-    derived as 1 - sum(chances).  If the total exceeds 1.0 it is clamped
-    (admin validation should prevent this, but defensive).
-
-    Returns:
-        'gem'            — award 1 gem
-        'steal_token'    — award 1 steal token (subject to cap)
-        'active_shield'  — grant one manual Shield Token
-        'second_chance'  — grant Second Chance (subject to max-1 capacity)
-        None             — no side reward (\"nothing\" outcome)
+    Each configured reward type becomes at most one chest candidate.
+    A candidate is shown only when:
+      - its configured fill chance is > 0
+      - the reward is currently grantable for this player/session
     """
-    rewards = [
-        ('gem',           gem_chance),
-        ('steal_token',   token_chance),
-        ('active_shield', shield_chance),
-        ('second_chance', second_chance_chance),
+    eligibility = eligibility or {}
+    reward_specs = [
+        ('gem', getattr(config, 'gem_treasure_chance', 0.0)),
+        ('steal_token', getattr(config, 'treasure_steal_token_chance', 0.0)),
+        ('shield_token', getattr(config, 'treasure_active_shield_chance', 0.0)),
+        ('second_chance', getattr(config, 'treasure_second_chance_chance', 0.0)),
     ]
-    roll = random.random()
-    cumulative = 0.0
-    for reward, chance in rewards:
-        cumulative += chance
-        if roll < cumulative:
-            return reward
-    return None
+    candidates = []
+    for reward_type, fill_chance in reward_specs:
+        if fill_chance <= 0:
+            continue
+        if eligibility.get(reward_type, True) is not True:
+            continue
+        candidates.append({
+            'reward_type': reward_type,
+            'fill_chance': fill_chance,
+        })
+    return candidates
+
+
+def roll_treasure_chests(candidates: list[dict]) -> list[dict]:
+    """Roll filled/empty state independently for each treasure chest and shuffle order."""
+    chests = []
+    for idx, candidate in enumerate(candidates, start=1):
+        chests.append({
+            'index': idx,
+            'reward_type': candidate['reward_type'],
+            'fill_chance': candidate['fill_chance'],
+            'filled': random.random() < candidate['fill_chance'],
+        })
+    random.shuffle(chests)
+    for idx, chest in enumerate(chests, start=1):
+        chest['index'] = idx
+    return chests
 
 
 # ── [Step D] Steal system helpers ─────────────────────────────────────────────

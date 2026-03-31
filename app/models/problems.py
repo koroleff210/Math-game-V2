@@ -2,7 +2,7 @@
 #
 # Three models that make up the problem bank:
 #   Topic       — a category (e.g. "Algebra", "Fractions")
-#   Problem     — a single question with an answer
+#   Problem     — the root authored problem record
 #   ProblemSet  — a named collection of Problems used in a game round
 
 from datetime import datetime, timezone
@@ -59,13 +59,15 @@ class Problem(db.Model):
     # title: short label shown in admin lists (e.g. "Fractions Q1")
     title      = db.Column(db.String(256), nullable=False)
 
-    # prompt_text: the question itself.
+    # prompt_text: legacy compatibility mirror for the main body text.
+    # Canonical authored body content now lives in ordered ProblemBlock rows.
     # Plain text is fine; LaTeX in $...$ or $$...$$ syntax is also supported —
     # MathJax will render it in the browser without any server-side changes.
     prompt_text = db.Column(db.Text, nullable=False)
 
-    # answer_text: the expected answer. Stored as plain text for now.
-    # Case-insensitive comparison is done at check time, not here.
+    # answer_text: legacy compatibility mirror / fallback answer field.
+    # Canonical text-input answers now live in ProblemAcceptedAnswer rows, and
+    # multiple-choice correctness lives in ProblemChoiceOption rows.
     answer_text = db.Column(db.String(512), nullable=False)
 
     # answer_type: answer-mode scaffold for the evolving problem system.
@@ -80,12 +82,12 @@ class Problem(db.Model):
     # difficulty: integer 1 (easy) to 5 (hard) — used later for scoring rules.
     difficulty  = db.Column(db.Integer, default=1, nullable=False)
 
-    # image_path: relative path inside static/ (e.g. "images/q42.png").
-    # Null when no image is needed.
+    # image_path: legacy compatibility mirror for a single image block.
+    # Canonical authored body media now lives in ProblemBlock rows.
     image_path  = db.Column(db.String(512), nullable=True)
 
-    # graph_config_json: JSON string holding a Plotly figure config.
-    # Null when no graph is needed.  Plotly rendering is wired in Phase 4+.
+    # graph_config_json: legacy-only schema residue from pre-ProblemBlock graph
+    # storage. Canonical graph config now lives on ProblemBlock.graph_config_json.
     graph_config_json = db.Column(db.Text, nullable=True)
 
     created_at = db.Column(
