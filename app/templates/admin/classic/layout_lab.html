@@ -152,17 +152,26 @@
         border: 1px solid #d5dfea;
         border-radius: 20px;
         padding: 18px;
+        display: grid;
+        place-items: center;
+    }
+
+    .layout-lab-scene-stage-shell {
+        width: 100%;
+        display: grid;
+        place-items: center;
     }
 
     .layout-lab-scene {
         position: relative;
-        width: 100%;
-        aspect-ratio: 16 / 9;
+        width: min(100%, 960px);
+        aspect-ratio: 3 / 2;
         border-radius: 18px;
         overflow: hidden;
-        background-position: center;
-        background-size: cover;
+        background-position: center center;
+        background-size: contain;
         background-repeat: no-repeat;
+        background-color: #10202d;
         box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
         user-select: none;
         touch-action: none;
@@ -178,13 +187,13 @@
     }
 
     .layout-lab-treasure-slot {
-        width: calc(210px * var(--slot-scale, 1));
-        height: calc(210px * var(--slot-scale, 1));
+        width: calc(13.671875% * var(--slot-scale, 1));
+        aspect-ratio: 1 / 1;
     }
 
     .layout-lab-steal-slot {
-        width: calc(156px * var(--slot-scale, 1));
-        height: calc(156px * var(--slot-scale, 1));
+        width: calc(10.15625% * var(--slot-scale, 1));
+        aspect-ratio: 1 / 1;
     }
 
     .layout-lab-slot-image,
@@ -270,6 +279,67 @@
         border-radius: 999px;
         white-space: nowrap;
         pointer-events: none;
+    }
+
+    .layout-debug-panel {
+        position: absolute;
+        left: 50%;
+        top: calc(100% + 6px);
+        transform: translateX(-50%);
+        min-width: 132px;
+        max-width: 180px;
+        padding: 6px 8px;
+        border-radius: 10px;
+        background: rgba(14, 25, 37, 0.88);
+        color: #f4f8fb;
+        font-size: 11px;
+        line-height: 1.35;
+        text-align: left;
+        box-shadow: 0 8px 18px rgba(7, 14, 24, 0.24);
+        pointer-events: none;
+        z-index: 8;
+        white-space: normal;
+    }
+
+    .layout-debug-crosshair {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 14px;
+        height: 14px;
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+        z-index: 7;
+    }
+
+    .layout-debug-crosshair::before,
+    .layout-debug-crosshair::after {
+        content: '';
+        position: absolute;
+        background: #ff5a36;
+        box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.22);
+    }
+
+    .layout-debug-crosshair::before {
+        left: 50%;
+        top: 0;
+        width: 2px;
+        height: 100%;
+        transform: translateX(-50%);
+    }
+
+    .layout-debug-crosshair::after {
+        left: 0;
+        top: 50%;
+        width: 100%;
+        height: 2px;
+        transform: translateY(-50%);
+    }
+
+    .layout-debug-box {
+        box-shadow:
+            inset 0 0 0 1px rgba(255, 92, 54, 0.95),
+            0 0 0 1px rgba(255, 255, 255, 0.18);
     }
 
     .layout-lab-export {
@@ -389,7 +459,9 @@
                 Drag the red anchors to reposition each chest. Save writes to the shared overlay layout file used by runtime rendering.
             </p>
             <div class="layout-lab-scene-shell">
-                <div id="layout-lab-scene" class="layout-lab-scene"></div>
+                <div class="layout-lab-scene-stage-shell">
+                    <div id="layout-lab-scene" class="layout-lab-scene"></div>
+                </div>
             </div>
         </div>
     </section>
@@ -401,6 +473,7 @@
     const csrfToken = {{ csrf_token() | tojson }};
     const initialLayouts = {{ overlay_layouts | tojson }};
     const OVERLAY_ASSETS = {{ overlay_assets | tojson }};
+    const DEBUG_OVERLAY_LAYOUTS = new URLSearchParams(window.location.search).get('overlay_debug') === '1';
     const treasureBackgrounds = OVERLAY_ASSETS.treasure.backgrounds;
     const treasureChestVariants = [1, 2, 3, 4, 5, 6];
     const treasureContainerUrls = OVERLAY_ASSETS.treasure.containers;
@@ -443,6 +516,10 @@
         return Math.round(value * 10) / 10;
     }
 
+    function roundPx(value) {
+        return Math.round(value * 10) / 10;
+    }
+
     function clamp(value, minimum, maximum) {
         return Math.max(minimum, Math.min(maximum, value));
     }
@@ -458,6 +535,46 @@
     function setStatus(message, isError) {
         statusEl.textContent = message || '';
         statusEl.classList.toggle('is-error', !!isError);
+    }
+
+    function attachDebugOverlay(el, info) {
+        if (!DEBUG_OVERLAY_LAYOUTS || !el || !scene) return;
+        el.classList.add('layout-debug-box');
+
+        const crosshair = document.createElement('div');
+        crosshair.className = 'layout-debug-crosshair';
+        el.appendChild(crosshair);
+
+        const sceneRect = scene.getBoundingClientRect();
+        const rect = el.getBoundingClientRect();
+        const leftPx = roundPx(rect.left - sceneRect.left);
+        const topPx = roundPx(rect.top - sceneRect.top);
+        const panel = document.createElement('div');
+        panel.className = 'layout-debug-panel';
+        panel.textContent =
+            (info.label || 'slot') +
+            ' | xy ' + info.x.toFixed(1) + ',' + info.y.toFixed(1) +
+            ' | px ' + leftPx + ',' + topPx +
+            ' | size ' + roundPx(rect.width) + 'x' + roundPx(rect.height) +
+            ' | stage ' + roundPx(sceneRect.width) + 'x' + roundPx(sceneRect.height) +
+            ' | origin center';
+        el.appendChild(panel);
+
+        if (!window.__overlayLayoutDebug) {
+            window.__overlayLayoutDebug = { admin: [] };
+        }
+        window.__overlayLayoutDebug.admin.push({
+            label: info.label || 'slot',
+            x: Number(info.x),
+            y: Number(info.y),
+            leftPx: leftPx,
+            topPx: topPx,
+            width: roundPx(rect.width),
+            height: roundPx(rect.height),
+            stageWidth: roundPx(sceneRect.width),
+            stageHeight: roundPx(sceneRect.height),
+            origin: 'center',
+        });
     }
 
     function getTreasureSlots(count) {
@@ -630,6 +747,9 @@
     }
 
     function renderTreasureScene() {
+        if (DEBUG_OVERLAY_LAYOUTS) {
+            window.__overlayLayoutDebug = { admin: [] };
+        }
         const count = state.treasureCount;
         scene.style.backgroundImage = 'url("' + treasureBackgrounds[count] + '")';
         scene.innerHTML = '';
@@ -655,6 +775,11 @@
             label.textContent = slot.name;
             slotEl.appendChild(label);
             scene.appendChild(slotEl);
+            attachDebugOverlay(slotEl, {
+                label: slot.name,
+                x: slot.x,
+                y: slot.y,
+            });
 
             const anchor = document.createElement('button');
             anchor.type = 'button';
@@ -677,6 +802,9 @@
     }
 
     function renderStealScene() {
+        if (DEBUG_OVERLAY_LAYOUTS) {
+            window.__overlayLayoutDebug = { admin: [] };
+        }
         scene.style.backgroundImage = 'url("' + stealBackground + '")';
         scene.innerHTML = '';
         kickerEl.textContent = 'Steal';
@@ -701,6 +829,11 @@
         avatarShell.style.setProperty('--avatar-width', avatar.width + '%');
         avatarShell.textContent = 'Target Avatar';
         scene.appendChild(avatarShell);
+        attachDebugOverlay(avatarShell, {
+            label: 'avatar',
+            x: avatar.x,
+            y: avatar.y,
+        });
 
         const avatarAnchor = document.createElement('button');
         avatarAnchor.type = 'button';
@@ -740,6 +873,11 @@
             label.textContent = slotKey;
             slotEl.appendChild(label);
             scene.appendChild(slotEl);
+            attachDebugOverlay(slotEl, {
+                label: slotKey,
+                x: slot.x,
+                y: slot.y,
+            });
 
             const anchor = document.createElement('button');
             anchor.type = 'button';
