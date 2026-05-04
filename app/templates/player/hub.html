@@ -10,8 +10,9 @@
     padding: 0;
     color: #2f2a22;
     background:
-      radial-gradient(circle at top, rgba(255, 247, 230, 0.88), transparent 36%),
-      linear-gradient(180deg, #f4ebdb 0%, #e9dcc5 55%, #e2d3bb 100%);
+      radial-gradient(circle at top, rgba(255, 248, 232, 0.78), transparent 38%),
+      linear-gradient(180deg, rgba(244, 235, 219, 0.82) 0%, rgba(233, 220, 197, 0.78) 55%, rgba(226, 211, 187, 0.84) 100%),
+      url("{{ url_for('static', filename='classic_ui/player_ui/background_001.png') }}") center/cover no-repeat fixed;
   }
   .flash-messages {
     display: none;
@@ -34,9 +35,9 @@
     inset: 0 0 4px;
     border-radius: 22px;
     background:
-      linear-gradient(180deg, rgba(255, 250, 240, 0.38), rgba(234, 220, 193, 0.30)),
-      url("{{ url_for('static', filename='classic_ui/player_ui/background_001.png') }}") center/cover no-repeat;
-    opacity: 0.12;
+      radial-gradient(circle at 50% 8%, rgba(255, 247, 230, 0.26), transparent 44%),
+      linear-gradient(180deg, rgba(255, 250, 240, 0.24), rgba(234, 220, 193, 0.20));
+    opacity: 0.72;
     pointer-events: none;
     z-index: -1;
   }
@@ -114,7 +115,7 @@
     padding: 8px;
     border-radius: 20px;
     background:
-      linear-gradient(180deg, rgba(248, 241, 229, 0.70), rgba(236, 225, 202, 0.60));
+      linear-gradient(180deg, rgba(248, 241, 229, 0.64), rgba(236, 225, 202, 0.54));
     border: 1px solid rgba(111, 92, 64, 0.10);
     box-shadow:
       inset 0 1px 0 rgba(255, 251, 243, 0.68),
@@ -128,7 +129,7 @@
     padding: 8px;
     border-radius: 18px;
     background:
-      linear-gradient(180deg, rgba(252, 247, 239, 0.92), rgba(245, 236, 220, 0.86)),
+      linear-gradient(180deg, rgba(252, 247, 239, 0.88), rgba(245, 236, 220, 0.80)),
       url("{{ url_for('static', filename='classic_ui/player_ui/panel_texture.png') }}");
     background-repeat: no-repeat, repeat;
     background-size: auto, 240px 240px;
@@ -148,7 +149,7 @@
     padding: 10px 10px 12px;
     border-radius: 18px;
     background:
-      linear-gradient(180deg, rgba(243, 238, 229, 0.88), rgba(233, 225, 212, 0.78)),
+      linear-gradient(180deg, rgba(243, 238, 229, 0.82), rgba(233, 225, 212, 0.70)),
       url("{{ url_for('static', filename='classic_ui/player_ui/panel_texture.png') }}");
     background-repeat: no-repeat, repeat;
     background-size: auto, 240px 240px;
