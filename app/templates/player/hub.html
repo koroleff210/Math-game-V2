@@ -962,6 +962,249 @@
     }
   }
 
+  @media (min-width: 1101px) {
+    body {
+      overflow: hidden;
+    }
+    .hub-page {
+      height: 100vh;
+      min-height: 0;
+      padding: 8px 14px 10px;
+    }
+    .hub-main-grid {
+      height: 100%;
+      min-height: 0;
+      gap: 10px;
+      padding: 6px;
+      overflow: hidden;
+    }
+    .hub-gear-region {
+      min-height: 0;
+      overflow: hidden;
+      padding: 6px;
+      border-radius: 16px;
+    }
+    #gear-shell-container {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      height: 100%;
+    }
+    .gear-work-top {
+      flex: 0 0 auto;
+      gap: 10px;
+      margin-bottom: 6px;
+    }
+    .gear-detail-column {
+      gap: 8px;
+      padding: 0;
+    }
+    .equipment-pane,
+    .details-pane {
+      padding: 10px 12px;
+    }
+    .avatar-pane-layout,
+    .avatar-preview-shell {
+      gap: 6px;
+    }
+    .avatar-loadout-stage {
+      grid-template-columns: minmax(0, 64px) minmax(0, 1fr) minmax(0, 64px);
+      gap: 6px 8px;
+    }
+    .avatar-stage-wrap {
+      padding: 6px;
+      border-radius: 12px;
+    }
+    .avatar-stage {
+      width: min(100%, 298px);
+      border-radius: 14px;
+    }
+    .avatar-face-controls {
+      padding: 5px 7px;
+    }
+    .equipment-slot {
+      min-height: 66px;
+      gap: 4px;
+      padding: 5px;
+      border-radius: 12px;
+    }
+    .equipment-slot--pocket1,
+    .equipment-slot--pocket2 {
+      min-height: 60px;
+    }
+    .equipment-slot-label {
+      font-size: 0.58rem;
+    }
+    .equipment-slot-row .gear-thumb,
+    .equipment-slot-thumb-placeholder {
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+    }
+    .equipment-slot-name {
+      font-size: 0.61rem;
+    }
+    .details-header {
+      margin-bottom: 6px;
+      padding-bottom: 6px;
+    }
+    .details-pane .gear-thumb {
+      width: 68px;
+      height: 68px;
+    }
+    .details-header h3 {
+      font-size: 1rem;
+    }
+    .details-pane [data-gear-details-dynamic-region] {
+      gap: 7px;
+    }
+    .details-pane p {
+      font-size: 0.84rem;
+      line-height: 1.3;
+    }
+    .details-effects {
+      gap: 5px;
+    }
+    .details-effects li {
+      padding: 6px 8px;
+      font-size: 0.78rem;
+    }
+    .gear-bonus-pane {
+      column-gap: 10px;
+      row-gap: 6px;
+      padding: 9px 11px;
+    }
+    .gear-session-control {
+      min-width: 142px;
+      gap: 4px;
+      padding: 6px 8px;
+    }
+    .bonus-list {
+      gap: 5px;
+      font-size: 0.82rem;
+    }
+    .bonus-list li {
+      padding: 6px 8px;
+    }
+    .gear-inventory-section {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      margin-top: 0;
+    }
+    .filter-tabs {
+      flex: 0 0 auto;
+      gap: 8px;
+      margin-bottom: 6px;
+      padding: 7px 9px;
+      border-radius: 13px;
+    }
+    .filter-tab {
+      padding: 7px 10px;
+      border-radius: 10px;
+      font-size: 0.82rem;
+    }
+    .inventory-pane {
+      flex: 1 1 auto;
+      min-height: 0;
+      padding: 10px 12px 12px;
+      border-radius: 15px;
+    }
+    .inventory-scroll-region {
+      min-height: 0;
+      padding: 2px 3px 0 1px;
+    }
+    .inventory-grid {
+      grid-template-columns: repeat(auto-fill, 76px);
+      grid-auto-rows: 76px;
+      gap: 9px;
+    }
+    .inventory-card {
+      width: 76px;
+      height: 76px;
+      padding: 7px;
+      border-radius: 13px;
+    }
+    .inventory-card .gear-thumb {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+    }
+    .hub-side-column {
+      min-height: 0;
+      overflow-y: auto;
+      gap: 8px;
+      padding: 8px;
+      border-radius: 16px;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(126, 89, 39, 0.45) rgba(234, 215, 181, 0.36);
+    }
+    .hub-side-column::-webkit-scrollbar,
+    .inventory-scroll-region::-webkit-scrollbar {
+      width: 8px;
+    }
+    .hub-side-column::-webkit-scrollbar-track,
+    .inventory-scroll-region::-webkit-scrollbar-track {
+      background: rgba(234, 215, 181, 0.36);
+      border-radius: 999px;
+    }
+    .hub-side-column::-webkit-scrollbar-thumb,
+    .inventory-scroll-region::-webkit-scrollbar-thumb {
+      border: 2px solid rgba(234, 215, 181, 0.36);
+      border-radius: 999px;
+      background: linear-gradient(180deg, #ad7b36 0%, #735025 100%);
+    }
+    .hub-side-card {
+      padding: 9px 10px;
+      border-radius: 14px;
+    }
+    .hub-side-card h2,
+    .gear-card-title {
+      margin-bottom: 6px;
+      font-size: 0.86rem;
+    }
+    .upgrade-row {
+      padding: 6px 8px;
+    }
+    .upgrade-row-top {
+      margin-bottom: 2px;
+    }
+    .upgrade-row-label,
+    .upgrade-row-effect {
+      font-size: 0.82rem;
+    }
+    .upgrade-row-level,
+    .upgrade-row-next {
+      font-size: 0.74rem;
+    }
+    .hub-resource-card {
+      padding: 10px 11px;
+    }
+    .hub-resource-stack {
+      gap: 6px;
+    }
+    .diamonds-display {
+      font-size: 1.16rem;
+    }
+    .hub-resource-note,
+    .hub-meta-note {
+      font-size: 0.78rem;
+      line-height: 1.25;
+    }
+    .hub-meta-links {
+      gap: 6px;
+    }
+    .hub-meta-link {
+      padding: 7px 9px;
+      border-radius: 9px;
+      font-size: 0.82rem;
+    }
+    .hub-meta-card {
+      padding-top: 10px;
+    }
+  }
+
   @media (max-width: 900px) {
     .hub-page {
       padding: 12px 14px 16px;
@@ -995,6 +1238,334 @@
     }
     .details-effects {
       grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 700px) {
+    .hub-page {
+      padding: 6px 6px 12px;
+    }
+    .hub-page::before {
+      border-radius: 0;
+    }
+    .hub-main-grid {
+      gap: 8px;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+    }
+    .hub-gear-region {
+      padding: 0;
+      border-radius: 12px;
+      background: transparent;
+      border: 0;
+      box-shadow: none;
+    }
+    #gear-shell-container {
+      display: grid;
+      gap: 8px;
+    }
+    .gear-work-top,
+    .gear-detail-column {
+      display: contents;
+    }
+    .gear-avatar-column {
+      order: 1;
+    }
+    .gear-selected-pane {
+      order: 2;
+    }
+    .gear-inventory-section {
+      order: 3;
+      margin-top: 0;
+    }
+    .gear-bonus-pane {
+      order: 4;
+    }
+    [data-gear-shell-message-region] {
+      order: 0;
+    }
+    [data-gear-shell-message] {
+      position: static;
+      max-width: none;
+      margin-bottom: 0;
+      padding: 7px 9px;
+      font-size: 0.8rem;
+    }
+    .equipment-pane,
+    .details-pane,
+    .inventory-pane,
+    .gear-bonus-pane,
+    .hub-side-card {
+      border-radius: 12px;
+      padding: 8px;
+    }
+    .gear-card-title,
+    .hub-side-card h2 {
+      margin-bottom: 6px;
+      font-size: 0.76rem;
+      letter-spacing: 0.035em;
+    }
+    .avatar-pane-layout,
+    .avatar-preview-shell {
+      gap: 6px;
+    }
+    .avatar-loadout-stage {
+      grid-template-columns: 52px minmax(0, 1fr) 52px;
+      gap: 5px 6px;
+    }
+    .avatar-stage-wrap {
+      padding: 5px;
+      border-radius: 11px;
+    }
+    .avatar-stage {
+      width: min(100%, 196px);
+      border-radius: 12px;
+    }
+    .equipment-slot {
+      min-height: 52px;
+      gap: 3px;
+      padding: 4px;
+      border-radius: 10px;
+    }
+    .equipment-slot--pocket1,
+    .equipment-slot--pocket2 {
+      min-height: 48px;
+    }
+    .equipment-slot-label {
+      font-size: 0.55rem;
+      letter-spacing: 0.035em;
+    }
+    .equipment-slot-row .gear-thumb,
+    .equipment-slot-thumb-placeholder {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+    }
+    .equipment-slot-name {
+      font-size: 0.56rem;
+    }
+    .avatar-face-controls {
+      padding: 4px 5px;
+      gap: 5px;
+      border-radius: 10px;
+    }
+    .avatar-face-controls .btn {
+      min-width: 0;
+      padding: 4px 8px;
+      font-size: 0.7rem;
+    }
+    .avatar-face-label {
+      font-size: 0.76rem;
+    }
+    .details-header {
+      gap: 8px;
+      margin-bottom: 6px;
+      padding-bottom: 6px;
+      align-items: center;
+    }
+    .details-pane .gear-thumb {
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+    }
+    .details-header h3 {
+      font-size: 0.94rem;
+    }
+    .details-pane p {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      font-size: 0.78rem;
+      line-height: 1.3;
+    }
+    .details-pane [data-gear-details-dynamic-region] {
+      gap: 6px;
+    }
+    .details-pane [data-gear-details-dynamic-region] > .gear-meta:first-child,
+    .gear-meta {
+      font-size: 0.76rem;
+      margin-top: 0;
+    }
+    .details-effects {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 4px;
+    }
+    .details-effects li {
+      padding: 5px 6px;
+      border-radius: 8px;
+      font-size: 0.7rem;
+      line-height: 1.2;
+    }
+    .gear-actions {
+      gap: 6px;
+    }
+    .gear-actions .btn {
+      padding: 5px 9px;
+      font-size: 0.74rem;
+      border-radius: 9px;
+    }
+    .filter-tabs {
+      gap: 5px;
+      margin-bottom: 6px;
+      padding: 6px;
+      border-radius: 12px;
+      overflow-x: auto;
+      flex-wrap: nowrap;
+      -webkit-overflow-scrolling: touch;
+    }
+    .filter-tab {
+      flex: 0 0 auto;
+      padding: 6px 8px;
+      border-radius: 9px;
+      font-size: 0.74rem;
+      white-space: nowrap;
+    }
+    .inventory-pane {
+      max-height: 34vh;
+      min-height: 158px;
+      padding: 8px 8px 9px;
+    }
+    .inventory-scroll-region {
+      padding: 2px 1px 0;
+    }
+    .inventory-grid {
+      grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+      grid-auto-rows: 58px;
+      gap: 6px;
+    }
+    .inventory-card {
+      width: 100%;
+      height: 58px;
+      padding: 5px;
+      border-radius: 11px;
+    }
+    .inventory-card .gear-thumb {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+    }
+    .status-badge {
+      right: 4px;
+      bottom: 4px;
+      width: 10px;
+      height: 10px;
+      border-width: 2px;
+    }
+    .gear-bonus-pane {
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas:
+        "title control"
+        "list list";
+      gap: 6px;
+      align-items: center;
+    }
+    .gear-session-control {
+      min-width: 112px;
+      padding: 5px 6px;
+      gap: 4px;
+      align-items: flex-end;
+      text-align: right;
+      border-radius: 9px;
+    }
+    .gear-session-control > .btn,
+    .gear-session-control form,
+    .gear-session-control form .btn {
+      width: auto;
+      align-self: flex-end;
+    }
+    .gear-session-control .btn {
+      padding: 5px 8px;
+      font-size: 0.72rem;
+      border-radius: 8px;
+    }
+    .gear-session-control-note {
+      font-size: 0.66rem;
+      line-height: 1.2;
+    }
+    .bonus-list {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 4px;
+      font-size: 0.7rem;
+    }
+    .bonus-list li {
+      padding: 5px 6px;
+      border-radius: 8px;
+      line-height: 1.2;
+    }
+    .hub-side-column {
+      gap: 6px;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+    }
+    .hub-utility-row {
+      order: 4;
+      justify-content: center;
+      padding: 2px 0 0;
+    }
+    .hub-resource-card {
+      order: 1;
+    }
+    .hub-upgrades-card {
+      order: 2;
+    }
+    .hub-meta-card {
+      order: 3;
+    }
+    .hub-resource-stack {
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 6px 8px;
+      align-items: center;
+    }
+    .diamonds-display {
+      font-size: 1rem;
+    }
+    .hub-resource-card .btn {
+      padding: 6px 10px;
+      font-size: 0.78rem;
+      width: auto;
+    }
+    .hub-resource-note,
+    .hub-meta-note,
+    .upgrade-row-next {
+      display: none;
+    }
+    .upgrade-list {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .upgrade-row {
+      padding: 6px 7px;
+    }
+    .upgrade-row + .upgrade-row {
+      border-top: 0;
+      border-left: 1px solid rgba(120, 100, 70, 0.12);
+    }
+    .upgrade-row-top {
+      gap: 6px;
+      margin-bottom: 2px;
+    }
+    .upgrade-row-label,
+    .upgrade-row-level {
+      font-size: 0.74rem;
+    }
+    .upgrade-row-effect {
+      font-size: 0.72rem;
+      line-height: 1.25;
+    }
+    .hub-meta-links {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+    }
+    .hub-meta-link {
+      padding: 6px 8px;
+      border-radius: 8px;
+      font-size: 0.78rem;
     }
   }
 </style>
@@ -1170,8 +1741,15 @@
 
   function shellSelectorsForLink(link) {
     if (link.classList.contains('filter-tab') ||
-        link.hasAttribute('data-gear-inventory-item') ||
-        link.hasAttribute('data-gear-loadout-slot')) {
+        link.hasAttribute('data-gear-inventory-item')) {
+      return [
+        '[data-gear-shell-message-region]',
+        '[data-gear-details-region]',
+        '[data-gear-inventory-region]'
+      ];
+    }
+
+    if (link.hasAttribute('data-gear-loadout-slot')) {
       return [
         '[data-gear-shell-message-region]',
         '[data-gear-slots-region]',
