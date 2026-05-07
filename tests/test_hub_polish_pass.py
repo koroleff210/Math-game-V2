@@ -53,7 +53,11 @@ def check(label, condition, detail=''):
 
 
 def _make_player(username, password='pass1234'):
-    player = Player(username=username, is_admin=False)
+    player = Player(
+        username=username,
+        is_admin=False,
+        character_locked_at=datetime.now(timezone.utc),
+    )
     player.set_password(password)
     db.session.add(player)
     db.session.flush()
@@ -209,12 +213,48 @@ def test_hub_async_fragment_shape():
         )
 
 
+def test_hub_selection_link_scope():
+    hub_template_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        'app',
+        'templates',
+        'player',
+        'hub.html',
+    )
+    with open(hub_template_path, encoding='utf-8') as f:
+        html = f.read()
+
+    inventory_branch_start = html.index("link.hasAttribute('data-gear-inventory-item')")
+    inventory_branch_end = html.index("if (link.hasAttribute('data-gear-loadout-slot'))")
+    inventory_branch = html[inventory_branch_start:inventory_branch_end]
+    loadout_branch_start = inventory_branch_end
+    loadout_branch_return = html.index('return [', loadout_branch_start)
+    loadout_branch_end = html.index('return [', loadout_branch_return + 1)
+    loadout_branch = html[loadout_branch_start:loadout_branch_end]
+
+    check(
+        'HPP-05: inventory/filter selection skips loadout and avatar refresh regions',
+        '[data-gear-details-region]' in inventory_branch
+        and '[data-gear-inventory-region]' in inventory_branch
+        and '[data-gear-slots-region]' not in inventory_branch
+        and '[data-gear-avatar-composite-region]' not in inventory_branch,
+    )
+    check(
+        'HPP-06: loadout-slot selection can still refresh slot selection state',
+        '[data-gear-slots-region]' in loadout_branch
+        and '[data-gear-details-region]' in loadout_branch
+        and '[data-gear-inventory-region]' in loadout_branch
+        and '[data-gear-avatar-composite-region]' not in loadout_branch,
+    )
+
+
 if __name__ == '__main__':
     print('\nHub Polish Pass - Tests')
     print('-' * 60)
     _setup_db()
     test_hub_session_control_layout()
     test_hub_async_fragment_shape()
+    test_hub_selection_link_scope()
     print('-' * 60)
     print(f'Results: {passed} passed, {failed} failed out of {passed + failed} tests.')
     if failed == 0:

@@ -276,9 +276,9 @@
     body {
         --player-ui-bg: #ede4d3;
         --player-ui-bg-deep: #dcc9ab;
-        --player-ui-panel: rgba(250, 245, 235, 0.92);
-        --player-ui-panel-strong: rgba(252, 248, 240, 0.97);
-        --player-ui-panel-muted: rgba(242, 235, 223, 0.92);
+        --player-ui-panel: rgba(250, 245, 235, 0.78);
+        --player-ui-panel-strong: rgba(252, 248, 240, 0.90);
+        --player-ui-panel-muted: rgba(242, 235, 223, 0.76);
         --player-ui-border: rgba(104, 85, 56, 0.22);
         --player-ui-border-soft: rgba(104, 85, 56, 0.14);
         --player-ui-shadow: 0 10px 24px rgba(60, 43, 20, 0.08);
@@ -291,7 +291,10 @@
         --player-ui-rust: #8f3f2c;
         --player-ui-teal: #2f6f78;
         --player-ui-iron: #5d5f63;
+        --round-bg-image: {% if current_round_background_url %}url("{{ current_round_background_url }}"){% else %}none{% endif %};
         margin: 0;
+        position: relative;
+        isolation: isolate;
         color: var(--player-ui-text);
         background:
             radial-gradient(circle at top, rgba(255, 248, 232, 0.9), transparent 34%),
@@ -308,8 +311,8 @@
         padding: 14px;
         align-items: stretch;
         background:
-            linear-gradient(180deg, rgba(255, 249, 239, 0.62), rgba(236, 224, 202, 0.48)),
-            linear-gradient(180deg, #efe3cd 0%, #eadbc3 100%);
+            linear-gradient(180deg, rgba(255, 249, 239, 0.24), rgba(236, 224, 202, 0.14)),
+            linear-gradient(180deg, rgba(239, 227, 205, 0.40), rgba(234, 219, 195, 0.30));
         border: 1px solid rgba(111, 92, 64, 0.12);
         border-radius: 22px;
         box-shadow:
@@ -323,10 +326,24 @@
         content: '';
         position: absolute;
         inset: 0;
-        background:
+        background-image:
             linear-gradient(90deg, rgba(108, 91, 63, 0.05), transparent 18%, transparent 82%, rgba(108, 91, 63, 0.04)),
-            url("{{ url_for('static', filename='classic_ui/player_ui/background_001.png') }}") center/cover no-repeat;
-        opacity: 0.13;
+            var(--round-bg-image);
+        background-position: center, center;
+        background-repeat: no-repeat, no-repeat;
+        background-size: auto, cover;
+        opacity: 0.30;
+        pointer-events: none;
+        z-index: -2;
+    }
+
+    #game-layout::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background:
+            radial-gradient(circle at top, rgba(255, 247, 232, 0.26), transparent 40%),
+            linear-gradient(180deg, rgba(246, 237, 221, 0.34), rgba(222, 205, 176, 0.24));
         pointer-events: none;
         z-index: -1;
     }
@@ -360,7 +377,7 @@
         position: relative;
         padding: 12px 14px;
         background-image:
-            linear-gradient(180deg, rgba(255, 252, 245, 0.74), rgba(244, 236, 224, 0.58)),
+            linear-gradient(180deg, rgba(255, 252, 245, 0.54), rgba(244, 236, 224, 0.36)),
             url("{{ url_for('static', filename='classic_ui/player_ui/panel_texture.png') }}");
         background-repeat: no-repeat, repeat;
         background-position: center, center;
@@ -370,11 +387,12 @@
     .rail-panel h3,
     #problem-selector-shell h3,
     #problem-stage-title {
-        margin: 0 0 10px;
-        font-size: 0.95rem;
-        letter-spacing: 0.04em;
+        margin: 0 0 4px;
+        font-size: 0.74rem;
+        letter-spacing: 0.08em;
         text-transform: uppercase;
-        color: var(--player-ui-heading);
+        color: rgba(108, 88, 58, 0.82);
+        font-weight: 700;
     }
 
     .support-subtle {
@@ -401,7 +419,7 @@
         padding-top: 10px;
         padding-bottom: 10px;
         background-image:
-            linear-gradient(180deg, rgba(255, 252, 244, 0.96), rgba(242, 230, 210, 0.88)),
+            linear-gradient(180deg, rgba(255, 252, 244, 0.80), rgba(242, 230, 210, 0.70)),
             radial-gradient(circle at top right, rgba(205, 165, 94, 0.14), transparent 34%),
             url("{{ url_for('static', filename='classic_ui/player_ui/panel_texture.png') }}");
         border-color: rgba(124, 95, 43, 0.28);
@@ -416,7 +434,7 @@
 
     #actions-panel {
         background-image:
-            linear-gradient(180deg, rgba(245, 241, 232, 0.96), rgba(232, 224, 210, 0.9)),
+            linear-gradient(180deg, rgba(245, 241, 232, 0.80), rgba(232, 224, 210, 0.72)),
             radial-gradient(circle at top left, rgba(61, 113, 121, 0.10), transparent 36%),
             url("{{ url_for('static', filename='classic_ui/player_ui/panel_texture.png') }}");
         border-color: rgba(86, 103, 106, 0.22);
@@ -425,7 +443,7 @@
     #round-summary-panel,
     #store-slot-panel {
         background-image:
-            linear-gradient(180deg, rgba(244, 239, 230, 0.95), rgba(236, 228, 214, 0.86)),
+            linear-gradient(180deg, rgba(244, 239, 230, 0.80), rgba(236, 228, 214, 0.72)),
             url("{{ url_for('static', filename='classic_ui/player_ui/panel_texture.png') }}");
         border-color: rgba(104, 85, 56, 0.16);
         box-shadow:
@@ -680,7 +698,7 @@
         margin-bottom: 0;
         border-radius: 14px;
         padding: 12px;
-        background: linear-gradient(180deg, rgba(248, 243, 234, 0.96), rgba(238, 230, 217, 0.88));
+        background: linear-gradient(180deg, rgba(248, 243, 234, 0.84), rgba(238, 230, 217, 0.76));
         border: 1px solid rgba(109, 90, 59, 0.14);
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.68);
     }
@@ -745,7 +763,7 @@
 
     #context-rail .rail-panel {
         background:
-            linear-gradient(180deg, rgba(247, 243, 235, 0.88), rgba(238, 231, 219, 0.80));
+            linear-gradient(180deg, rgba(247, 243, 235, 0.74), rgba(238, 231, 219, 0.66));
         border-color: rgba(112, 95, 68, 0.11);
         box-shadow:
             inset 0 1px 0 rgba(255, 251, 244, 0.60),
@@ -764,7 +782,7 @@
         width: auto;
         padding: 13px 14px;
         background:
-            linear-gradient(180deg, rgba(252, 248, 240, 0.96), rgba(244, 236, 223, 0.90));
+            linear-gradient(180deg, rgba(252, 248, 240, 0.80), rgba(244, 236, 223, 0.76));
         border-color: rgba(113, 95, 67, 0.13);
         border-left: none;
         box-shadow:
@@ -870,7 +888,7 @@
         flex: 0 0 auto;
         padding: 10px 12px 8px;
         background:
-            linear-gradient(180deg, rgba(248, 241, 228, 0.88), rgba(239, 229, 211, 0.78)),
+            linear-gradient(180deg, rgba(248, 241, 228, 0.74), rgba(239, 229, 211, 0.64)),
             url("{{ url_for('static', filename='classic_ui/player_ui/panel_texture.png') }}");
         border: 1px solid rgba(110, 91, 61, 0.12);
         box-shadow:
@@ -878,15 +896,146 @@
             0 8px 18px rgba(60, 43, 20, 0.05);
     }
 
-    #problem-buttons {
+    #problem-selector-header {
         display: flex;
-        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 8px;
+    }
+
+    #problem-selector-header h3 {
+        margin: 0;
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    #problem-selector-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 6px;
+        flex-wrap: nowrap;
+        flex: 0 0 auto;
+    }
+
+    #game-fullscreen-toggle[hidden] {
+        display: none !important;
+    }
+
+    #mobile-player-toggle,
+    #mobile-info-toggle {
+        display: none;
+    }
+
+    #problem-chip-pager-row {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        min-width: 0;
+    }
+
+    #problem-chip-pager-row #problem-buttons {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .mobile-chip-page-btn {
+        min-width: 34px;
+        min-height: 34px;
+        padding: 0;
+        font-size: 1rem;
+        line-height: 1;
+    }
+
+    .mobile-chip-page-btn[disabled] {
+        opacity: 0.46;
+        cursor: default;
+        transform: none;
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.72),
+            0 2px 6px rgba(60, 43, 20, 0.04);
+    }
+
+    .selector-utility-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 32px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid rgba(85, 102, 106, 0.24);
+        background: linear-gradient(180deg, rgba(251, 249, 243, 0.98), rgba(236, 230, 220, 0.94));
+        color: #4a4338;
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.76),
+            0 4px 10px rgba(60, 43, 20, 0.05);
+        cursor: pointer;
+        transition: border-color 0.14s ease, background 0.14s ease, box-shadow 0.14s ease, transform 0.14s ease;
+    }
+
+    .selector-utility-btn:hover {
+        border-color: rgba(52, 105, 113, 0.34);
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.82),
+            0 6px 12px rgba(47, 102, 112, 0.10);
+        transform: translateY(-1px);
+    }
+
+    .selector-utility-btn:focus-visible {
+        outline: 2px solid rgba(47, 102, 112, 0.32);
+        outline-offset: 2px;
+    }
+
+    .selector-utility-btn[aria-expanded="true"] {
+        border-color: rgba(47, 102, 112, 0.36);
+        background: linear-gradient(180deg, rgba(229, 241, 242, 0.98), rgba(210, 227, 230, 0.94));
+        color: #204f57;
+        box-shadow:
+            inset 0 1px 0 rgba(245, 253, 253, 0.82),
+            0 0 0 1px rgba(51, 109, 117, 0.10);
+    }
+
+    #mobile-drawer-backdrop[hidden] {
+        display: none !important;
+    }
+
+    #mobile-drawer-backdrop {
+        display: none;
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+    }
+
+    #game-layout:fullscreen {
+        width: 100%;
+        height: 100vh;
+        min-height: 100vh;
+        padding: 10px;
+        border: none;
+        border-radius: 0;
+    }
+
+    #game-layout:fullscreen::before,
+    #game-layout:fullscreen::after {
+        border-radius: 0;
+    }
+
+    #problem-buttons {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
         margin-bottom: 0;
         gap: 7px;
+        min-width: 0;
     }
 
     .prob-btn {
         position: relative;
+        width: 100%;
+        min-width: 0;
         min-height: 42px;
         padding: 9px 14px;
         border: 1px solid rgba(101, 86, 60, 0.22);
@@ -900,6 +1049,10 @@
         box-shadow:
             inset 0 1px 0 rgba(255, 255, 255, 0.84),
             0 4px 9px rgba(60, 43, 20, 0.06);
+    }
+
+    .mobile-problem-chip-hidden {
+        display: none !important;
     }
     .prob-btn.available {
         color: #4a4033;
@@ -950,7 +1103,7 @@
         flex-direction: column;
         position: relative;
         background:
-            linear-gradient(180deg, rgba(254, 249, 241, 0.99), rgba(246, 238, 225, 0.96)),
+            linear-gradient(180deg, rgba(254, 249, 241, 0.86), rgba(246, 238, 225, 0.82)),
             radial-gradient(circle at top, rgba(255, 247, 231, 0.42), transparent 40%);
         border: 1px solid rgba(112, 91, 57, 0.18);
         box-shadow:
@@ -994,11 +1147,11 @@
         min-height: 0;
         display: flex;
         flex-direction: column;
-        gap: 14px;
-        padding: 18px 20px 16px;
+        gap: 10px;
+        padding: 14px 18px 12px;
         border-radius: 18px;
         background:
-            linear-gradient(180deg, rgba(255, 251, 244, 0.98), rgba(249, 242, 230, 0.96));
+            linear-gradient(180deg, rgba(255, 251, 244, 0.88), rgba(249, 242, 230, 0.84));
         border: 1px solid rgba(116, 95, 63, 0.14);
         box-shadow:
             inset 0 1px 0 rgba(255, 255, 255, 0.84),
@@ -1008,17 +1161,17 @@
 
     #problem-header {
         display: flex;
-        align-items: flex-start;
+        align-items: center;
         justify-content: space-between;
-        gap: 14px;
-        padding: 0 2px 12px;
+        gap: 10px;
+        padding: 0 1px 8px;
         border-bottom: 1px solid rgba(120, 101, 70, 0.12);
     }
 
     #problem-title {
-        margin: 2px 0 0;
-        font-size: 1.55rem;
-        line-height: 1.18;
+        margin: 0;
+        font-size: 1.36rem;
+        line-height: 1.12;
         color: #34291e;
         letter-spacing: -0.01em;
     }
@@ -1027,14 +1180,14 @@
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        min-height: 34px;
+        min-height: 28px;
         margin-left: 8px;
-        padding: 6px 12px;
+        padding: 4px 10px;
         border-radius: 999px;
         background: rgba(235, 227, 213, 0.84);
         border: 1px solid rgba(117, 100, 72, 0.16);
         color: #695a46 !important;
-        font-size: 0.9rem;
+        font-size: 0.82rem;
         font-weight: 700;
         white-space: nowrap;
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.66);
@@ -1044,9 +1197,9 @@
         flex: 1 1 auto;
         min-height: 0;
         max-height: none;
-        padding: 6px 4px 2px;
+        padding: 6px 4px 0;
         border-radius: 14px;
-        background: linear-gradient(180deg, rgba(255, 253, 249, 0.92), rgba(249, 245, 237, 0.86));
+        background: linear-gradient(180deg, rgba(255, 253, 249, 0.90), rgba(249, 245, 237, 0.86));
         border: 1px solid rgba(120, 101, 70, 0.08);
         margin-bottom: 0;
         overflow-y: auto;
@@ -1287,7 +1440,7 @@
         position: absolute;
         left: 50%;
         top: 50%;
-        width: 28%;
+        width: 84%;
         aspect-ratio: 1 / 1;
         transform: translate(-50%, -54%);
         object-fit: contain;
@@ -1297,7 +1450,7 @@
 
     .treasure-reveal-icon.is-empty,
     .steal-reveal-icon.is-junk {
-        width: 24%;
+        width: 72%;
         opacity: 0.9;
     }
 
@@ -1672,16 +1825,16 @@
     }
 
     #interaction-shell {
-        flex: 0 0 232px;
-        padding: 16px 18px;
+        flex: 0 0 206px;
+        padding: 12px 16px;
         border-radius: 16px;
         background:
-            linear-gradient(180deg, rgba(241, 233, 219, 0.96), rgba(232, 221, 204, 0.92));
+            linear-gradient(180deg, rgba(241, 233, 219, 0.82), rgba(232, 221, 204, 0.76));
         border: 1px solid rgba(118, 96, 64, 0.14);
-        min-height: 232px;
+        min-height: 206px;
         display: flex;
         flex-direction: column;
-        gap: 10px;
+        gap: 7px;
         overflow: hidden;
         box-shadow:
             inset 0 1px 0 rgba(255, 248, 238, 0.74),
@@ -1690,32 +1843,32 @@
 
     #interaction-shell[data-state="solve"] {
         background:
-            linear-gradient(180deg, rgba(241, 233, 219, 0.96), rgba(232, 221, 204, 0.92));
+            linear-gradient(180deg, rgba(241, 233, 219, 0.82), rgba(232, 221, 204, 0.76));
     }
 
     #interaction-shell[data-state="action"],
     #interaction-shell[data-state="target"] {
         background:
-            linear-gradient(180deg, rgba(232, 239, 240, 0.96), rgba(217, 229, 231, 0.92));
+            linear-gradient(180deg, rgba(232, 239, 240, 0.82), rgba(217, 229, 231, 0.76));
         border-color: rgba(69, 110, 116, 0.16);
     }
 
     #interaction-shell[data-state="result"] {
         background:
-            linear-gradient(180deg, rgba(245, 237, 220, 0.96), rgba(236, 225, 202, 0.92));
+            linear-gradient(180deg, rgba(245, 237, 220, 0.82), rgba(236, 225, 202, 0.76));
         border-color: rgba(146, 110, 45, 0.16);
     }
 
     #interaction-shell-header {
         display: flex;
         flex-direction: column;
-        gap: 4px;
-        padding-bottom: 10px;
+        gap: 2px;
+        padding-bottom: 6px;
         border-bottom: 1px solid rgba(118, 96, 64, 0.12);
     }
 
     #interaction-state-kicker {
-        font-size: 0.76rem;
+        font-size: 0.68rem;
         letter-spacing: 0.08em;
         text-transform: uppercase;
         color: #8a7352;
@@ -1724,15 +1877,16 @@
 
     #interaction-state-title {
         margin: 0;
-        font-size: 1rem;
+        font-size: 0.92rem;
+        line-height: 1.18;
         color: #3f3120;
     }
 
     #interaction-state-hint {
         margin: 0;
         color: #6f6253;
-        font-size: 0.88rem;
-        line-height: 1.42;
+        font-size: 0.78rem;
+        line-height: 1.28;
     }
 
     #solve-panel.is-active #answer-form,
@@ -2297,6 +2451,10 @@
         padding: 8px 10px 6px;
     }
 
+    #problem-selector-header {
+        margin-bottom: 6px;
+    }
+
     #problem-buttons {
         gap: 6px;
     }
@@ -2326,24 +2484,24 @@
     }
 
     #problem-window {
-        gap: 12px;
-        padding: 15px 16px 13px;
+        gap: 9px;
+        padding: 12px 14px 11px;
         border-radius: 16px;
     }
 
     #problem-header {
-        gap: 10px;
-        padding: 0 2px 10px;
+        gap: 8px;
+        padding: 0 1px 7px;
     }
 
     #problem-title {
-        font-size: 1.42rem;
+        font-size: 1.24rem;
     }
 
     #attempts-display {
-        min-height: 30px;
-        padding: 5px 10px;
-        font-size: 0.84rem;
+        min-height: 26px;
+        padding: 4px 9px;
+        font-size: 0.78rem;
     }
 
     #problem-body-frame {
@@ -2351,28 +2509,29 @@
     }
 
     #interaction-shell {
-        flex-basis: 216px;
-        min-height: 216px;
-        padding: 14px 16px;
+        flex-basis: 190px;
+        min-height: 190px;
+        padding: 11px 14px;
         border-radius: 14px;
-        gap: 8px;
+        gap: 6px;
     }
 
     #interaction-shell-header {
-        gap: 3px;
-        padding-bottom: 8px;
+        gap: 2px;
+        padding-bottom: 6px;
     }
 
     #interaction-state-kicker {
-        font-size: 0.72rem;
+        font-size: 0.66rem;
     }
 
     #interaction-state-title {
-        font-size: 0.96rem;
+        font-size: 0.88rem;
     }
 
     #interaction-state-hint {
-        font-size: 0.84rem;
+        font-size: 0.74rem;
+        line-height: 1.24;
     }
 
     #answer-form {
@@ -2416,6 +2575,345 @@
     .action-log-entry {
         padding: 7px 8px;
         font-size: 0.78rem;
+    }
+
+    @media (max-width: 900px), ((max-width: 1180px) and (orientation: portrait)) {
+        :root {
+            --mobile-safe-top: max(8px, env(safe-area-inset-top, 0px));
+            --mobile-safe-right: max(8px, env(safe-area-inset-right, 0px));
+            --mobile-safe-bottom: max(8px, env(safe-area-inset-bottom, 0px));
+            --mobile-safe-left: max(8px, env(safe-area-inset-left, 0px));
+            --mobile-overlay-top-gap: max(6px, env(safe-area-inset-top, 0px));
+            --mobile-overlay-bottom-gap: max(6px, env(safe-area-inset-bottom, 0px));
+        }
+
+        html,
+        body {
+            min-height: 100%;
+            overflow: hidden;
+            overscroll-behavior: none;
+        }
+
+        body {
+            min-height: 100vh;
+            min-height: 100svh;
+            min-height: 100dvh;
+        }
+
+        #game-layout {
+            grid-template-columns: minmax(0, 1fr);
+            gap: 8px;
+            height: 100vh;
+            height: 100svh;
+            height: 100dvh;
+            min-height: 100vh;
+            min-height: 100svh;
+            min-height: 100dvh;
+            padding:
+                var(--mobile-safe-top)
+                var(--mobile-safe-right)
+                var(--mobile-safe-bottom)
+                var(--mobile-safe-left);
+            border-radius: 0;
+            border: none;
+            box-shadow: none;
+        }
+
+        #game-layout[data-mobile-drawer]::before,
+        #game-layout[data-mobile-drawer]::after {
+            pointer-events: none;
+        }
+
+        #game-main {
+            position: relative;
+            z-index: 1;
+            min-height: 0;
+            height: 100%;
+            gap: 8px;
+        }
+
+        #problem-selector-shell {
+            padding: 7px 9px 6px;
+        }
+
+        #problem-selector-header {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 5px;
+        }
+
+        #problem-selector-header h3 {
+            text-transform: uppercase;
+            letter-spacing: 0.09em;
+            font-size: 0.72rem;
+            color: rgba(103, 84, 56, 0.9);
+            min-width: 0;
+        }
+
+        #problem-selector-actions {
+            gap: 5px;
+            justify-self: end;
+        }
+
+        #mobile-player-toggle,
+        #mobile-info-toggle {
+            display: inline-flex;
+        }
+
+        .selector-utility-btn {
+            min-height: 30px;
+            padding: 5px 9px;
+            font-size: 0.72rem;
+            letter-spacing: 0.01em;
+            border-color: rgba(92, 80, 57, 0.24);
+            background: linear-gradient(180deg, rgba(252, 248, 240, 0.98), rgba(236, 227, 211, 0.94));
+            box-shadow:
+                inset 0 1px 0 rgba(255, 255, 255, 0.78),
+                0 3px 8px rgba(60, 43, 20, 0.06);
+        }
+
+        #mobile-player-toggle,
+        #mobile-info-toggle {
+            font-weight: 800;
+            color: #4b4234;
+        }
+
+        #game-fullscreen-toggle {
+            padding-inline: 8px;
+            color: #645847;
+        }
+
+        #problem-chip-pager-row {
+            gap: 6px;
+            align-items: stretch;
+        }
+
+        .mobile-chip-page-btn {
+            display: inline-flex;
+            flex: 0 0 40px;
+            min-width: 40px;
+            min-height: 38px;
+            border-radius: 13px;
+            border-color: rgba(118, 98, 66, 0.26);
+            background: linear-gradient(180deg, rgba(249, 241, 227, 0.98), rgba(231, 219, 196, 0.94));
+            color: #58472f;
+            box-shadow:
+                inset 0 1px 0 rgba(255, 252, 246, 0.82),
+                0 5px 12px rgba(60, 43, 20, 0.08);
+            font-size: 1.12rem;
+            font-weight: 800;
+        }
+
+        .mobile-chip-page-btn[disabled] {
+            opacity: 0.38;
+            border-color: rgba(120, 108, 88, 0.18);
+            background: linear-gradient(180deg, rgba(237, 231, 221, 0.88), rgba(228, 221, 210, 0.82));
+            color: #887a68;
+        }
+
+        #problem-buttons {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 5px;
+            overflow: visible;
+            flex-wrap: nowrap;
+            padding-bottom: 0;
+        }
+
+        .prob-btn {
+            flex: 0 0 auto;
+            width: 100%;
+            min-width: 0;
+            justify-content: center;
+            text-align: center;
+        }
+
+        .mobile-problem-chip-hidden {
+            display: none !important;
+        }
+
+        #problem-workspace {
+            flex: 1 1 auto;
+            min-height: 0;
+            padding: 10px 10px 8px;
+        }
+
+        #problem-stage {
+            gap: 7px;
+        }
+
+        #problem-window {
+            gap: 7px;
+            padding: 10px 11px 9px;
+        }
+
+        #problem-header {
+            align-items: flex-start;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        #attempts-display {
+            margin-left: 0;
+        }
+
+        #interaction-shell {
+            flex: 0 0 auto;
+            min-height: 0;
+            padding: 10px 11px;
+            gap: 5px;
+        }
+
+        #support-rail,
+        #context-rail {
+            position: fixed;
+            top: var(--mobile-safe-top);
+            bottom: var(--mobile-safe-bottom);
+            z-index: 40;
+            width: min(82vw, 340px);
+            min-width: 0;
+            height: auto;
+            min-height: 0;
+            padding:
+                12px
+                max(10px, env(safe-area-inset-right, 0px))
+                14px
+                max(10px, env(safe-area-inset-left, 0px));
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-gutter: stable both-edges;
+            touch-action: pan-y;
+            background:
+                linear-gradient(180deg, rgba(245, 237, 222, 0.98), rgba(233, 220, 199, 0.95));
+            box-shadow: 0 18px 34px rgba(38, 28, 14, 0.18);
+            transition: transform 0.18s ease, visibility 0.18s ease;
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        #support-rail {
+            left: 0;
+            transform: translateX(-102%);
+            border-right: 1px solid rgba(104, 85, 56, 0.18);
+        }
+
+        #context-rail {
+            right: 0;
+            transform: translateX(102%);
+            border-left: 1px solid rgba(104, 85, 56, 0.18);
+        }
+
+        #game-layout[data-mobile-drawer="player"] #support-rail,
+        #game-layout[data-mobile-drawer="info"] #context-rail {
+            transform: translateX(0);
+            visibility: visible;
+            pointer-events: auto;
+        }
+
+        #mobile-drawer-backdrop {
+            position: fixed;
+            inset: 0;
+            z-index: 32;
+            display: block;
+            border: none;
+            padding: 0;
+            background: rgba(31, 22, 12, 0.28);
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            transition: opacity 0.18s ease, visibility 0.18s ease;
+        }
+
+        #game-layout[data-mobile-drawer="player"] #mobile-drawer-backdrop,
+        #game-layout[data-mobile-drawer="info"] #mobile-drawer-backdrop {
+            opacity: 1;
+            visibility: visible;
+            pointer-events: auto;
+        }
+
+        #treasure-overlay,
+        #steal-overlay {
+            position: fixed;
+            inset:
+                var(--mobile-overlay-top-gap)
+                var(--mobile-safe-right)
+                var(--mobile-overlay-bottom-gap)
+                var(--mobile-safe-left);
+            z-index: 60;
+            padding: 4px;
+            backdrop-filter: blur(2px);
+        }
+
+        #treasure-overlay-panel,
+        #steal-overlay-panel {
+            padding: 6px;
+            border-radius: 18px;
+        }
+
+        #treasure-overlay-header,
+        #steal-overlay-header {
+            width: min(100%, 320px);
+            padding: 5px 10px 6px;
+            box-shadow: 0 8px 16px rgba(14, 8, 4, 0.14);
+        }
+
+        #treasure-overlay-kicker,
+        #steal-overlay-kicker {
+            font-size: 0.63rem;
+            letter-spacing: 0.16em;
+        }
+
+        #treasure-overlay-title,
+        #steal-overlay-title {
+            font-size: 0.94rem;
+        }
+
+        #treasure-overlay-hint,
+        #steal-overlay-hint {
+            font-size: 0.72rem;
+            margin-top: 1px;
+        }
+
+        #treasure-overlay-footer,
+        #steal-overlay-footer {
+            gap: 6px;
+            padding: 0 0 4px;
+        }
+
+        #treasure-overlay-status,
+        #steal-overlay-status {
+            max-width: min(90%, 34ch);
+            padding: 6px 10px;
+            font-size: 0.76rem;
+            line-height: 1.24;
+        }
+
+        #treasure-overlay-scene-wrap,
+        #steal-overlay-scene-wrap,
+        .overlay-stage-shell {
+            min-height: 0;
+        }
+
+        #treasure-overlay-scene,
+        #steal-overlay-scene {
+            width: 100%;
+            max-width: none;
+            border-radius: 15px;
+        }
+
+        .overlay-scene-artboard {
+            border-radius: 15px;
+        }
+
+        #steal-overlay-confirm {
+            min-width: 94px;
+            margin-bottom: 6px;
+            padding: 7px 11px;
+            font-size: 0.75rem;
+        }
     }
 </style>
 {% endblock %}
@@ -2538,8 +3036,19 @@
 
     <main id="game-main">
         <section id="problem-selector-shell">
-            <h3>Problems</h3>
-            <div id="problem-buttons"><!-- Populated by JS --></div>
+            <div id="problem-selector-header">
+                <h3>Problems</h3>
+                <div id="problem-selector-actions">
+                    <button type="button" id="mobile-player-toggle" class="selector-utility-btn" onclick="togglePlayerDrawer()" aria-expanded="false" aria-controls="support-rail">Player</button>
+                    <button type="button" id="mobile-info-toggle" class="selector-utility-btn" onclick="toggleInfoDrawer()" aria-expanded="false" aria-controls="context-rail">Round Info</button>
+                    <button type="button" id="game-fullscreen-toggle" class="selector-utility-btn" onclick="toggleGameplayFullscreen()" hidden aria-pressed="false">Fullscreen</button>
+                </div>
+            </div>
+            <div id="problem-chip-pager-row">
+                <button type="button" id="mobile-problem-prev" class="selector-utility-btn mobile-chip-page-btn" onclick="pageMobileProblems(-1)" aria-label="Previous problem chips" hidden>&lsaquo;</button>
+                <div id="problem-buttons"><!-- Populated by JS --></div>
+                <button type="button" id="mobile-problem-next" class="selector-utility-btn mobile-chip-page-btn" onclick="pageMobileProblems(1)" aria-label="Next problem chips" hidden>&rsaquo;</button>
+            </div>
         </section>
 
         <section id="problem-workspace">
@@ -2682,11 +3191,15 @@
             </div>
         </section>
     </aside>
+    <button type="button" id="mobile-drawer-backdrop" onclick="closeMobileDrawers()" hidden aria-label="Close panel"></button>
 </div>
 
 <script>
 (function () {
 const SESSION_ID = {{ game_session.id }};
+    const INITIAL_ROUND_ID = {{ (game_round.id if game_round else none) | tojson }};
+    const INITIAL_ROUND_NUMBER = {{ (game_round.round_number if game_round else none) | tojson }};
+    const ROUND_BACKGROUND_URLS = {{ round_background_urls | tojson }};
 
     // Problem data indexed by id
     const problems = {};
@@ -2724,6 +3237,27 @@ const SESSION_ID = {{ game_session.id }};
     const STEAL_BAG_VARIANTS = [1, 2, 3, 4, 5, 6, 7, 8];
     const STEAL_CONTAINER_URLS = OVERLAY_ASSETS.steal.containers;
     const STEAL_FILLER_URLS = OVERLAY_ASSETS.steal.fillers;
+    const MOBILE_PROBLEM_PAGE_SIZE = 3;
+    const DESKTOP_PROBLEM_PAGE_SIZE = 4;
+    let mobileProblemPageIndex = 0;
+    function getRoundBackgroundIndex(sessionId, roundId, roundNumber) {
+        if (!ROUND_BACKGROUND_URLS.length) return -1;
+        const sid = Number(sessionId) || 0;
+        const rid = Number(roundId) || 0;
+        const rn = Number(roundNumber) || 0;
+        const seed = (sid * 131) + (rid * 17) + (rn * 19);
+        return Math.abs(seed) % ROUND_BACKGROUND_URLS.length;
+    }
+
+    function getRoundBackgroundUrl(roundId, roundNumber) {
+        const index = getRoundBackgroundIndex(SESSION_ID, roundId, roundNumber);
+        return index >= 0 ? ROUND_BACKGROUND_URLS[index] : '';
+    }
+
+    function applyRoundBackground(roundId, roundNumber) {
+        const url = getRoundBackgroundUrl(roundId, roundNumber);
+        document.body.style.setProperty('--round-bg-image', url ? 'url(\"' + url + '\")' : 'none');
+    }
     const STEAL_REVEAL_ICONS = OVERLAY_ASSETS.steal.reveal_icons;
     const STEAL_AVATAR_LAYOUT = {
         x: OVERLAY_LAYOUTS.steal.avatar.x,
@@ -2734,6 +3268,270 @@ const SESSION_ID = {{ game_session.id }};
     };
 
     const socket = io();
+
+    function fullscreenTargetElement() {
+        return document.getElementById('game-layout');
+    }
+
+    function mobileDrawerBackdrop() {
+        return document.getElementById('mobile-drawer-backdrop');
+    }
+
+    function fullscreenToggleButton() {
+        return document.getElementById('game-fullscreen-toggle');
+    }
+
+    function mobileDrawerToggleButton(drawerName) {
+        if (drawerName === 'player') return document.getElementById('mobile-player-toggle');
+        if (drawerName === 'info') return document.getElementById('mobile-info-toggle');
+        return null;
+    }
+
+    function mobileProblemPager() {
+        return document.getElementById('problem-chip-pager-row');
+    }
+
+    function mobileProblemPagerButton(direction) {
+        return document.getElementById(direction < 0 ? 'mobile-problem-prev' : 'mobile-problem-next');
+    }
+
+    function problemButtonElements() {
+        const container = document.getElementById('problem-buttons');
+        return container ? Array.from(container.querySelectorAll('.prob-btn')) : [];
+    }
+
+    function isMobileProblemPagingMode() {
+        return true;
+    }
+
+    function currentProblemPageSize() {
+        return isPortraitMobileMode() ? MOBILE_PROBLEM_PAGE_SIZE : DESKTOP_PROBLEM_PAGE_SIZE;
+    }
+
+    function clampMobileProblemPageIndex(buttonCount) {
+        const pageCount = Math.max(1, Math.ceil(buttonCount / currentProblemPageSize()));
+        mobileProblemPageIndex = Math.min(Math.max(0, mobileProblemPageIndex), pageCount - 1);
+        return pageCount;
+    }
+
+    function syncMobileProblemPager(options) {
+        const config = options || {};
+        const buttons = problemButtonElements();
+        const pager = mobileProblemPager();
+        const prevBtn = mobileProblemPagerButton(-1);
+        const nextBtn = mobileProblemPagerButton(1);
+        const isPaging = isMobileProblemPagingMode();
+        const buttonCount = buttons.length;
+
+        if (!isPaging) {
+            mobileProblemPageIndex = 0;
+            buttons.forEach(function (button) {
+                button.classList.remove('mobile-problem-chip-hidden');
+            });
+            if (pager) pager.style.display = '';
+            if (prevBtn) {
+                prevBtn.setAttribute('hidden', '');
+                prevBtn.disabled = true;
+            }
+            if (nextBtn) {
+                nextBtn.setAttribute('hidden', '');
+                nextBtn.disabled = true;
+            }
+            return;
+        }
+
+        const selectedId = config.selectedProblemId !== undefined ? config.selectedProblemId : selectedProblemId;
+        const selectedIndex = buttons.findIndex(function (button) {
+            return button.id === 'prob-btn-' + selectedId;
+        });
+        if (selectedIndex >= 0) {
+            mobileProblemPageIndex = Math.floor(selectedIndex / MOBILE_PROBLEM_PAGE_SIZE);
+        }
+
+        const pageCount = clampMobileProblemPageIndex(buttonCount);
+        const pageSize = currentProblemPageSize();
+        const canPage = buttonCount > pageSize;
+        const pageStart = mobileProblemPageIndex * pageSize;
+        const pageEnd = pageStart + pageSize;
+
+        buttons.forEach(function (button, index) {
+            const shouldHide = canPage && (index < pageStart || index >= pageEnd);
+            button.classList.toggle('mobile-problem-chip-hidden', shouldHide);
+        });
+
+        if (pager) {
+            pager.style.display = buttonCount ? '' : 'none';
+        }
+        if (prevBtn) {
+            prevBtn.disabled = !canPage || mobileProblemPageIndex === 0;
+            if (canPage) {
+                prevBtn.removeAttribute('hidden');
+            } else {
+                prevBtn.setAttribute('hidden', '');
+            }
+        }
+        if (nextBtn) {
+            nextBtn.disabled = !canPage || mobileProblemPageIndex >= pageCount - 1;
+            if (canPage) {
+                nextBtn.removeAttribute('hidden');
+            } else {
+                nextBtn.setAttribute('hidden', '');
+            }
+        }
+    }
+
+    function isFullscreenSupported() {
+        return Boolean(
+            document.fullscreenEnabled ||
+            document.webkitFullscreenEnabled
+        );
+    }
+
+    function isPortraitMobileMode() {
+        const narrow = window.matchMedia('(max-width: 900px)').matches;
+        const portraitTablet = window.matchMedia('(max-width: 1180px) and (orientation: portrait)').matches;
+        return narrow || portraitTablet;
+    }
+
+    function currentFullscreenElement() {
+        return document.fullscreenElement || document.webkitFullscreenElement || null;
+    }
+
+    function currentMobileDrawer() {
+        const layout = fullscreenTargetElement();
+        if (!layout) return 'none';
+        return layout.dataset.mobileDrawer || 'none';
+    }
+
+    function syncMobileDrawerControls() {
+        const layout = fullscreenTargetElement();
+        const backdrop = mobileDrawerBackdrop();
+        const inMobileMode = isPortraitMobileMode();
+        let activeDrawer = currentMobileDrawer();
+        if (!inMobileMode) {
+            activeDrawer = 'none';
+            if (layout) {
+                delete layout.dataset.mobileDrawer;
+            }
+        }
+        ['player', 'info'].forEach(function (drawerName) {
+            const button = mobileDrawerToggleButton(drawerName);
+            if (!button) return;
+            button.setAttribute('aria-expanded', inMobileMode && activeDrawer === drawerName ? 'true' : 'false');
+        });
+        if (backdrop) {
+            if (inMobileMode && activeDrawer !== 'none') {
+                backdrop.removeAttribute('hidden');
+            } else {
+                backdrop.setAttribute('hidden', '');
+            }
+        }
+    }
+
+    function setMobileDrawer(drawerName) {
+        const layout = fullscreenTargetElement();
+        if (!layout) return;
+        if (!isPortraitMobileMode() || drawerName === 'none') {
+            delete layout.dataset.mobileDrawer;
+        } else {
+            layout.dataset.mobileDrawer = drawerName;
+        }
+        syncMobileDrawerControls();
+    }
+
+    function requestElementFullscreen(element) {
+        if (!element) return Promise.reject(new Error('Missing fullscreen target.'));
+        if (element.requestFullscreen) {
+            return element.requestFullscreen();
+        }
+        if (element.webkitRequestFullscreen) {
+            element.webkitRequestFullscreen();
+            return Promise.resolve();
+        }
+        return Promise.reject(new Error('Fullscreen API unavailable.'));
+    }
+
+    function exitDocumentFullscreen() {
+        if (document.exitFullscreen) {
+            return document.exitFullscreen();
+        }
+        if (document.webkitExitFullscreen) {
+            document.webkitExitFullscreen();
+            return Promise.resolve();
+        }
+        return Promise.reject(new Error('Fullscreen exit unavailable.'));
+    }
+
+    function updateFullscreenToggleLabel() {
+        const button = fullscreenToggleButton();
+        if (!button) return;
+        const isActive = currentFullscreenElement() === fullscreenTargetElement();
+        button.textContent = isActive ? 'Exit Fullscreen' : 'Fullscreen';
+        button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    }
+
+    function initFullscreenToggle() {
+        const button = fullscreenToggleButton();
+        if (!button) return;
+        if (!isFullscreenSupported()) {
+            button.setAttribute('hidden', '');
+            return;
+        }
+        button.removeAttribute('hidden');
+        updateFullscreenToggleLabel();
+        document.addEventListener('fullscreenchange', updateFullscreenToggleLabel);
+        document.addEventListener('webkitfullscreenchange', updateFullscreenToggleLabel);
+    }
+
+    function initMobileDrawerControls() {
+        syncMobileDrawerControls();
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
+                window.closeMobileDrawers();
+            }
+        });
+    }
+
+    window.toggleGameplayFullscreen = function () {
+        const target = fullscreenTargetElement();
+        if (!target || !isFullscreenSupported()) return;
+        const action = currentFullscreenElement() === target
+            ? exitDocumentFullscreen()
+            : requestElementFullscreen(target);
+        Promise.resolve(action).catch(function (err) {
+            console.warn('Fullscreen toggle was blocked or failed:', err);
+            updateFullscreenToggleLabel();
+        });
+    };
+
+    window.closeMobileDrawers = function () {
+        setMobileDrawer('none');
+    };
+
+    window.togglePlayerDrawer = function () {
+        const currentDrawer = currentMobileDrawer();
+        setMobileDrawer(currentDrawer === 'player' ? 'none' : 'player');
+    };
+
+    window.toggleInfoDrawer = function () {
+        const currentDrawer = currentMobileDrawer();
+        setMobileDrawer(currentDrawer === 'info' ? 'none' : 'info');
+    };
+
+    window.pageMobileProblems = function (direction) {
+        const delta = Number(direction) || 0;
+        if (!delta) return;
+        const buttonCount = problemButtonElements().length;
+        const pageCount = clampMobileProblemPageIndex(buttonCount);
+        if (pageCount <= 1) {
+            syncMobileProblemPager();
+            return;
+        }
+        mobileProblemPageIndex = Math.min(Math.max(0, mobileProblemPageIndex + delta), pageCount - 1);
+        syncMobileProblemPager({
+            selectedProblemId: null,
+        });
+    };
 
     function normalizeIsoUtc(expiresIso) {
         if (!expiresIso) return null;
@@ -3825,7 +4623,10 @@ const SESSION_ID = {{ game_session.id }};
         socket.emit('classic_join', { session_id: SESSION_ID });
     });
 
+    applyRoundBackground(INITIAL_ROUND_ID, INITIAL_ROUND_NUMBER);
+
     socket.on('join_ack', function (data) {
+        applyRoundBackground(INITIAL_ROUND_ID, INITIAL_ROUND_NUMBER);
         document.getElementById('gold-amount').textContent = data.gold;
         document.getElementById('gems-amount').textContent = data.gems || 0;
         stealTokens = data.steal_tokens || 0;
@@ -3854,6 +4655,7 @@ const SESSION_ID = {{ game_session.id }};
             applyProblemButtonState(btn, p, false);
             container.appendChild(btn);
         });
+        syncMobileProblemPager();
 
         renderStore(data.store_items || []);
         renderBonuses(data.active_bonuses || {});
@@ -3893,8 +4695,9 @@ const SESSION_ID = {{ game_session.id }};
         }
     });
 
-    socket.on('round_started', function () {
+    socket.on('round_started', function (data) {
         roundActive = true;
+        applyRoundBackground(data && data.round_id, data && data.round_number);
         hideTreasureOverlayImmediate();
         hideStealOverlayImmediate();
         roundStartedAtIso = new Date().toISOString();
@@ -3946,11 +4749,14 @@ const SESSION_ID = {{ game_session.id }};
         });
         const selBtn = document.getElementById('prob-btn-' + problemId);
         if (selBtn) applyProblemButtonState(selBtn, p, true);
+        syncMobileProblemPager({
+            selectedProblemId: problemId,
+        });
 
+        document.getElementById('problem-detail').style.display = 'block';
         document.getElementById('problem-title').textContent = p.title;
         renderProblemBody(p);
         renderProblemAnswerInput(p);
-        document.getElementById('problem-detail').style.display = 'block';
         document.getElementById('feedback').style.display = 'none';
         document.getElementById('reward-result').style.display = 'none';
         document.getElementById('steal-result-msg').style.display = 'none';
@@ -4271,7 +5077,14 @@ const SESSION_ID = {{ game_session.id }};
                 '</p></div>';
         }
         if (window.renderProblemGraphs) {
-            window.renderProblemGraphs(container);
+            const renderGraphs = function () {
+                window.renderProblemGraphs(container);
+            };
+            if (window.requestAnimationFrame) {
+                window.requestAnimationFrame(renderGraphs);
+            } else {
+                setTimeout(renderGraphs, 0);
+            }
         }
         typesetProblemMath();
     }
@@ -4334,6 +5147,10 @@ const SESSION_ID = {{ game_session.id }};
         document.getElementById('steal-tokens-max').textContent = tokenMaxCap;
     }
 
+    initFullscreenToggle();
+    initMobileDrawerControls();
+    syncMobileProblemPager();
+
     socket.on('error', function (data) {
         console.error('Socket error:', data.msg);
         // Re-enable activate button if a shield activation was rejected
@@ -4352,6 +5169,8 @@ const SESSION_ID = {{ game_session.id }};
     });
 
     window.addEventListener('resize', function () {
+        syncMobileDrawerControls();
+        syncMobileProblemPager();
         if (treasureOverlayState !== 'hidden' && treasureOverlayData) {
             renderTreasureOverlay();
         }
@@ -4778,4 +5597,136 @@ const SESSION_ID = {{ game_session.id }};
 
 })();
 </script>
+<style>
+    /* Late cascade override so the translucent materials win over earlier panel fills. */
+    #game-layout {
+        background:
+            linear-gradient(180deg, rgba(255, 249, 239, 0.14), rgba(236, 224, 202, 0.08)),
+            linear-gradient(180deg, rgba(239, 227, 205, 0.18), rgba(234, 219, 195, 0.12));
+    }
+
+    #game-layout::before {
+        opacity: 0.44;
+        filter: saturate(1.08) contrast(1.08) brightness(0.96);
+    }
+
+    .rail-panel,
+    #problem-selector-shell,
+    #problem-workspace {
+        background-color: rgba(250, 245, 235, 0.58);
+    }
+
+    .rail-panel {
+        background-image:
+            linear-gradient(180deg, rgba(255, 252, 245, 0.42), rgba(244, 236, 224, 0.26)),
+            url("{{ url_for('static', filename='classic_ui/player_ui/panel_texture.png') }}");
+    }
+
+    #player-status-panel {
+        background:
+            linear-gradient(180deg, rgba(255, 252, 244, 0.56), rgba(242, 230, 210, 0.46)),
+            radial-gradient(circle at top right, rgba(205, 165, 94, 0.08), transparent 34%);
+    }
+
+    #actions-panel {
+        background:
+            linear-gradient(180deg, rgba(245, 241, 232, 0.58), rgba(232, 224, 210, 0.48)),
+            radial-gradient(circle at top left, rgba(61, 113, 121, 0.06), transparent 36%);
+    }
+
+    #round-summary-panel,
+    #store-slot-panel {
+        background:
+            linear-gradient(180deg, rgba(244, 239, 230, 0.58), rgba(236, 228, 214, 0.48));
+    }
+
+    #currency-bar > span {
+        background: rgba(255, 250, 243, 0.62);
+    }
+
+    #player-avatar-stage {
+        background:
+            radial-gradient(circle at 30% 22%, rgba(255, 247, 228, 0.42), transparent 42%),
+            linear-gradient(180deg, rgba(247, 240, 225, 0.58), rgba(223, 207, 179, 0.48));
+    }
+
+    #shield-token-row {
+        background:
+            linear-gradient(180deg, rgba(250, 247, 241, 0.60), rgba(236, 228, 215, 0.52));
+    }
+
+    #store-panel {
+        background:
+            linear-gradient(180deg, rgba(248, 243, 234, 0.52), rgba(238, 230, 217, 0.44));
+    }
+
+    #context-rail .rail-panel {
+        background:
+            linear-gradient(180deg, rgba(247, 243, 235, 0.64), rgba(238, 231, 219, 0.52));
+    }
+
+    #leaderboard {
+        background:
+            linear-gradient(180deg, rgba(252, 248, 240, 0.70), rgba(244, 236, 223, 0.60));
+    }
+
+    #context-round-panel {
+        background:
+            linear-gradient(180deg, rgba(242, 237, 229, 0.66), rgba(235, 229, 218, 0.56));
+    }
+
+    #context-log-panel {
+        background:
+            linear-gradient(180deg, rgba(244, 240, 232, 0.68), rgba(236, 230, 220, 0.58));
+    }
+
+    #problem-selector-shell {
+        background:
+            linear-gradient(180deg, rgba(248, 241, 228, 0.70), rgba(239, 229, 211, 0.60)),
+            url("{{ url_for('static', filename='classic_ui/player_ui/panel_texture.png') }}");
+    }
+
+    #problem-workspace {
+        background:
+            linear-gradient(180deg, rgba(254, 249, 241, 0.74), rgba(246, 238, 225, 0.66)),
+            radial-gradient(circle at top, rgba(255, 247, 231, 0.30), transparent 40%);
+    }
+
+    #problem-window {
+        background:
+            linear-gradient(180deg, rgba(255, 251, 244, 0.84), rgba(249, 242, 230, 0.78));
+    }
+
+    #problem-body-frame {
+        background:
+            linear-gradient(180deg, rgba(255, 253, 249, 0.92), rgba(249, 245, 237, 0.88));
+    }
+
+    #interaction-shell {
+        background:
+            linear-gradient(180deg, rgba(241, 233, 219, 0.74), rgba(232, 221, 204, 0.66));
+    }
+
+    #interaction-shell[data-state="solve"] {
+        background:
+            linear-gradient(180deg, rgba(241, 233, 219, 0.74), rgba(232, 221, 204, 0.66));
+    }
+
+    #interaction-shell[data-state="action"],
+    #interaction-shell[data-state="target"] {
+        background:
+            linear-gradient(180deg, rgba(232, 239, 240, 0.74), rgba(217, 229, 231, 0.66));
+    }
+
+    #interaction-shell[data-state="result"] {
+        background:
+            linear-gradient(180deg, rgba(245, 237, 220, 0.74), rgba(236, 225, 202, 0.66));
+    }
+
+    #action-panel,
+    #steal-targets-panel,
+    #result-panel {
+        background: rgba(255, 250, 242, 0.36);
+    }
+</style>
 {% endblock %}

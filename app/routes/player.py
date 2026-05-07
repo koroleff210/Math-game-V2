@@ -7,6 +7,8 @@
 #   GET  /player/blacksmith        — Diamonds & upgrade shop (D2)
 #   POST /player/blacksmith/buy    — purchase one upgrade level (D2)
 
+from datetime import datetime, timezone
+
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
 
@@ -25,8 +27,9 @@ from app.services.gear import (
     purchase_blacksmith_gear,
     unequip_player_gear_slot,
 )
-from app.services.avatar import build_player_avatar_view, cycle_player_face_selection
+from app.services.avatar import build_player_avatar_view, cycle_player_face_selection, get_valid_selected_face_key
 from app.services.upgrade_catalog import UPGRADE_CATALOG, UPGRADE_ORDER
+from app.services.analytics_reports import build_player_dashboard
 
 
 player_bp = Blueprint('player', __name__, url_prefix='/player')
@@ -99,6 +102,8 @@ def _build_player_gear_shell_context(
         'gear_active_bonus_summary': gear_view['active_bonus_summary'],
         'gear_avatar': avatar_view,
         'hub_status': get_player_hub_status(current_user),
+        'character_face_locked': current_user.is_character_locked,
+        'character_selection_required': not current_user.is_character_locked,
         'gear_shell_message': gear_shell_message,
     }
 
@@ -170,9 +175,14 @@ def dashboard():
     if hub_status.state == HUB_STATE_ENROLLED_UNFINISHED and hub_status.session:
         sess = hub_status.session
         if player_in_session_group(current_user, sess):
-            if sess.status == 'waiting':
+            if sess.mode == 'boss_rush':
+                if sess.status == 'waiting':
+                    return redirect(url_for('boss_rush_player.lobby', session_id=sess.id))
+                if sess.status == 'active':
+                    return redirect(url_for('boss_rush_player.game', session_id=sess.id))
+            elif sess.status == 'waiting':
                 return redirect(url_for('classic_player.lobby', session_id=sess.id))
-            if sess.status == 'active':
+            elif sess.status == 'active':
                 return redirect(url_for('classic_player.game', session_id=sess.id))
         # 'finished' or group-removed → fall through to hub
 
@@ -191,6 +201,15 @@ def dashboard():
 @player_bp.route('/gear/shell')
 @login_required
 def gear_shell():
+    if not current_user.is_character_locked:
+        return _render_gear_shell_partial(
+            selected_filter=request.args.get('gear_filter', 'all'),
+            selected_item_id=request.args.get('selected_item'),
+            gear_shell_message={
+                'category': 'info',
+                'text': 'Choose and confirm your character before using the normal Hub.',
+            },
+        )
     return _render_gear_shell_partial(
         selected_filter=request.args.get('gear_filter', 'all'),
         selected_item_id=request.args.get('selected_item'),
@@ -312,6 +331,17 @@ def avatar_face():
             )
         return _dashboard_redirect_for_gear_state(selected_filter, selected_item_id)
 
+    if current_user.is_character_locked:
+        message = 'Your character face is locked. Gear can still be changed normally.'
+        _flash_if_full_page(message, 'error')
+        if _is_js_shell_request():
+            return _render_gear_shell_partial(
+                selected_filter=selected_filter,
+                selected_item_id=selected_item_id,
+                gear_shell_message={'category': 'error', 'text': message},
+            )
+        return _dashboard_redirect_for_gear_state(selected_filter, selected_item_id)
+
     direction = (request.form.get('direction') or '').strip()
     try:
         face_key = cycle_player_face_selection(current_user, direction)
@@ -336,6 +366,22 @@ def avatar_face():
             )
 
     return _dashboard_redirect_for_gear_state(selected_filter, selected_item_id)
+
+
+@player_bp.route('/avatar/confirm', methods=['POST'])
+@login_required
+def avatar_confirm():
+    if current_user.is_character_locked:
+        flash('Your character is already locked. Gear can still be changed normally.', 'info')
+        return redirect(url_for('player.dashboard'))
+
+    current_user.selected_face_key = get_valid_selected_face_key(
+        getattr(current_user, 'selected_face_key', None)
+    )
+    current_user.character_locked_at = datetime.now(timezone.utc)
+    db.session.commit()
+    flash('Character confirmed. Your face is now locked; gear can still be changed normally.', 'success')
+    return redirect(url_for('player.dashboard'))
 
 
 # ── Blacksmith ────────────────────────────────────────────────────────────────
@@ -364,22 +410,34 @@ def blacksmith():
         row  = upgrade_map.get(ut)
         current_level = row.level if row else 0
         cost = defn.cost_for_next_level(current_level)
+        next_effect = (
+            defn.format_effect(current_level + 1)
+            if current_level < defn.max_level
+            else None
+        )
         upgrades.append({
             'upgrade_type':  ut,
             'label':         defn.label,
             'description':   defn.description,
             'current_level': current_level,
             'max_level':     defn.max_level,
+            'current_effect': defn.format_effect(current_level),
+            'next_effect':    next_effect,
             'cost':          cost,             # None if maxed
             'can_afford':    cost is not None and balance >= cost,
             'maxed':         current_level >= defn.max_level,
         })
+
+    active_tab = (request.args.get('tab') or 'upgrades').strip().lower()
+    if active_tab not in {'upgrades', 'gear'}:
+        active_tab = 'upgrades'
 
     return render_template(
         'player/blacksmith.html',
         balance=balance,
         upgrades=upgrades,
         gear_items=gear_items,
+        active_tab=active_tab,
     )
 
 
@@ -396,6 +454,9 @@ def blacksmith_buy():
         flash('The Blacksmith is unavailable after you join a session.', 'error')
         return redirect(url_for('player.dashboard'))
     upgrade_type = request.form.get('upgrade_type', '').strip()
+    return_tab = (request.form.get('return_tab') or 'upgrades').strip().lower()
+    if return_tab not in {'upgrades', 'gear'}:
+        return_tab = 'upgrades'
 
     try:
         result = purchase_upgrade(
@@ -412,7 +473,7 @@ def blacksmith_buy():
         db.session.rollback()
         flash(str(exc), 'error')
 
-    return redirect(url_for('player.blacksmith'))
+    return redirect(url_for('player.blacksmith', tab=return_tab))
 
 
 @player_bp.route('/blacksmith/buy_gear', methods=['POST'])
@@ -424,6 +485,9 @@ def blacksmith_buy_gear():
         return redirect(url_for('player.dashboard'))
 
     item_id = (request.form.get('item_id') or '').strip()
+    return_tab = (request.form.get('return_tab') or 'gear').strip().lower()
+    if return_tab not in {'upgrades', 'gear'}:
+        return_tab = 'gear'
 
     try:
         result = purchase_blacksmith_gear(
@@ -440,7 +504,7 @@ def blacksmith_buy_gear():
         db.session.rollback()
         flash(str(exc), 'error')
 
-    return redirect(url_for('player.blacksmith'))
+    return redirect(url_for('player.blacksmith', tab=return_tab))
 
 
 @player_bp.route('/performance')
@@ -451,6 +515,15 @@ def performance():
         page_title='Performance',
         page_heading='Performance',
         page_description='Player performance summaries and deeper analysis will live here.',
+    )
+
+
+@player_bp.route('/progress')
+@login_required
+def progress():
+    return render_template(
+        'player/progress.html',
+        dashboard=build_player_dashboard(current_user.id),
     )
 
 

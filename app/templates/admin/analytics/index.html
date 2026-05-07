@@ -1,0 +1,67 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}Analytics Rounds{% endblock %}
+
+{% block admin_content %}
+{% set title = "Analytics Rounds" %}
+{% set eyebrow = "History" %}
+{% set description = "Raw analytics rounds captured by the H1/H2/H3 history layer. Newest rounds are shown first." %}
+{% include "admin/_page_header.html" %}
+
+<div style="margin-bottom:16px;">
+    <a href="{{ url_for('admin.analytics_rounds') }}">All</a>
+    <span style="color:#999; margin:0 8px;">|</span>
+    <a href="{{ url_for('admin.analytics_rounds', mode='classic') }}">Classic</a>
+    <span style="color:#999; margin:0 8px;">|</span>
+    <a href="{{ url_for('admin.analytics_rounds', mode='boss_rush') }}">Boss Rush</a>
+    <span style="color:#999; margin:0 8px;">|</span>
+    <a href="{{ url_for('admin.analytics_class_dashboard') }}">Class Dashboard</a>
+    {% if selected_mode %}
+    <span style="margin-left:12px; color:#555;">Filtered by <strong>{{ selected_mode }}</strong></span>
+    {% endif %}
+</div>
+
+{% if rounds %}
+<table border="1" cellpadding="8" style="border-collapse:collapse; font-size:0.92em; width:100%;">
+    <thead style="background:#f1f3f5;">
+        <tr>
+            <th style="text-align:left;">Analytics ID</th>
+            <th style="text-align:left;">Mode</th>
+            <th style="text-align:left;">Session</th>
+            <th style="text-align:center;">Round</th>
+            <th style="text-align:left;">Class</th>
+            <th style="text-align:left;">Problem Set</th>
+            <th style="text-align:left;">Started</th>
+            <th style="text-align:left;">Ended</th>
+            <th style="text-align:left;">Finalized</th>
+            <th style="text-align:center;">Open</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for row in rounds %}
+    <tr>
+        <td>#{{ row.id }}</td>
+        <td>{{ row.mode }}</td>
+        <td>
+            Session #{{ row.session_id }}
+            {% if row.session_label_snapshot %}<br><span style="color:#666;">{{ row.session_label_snapshot }}</span>{% endif %}
+        </td>
+        <td style="text-align:center;">{{ row.round_number or "n/a" }}</td>
+        <td>{{ row.group_name_snapshot or "Open" }}</td>
+        <td>{{ row.problem_set_name_snapshot or "n/a" }}</td>
+        <td style="white-space:nowrap;">{{ row.started_at.strftime("%Y-%m-%d %H:%M") if row.started_at else "n/a" }}</td>
+        <td style="white-space:nowrap;">{{ row.ended_at.strftime("%Y-%m-%d %H:%M") if row.ended_at else "Active" }}</td>
+        <td style="white-space:nowrap;">{{ row.finalized_at.strftime("%Y-%m-%d %H:%M") if row.finalized_at else "Not finalized" }}</td>
+        <td style="text-align:center;">
+            <a href="{{ url_for('admin.analytics_round_detail', analytics_round_id=row.id) }}">View</a>
+        </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div style="background:#fff3cd; border:1px solid #ffc107; border-radius:6px; padding:14px 18px; color:#856404;">
+    No analytics rounds have been recorded yet.
+</div>
+{% endif %}
+{% endblock %}

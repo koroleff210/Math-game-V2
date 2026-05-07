@@ -2,129 +2,670 @@
 
 {% block title %}Blacksmith - Upgrades & Gear{% endblock %}
 
+{% block head %}
+<style>
+  body {
+    margin: 0;
+    min-height: 100vh;
+    overflow: hidden;
+    color: #2f271d;
+    background:
+      linear-gradient(90deg, rgba(38, 25, 15, 0.42) 0%, rgba(52, 34, 20, 0.14) 46%, rgba(30, 20, 14, 0.02) 72%),
+      url("{{ url_for('static', filename='classic_ui/player_ui/blacksmith_bg.png') }}") center right / cover no-repeat fixed;
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  }
+  .flash-messages {
+    display: none;
+  }
+  .blacksmith-page {
+    height: 100vh;
+    overflow: hidden;
+    padding: 16px clamp(18px, 3vw, 46px);
+    box-sizing: border-box;
+  }
+  .blacksmith-layout {
+    width: min(48vw, 680px);
+    min-width: 560px;
+    height: 100%;
+  }
+  .smith-panel {
+    height: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-radius: 18px;
+    border: 1px solid rgba(110, 83, 48, 0.28);
+    background:
+      linear-gradient(180deg, rgba(255, 248, 235, 0.96), rgba(239, 224, 197, 0.93)),
+      url("{{ url_for('static', filename='classic_ui/player_ui/panel_texture.png') }}");
+    background-repeat: no-repeat, repeat;
+    background-size: auto, 240px 240px;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.72),
+      0 22px 54px rgba(24, 14, 8, 0.36);
+  }
+  .smith-header {
+    flex: 0 0 auto;
+    padding: 12px 16px 10px;
+    border-bottom: 1px solid rgba(115, 89, 55, 0.16);
+    background: linear-gradient(180deg, rgba(255, 251, 242, 0.78), rgba(246, 235, 215, 0.48));
+  }
+  .smith-title-row,
+  .smith-balance-row,
+  .smith-card-footer,
+  .smith-card-heading,
+  .gear-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .smith-title-row {
+    align-items: center;
+  }
+  .smith-title {
+    margin: 0;
+    color: #2d2116;
+    font-size: clamp(1.62rem, 2.4vw, 2.24rem);
+    line-height: 1;
+    letter-spacing: 0;
+  }
+  .smith-subtitle {
+    margin: 4px 0 0;
+    max-width: 44ch;
+    color: #6a5741;
+    font-size: 0.84rem;
+  }
+  .smith-back-link,
+  .smith-tab,
+  .smith-buy-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    text-decoration: none;
+    cursor: pointer;
+    font: inherit;
+    font-weight: 800;
+  }
+  .smith-back-link {
+    flex: 0 0 auto;
+    min-height: 30px;
+    padding: 0 10px;
+    border-radius: 10px;
+    font-size: 0.8rem;
+    color: #f9f0dc;
+    background: linear-gradient(180deg, #5c7580 0%, #3f5962 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.20),
+      0 7px 16px rgba(55, 37, 19, 0.16);
+  }
+  .smith-balance-row {
+    margin-top: 8px;
+  }
+  .smith-balance {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 30px;
+    padding: 0 11px;
+    font-size: 0.88rem;
+    border-radius: 999px;
+    color: #593c0f;
+    background: linear-gradient(180deg, rgba(255, 244, 206, 0.98), rgba(233, 203, 127, 0.92));
+    border: 1px solid rgba(142, 102, 28, 0.24);
+    font-weight: 900;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.62);
+  }
+  .smith-balance-label {
+    color: #766148;
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .smith-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    flex: 0 0 auto;
+    gap: 7px;
+    padding: 7px 9px;
+    background: rgba(214, 193, 159, 0.22);
+    border-bottom: 1px solid rgba(115, 89, 55, 0.14);
+  }
+  .smith-tab {
+    min-height: 32px;
+    border-radius: 10px;
+    font-size: 0.84rem;
+    color: #6a5843;
+    background: rgba(255, 250, 240, 0.58);
+    border: 1px solid rgba(120, 95, 61, 0.13);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.48);
+  }
+  .smith-tab.is-active {
+    color: #234d54;
+    background: linear-gradient(180deg, rgba(229, 243, 242, 0.98), rgba(199, 222, 219, 0.94));
+    border-color: rgba(49, 99, 105, 0.28);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.70),
+      0 0 0 2px rgba(49, 99, 105, 0.08);
+  }
+  .smith-flashes {
+    display: grid;
+    gap: 8px;
+    flex: 0 0 auto;
+    padding: 8px 12px 0;
+  }
+  .smith-flash {
+    margin: 0;
+    padding: 7px 10px;
+    border-radius: 11px;
+    font-weight: 700;
+    font-size: 0.82rem;
+    border: 1px solid transparent;
+  }
+  .smith-flash-success {
+    color: #265832;
+    background: rgba(220, 241, 224, 0.94);
+    border-color: rgba(74, 130, 86, 0.18);
+  }
+  .smith-flash-error,
+  .smith-flash-danger {
+    color: #763025;
+    background: rgba(248, 222, 216, 0.94);
+    border-color: rgba(151, 72, 58, 0.18);
+  }
+  .smith-flash-info,
+  .smith-flash-message {
+    color: #255562;
+    background: rgba(220, 237, 240, 0.94);
+    border-color: rgba(70, 119, 130, 0.18);
+  }
+  .smith-content {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-color: rgba(126, 89, 39, 0.58) rgba(234, 215, 181, 0.46);
+    scrollbar-width: thin;
+  }
+  .smith-content::-webkit-scrollbar {
+    width: 9px;
+  }
+  .smith-content::-webkit-scrollbar-track {
+    background: rgba(234, 215, 181, 0.44);
+    border-radius: 999px;
+  }
+  .smith-content::-webkit-scrollbar-thumb {
+    border: 2px solid rgba(234, 215, 181, 0.44);
+    border-radius: 999px;
+    background: linear-gradient(180deg, #ad7b36 0%, #735025 100%);
+  }
+  .smith-tab-panel {
+    display: none;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px 12px;
+  }
+  .smith-tab-panel.is-active {
+    display: block;
+  }
+  #smith-upgrades.smith-tab-panel.is-active {
+    display: flex;
+  }
+  .smith-card-list {
+    display: grid;
+    gap: 8px;
+  }
+  .smith-upgrade-grid {
+    flex: 1 1 auto;
+    min-height: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: repeat(2, minmax(172px, 1fr));
+    gap: 9px;
+  }
+  .smith-card {
+    border: 1px solid rgba(117, 91, 55, 0.16);
+    border-radius: 14px;
+    background: rgba(255, 250, 240, 0.92);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.68),
+      0 9px 18px rgba(56, 38, 20, 0.08);
+  }
+  .upgrade-card {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    gap: 7px;
+    min-height: 0;
+    padding: 9px;
+    background:
+      linear-gradient(180deg, rgba(255, 251, 244, 0.96), rgba(244, 232, 209, 0.92));
+  }
+  .upgrade-card-top {
+    display: grid;
+    grid-template-columns: 58px minmax(0, 1fr);
+    gap: 8px;
+    align-items: center;
+  }
+  .upgrade-icon-frame {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 58px;
+    height: 58px;
+    border-radius: 13px;
+    background:
+      radial-gradient(circle at 42% 28%, rgba(255, 246, 210, 0.96), rgba(219, 184, 110, 0.50) 58%, rgba(129, 86, 38, 0.46));
+    border: 1px solid rgba(119, 84, 35, 0.22);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.70),
+      0 8px 16px rgba(63, 40, 18, 0.14);
+    overflow: hidden;
+  }
+  .upgrade-icon-frame::after {
+    content: '';
+    position: absolute;
+    inset: 5px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 248, 226, 0.42);
+    pointer-events: none;
+  }
+  .upgrade-icon {
+    position: relative;
+    z-index: 1;
+    width: 50px;
+    height: 50px;
+    object-fit: contain;
+    filter: drop-shadow(0 5px 7px rgba(49, 31, 13, 0.18));
+  }
+  .upgrade-card-main {
+    min-width: 0;
+  }
+  .upgrade-title-line {
+    display: grid;
+    gap: 4px;
+    align-content: start;
+  }
+  .upgrade-effect-stack {
+    display: grid;
+    gap: 5px;
+  }
+  .upgrade-effect-row {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr);
+    gap: 6px;
+    align-items: center;
+    min-height: 26px;
+    padding: 5px 7px;
+    border-radius: 9px;
+    background: rgba(255, 250, 241, 0.62);
+    border: 1px solid rgba(119, 93, 56, 0.11);
+  }
+  .upgrade-effect-label {
+    color: #7b684f;
+    font-size: 0.62rem;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .upgrade-effect-value {
+    color: #31271c;
+    font-size: 0.74rem;
+    font-weight: 800;
+    line-height: 1.2;
+  }
+  .upgrade-effect-row.is-next {
+    background: rgba(229, 239, 218, 0.66);
+    border-color: rgba(93, 123, 67, 0.13);
+  }
+  .upgrade-level-track {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+  }
+  .upgrade-level-dot {
+    width: 14px;
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(142, 123, 91, 0.26);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.48);
+  }
+  .upgrade-level-dot.is-filled {
+    background: linear-gradient(180deg, #e3be58 0%, #b47c24 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 247, 204, 0.62),
+      0 2px 5px rgba(91, 61, 18, 0.16);
+  }
+  .smith-card-title {
+    margin: 0;
+    font-size: 0.92rem;
+    color: #32261a;
+    line-height: 1.2;
+  }
+  .smith-level-pill,
+  .smith-slot-pill {
+    flex: 0 0 auto;
+    padding: 5px 9px;
+    border-radius: 999px;
+    color: #634d31;
+    background: rgba(232, 216, 187, 0.72);
+    border: 1px solid rgba(119, 93, 56, 0.13);
+    font-size: 0.78rem;
+    font-weight: 900;
+    white-space: nowrap;
+  }
+  .smith-level-pill {
+    justify-self: start;
+    padding: 3px 7px;
+    font-size: 0.66rem;
+  }
+  .smith-card-text {
+    margin: 7px 0 0;
+    color: #5f503f;
+    font-size: 0.88rem;
+    line-height: 1.35;
+  }
+  .smith-next-effect {
+    margin: 7px 0 0;
+    padding: 7px 9px;
+    border-radius: 10px;
+    color: #3f4f38;
+    background: rgba(230, 239, 218, 0.68);
+    border: 1px solid rgba(93, 123, 67, 0.12);
+    font-size: 0.84rem;
+  }
+  .smith-card-footer {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(119, 93, 56, 0.12);
+  }
+  .upgrade-card .smith-card-footer {
+    margin-top: 0;
+    padding-top: 7px;
+  }
+  .smith-cost {
+    color: #5b3f12;
+    font-weight: 900;
+    font-size: 0.82rem;
+  }
+  .smith-cost-muted {
+    color: #7c6e5e;
+    font-weight: 800;
+    font-size: 0.82rem;
+  }
+  .smith-buy-button {
+    min-height: 30px;
+    min-width: 72px;
+    padding: 0 12px;
+    border-radius: 10px;
+    font-size: 0.82rem;
+    color: #fff8e8;
+    background: linear-gradient(180deg, #2f7f8a 0%, #225e66 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.20),
+      0 7px 14px rgba(48, 36, 20, 0.14);
+  }
+  .smith-buy-button:hover {
+    background: linear-gradient(180deg, #2a717b 0%, #1f535a 100%);
+  }
+  .smith-buy-button:disabled {
+    color: rgba(255, 255, 255, 0.76);
+    cursor: not-allowed;
+    background: linear-gradient(180deg, #a9a195 0%, #867c70 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  }
+  .gear-card {
+    display: grid;
+    grid-template-columns: 76px minmax(0, 1fr);
+    gap: 11px;
+    padding: 11px;
+  }
+  .gear-store-thumb {
+    width: 76px;
+    height: 76px;
+    object-fit: cover;
+    border-radius: 14px;
+    background: rgba(250, 246, 237, 0.96);
+    border: 1px solid rgba(117, 91, 55, 0.17);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  }
+  .gear-card-body {
+    min-width: 0;
+  }
+  .gear-effects {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 8px;
+  }
+  .gear-effect-chip {
+    padding: 4px 7px;
+    border-radius: 999px;
+    color: #3d4636;
+    background: rgba(232, 239, 222, 0.74);
+    border: 1px solid rgba(91, 119, 67, 0.12);
+    font-size: 0.75rem;
+    font-weight: 800;
+  }
+  .gear-description {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .smith-empty {
+    margin: 0;
+    padding: 18px;
+    border-radius: 14px;
+    color: #6d5e4c;
+    background: rgba(255, 250, 240, 0.78);
+    border: 1px dashed rgba(119, 93, 56, 0.18);
+  }
+  .smith-form {
+    margin: 0;
+  }
+  @media (max-width: 980px) {
+    body {
+      overflow: auto;
+      background-position: center right;
+    }
+    .blacksmith-page {
+      height: auto;
+      min-height: 100vh;
+      overflow: visible;
+      padding: 18px;
+    }
+    .blacksmith-layout {
+      width: min(100%, 680px);
+      min-width: 0;
+      height: auto;
+    }
+    .smith-panel {
+      height: auto;
+      overflow: visible;
+    }
+    .smith-content {
+      display: block;
+      overflow: visible;
+    }
+    .smith-upgrade-grid {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto;
+      min-height: 0;
+    }
+    .upgrade-card {
+      min-height: 184px;
+    }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<div style="max-width:760px; margin:40px auto; font-family:sans-serif; padding:0 16px;">
+<main class="blacksmith-page">
+  <section class="blacksmith-layout" aria-label="Blacksmith purchases">
+    <div class="smith-panel">
+      <header class="smith-header">
+        <div class="smith-title-row">
+          <div>
+            <h1 class="smith-title">Blacksmith</h1>
+            <p class="smith-subtitle">Spend diamonds on permanent upgrades and gear.</p>
+          </div>
+          <a class="smith-back-link" href="{{ url_for('player.dashboard') }}">Back to Hub</a>
+        </div>
+        <div class="smith-balance-row">
+          <span class="smith-balance-label">Diamond balance</span>
+          <span class="smith-balance">&#128142; {{ balance }}</span>
+        </div>
+      </header>
 
-    <h1 style="margin-bottom:4px;">Blacksmith</h1>
-    <p style="margin-top:0; color:#555;">
-        Spend Diamonds on permanent upgrades and gear. Purchased gear appears in your Hub inventory and can be equipped there later.
-    </p>
+      <nav class="smith-tabs" aria-label="Blacksmith sections">
+        <a
+          class="smith-tab {% if active_tab == 'upgrades' %}is-active{% endif %}"
+          href="{{ url_for('player.blacksmith', tab='upgrades') }}"
+          aria-current="{% if active_tab == 'upgrades' %}page{% else %}false{% endif %}"
+        >
+          Upgrades
+        </a>
+        <a
+          class="smith-tab {% if active_tab == 'gear' %}is-active{% endif %}"
+          href="{{ url_for('player.blacksmith', tab='gear') }}"
+          aria-current="{% if active_tab == 'gear' %}page{% else %}false{% endif %}"
+        >
+          Gear Store
+        </a>
+      </nav>
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% for category, message in messages %}
-            <div style="padding:10px; margin-bottom:12px; border-radius:4px;
-                        background:{% if category == 'success' %}#d4edda{% elif category == 'error' %}#f8d7da{% else %}#d1ecf1{% endif %};
-                        color:{% if category == 'success' %}#155724{% elif category == 'error' %}#721c24{% else %}#0c5460{% endif %};">
-                {{ message }}
-            </div>
-        {% endfor %}
-    {% endwith %}
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="smith-flashes">
+            {% for category, message in messages %}
+              <p class="smith-flash smith-flash-{{ category }}">{{ message }}</p>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
 
-    <p style="font-size:1.15em; margin-bottom:24px;">
-        <strong>Your Diamonds balance: {{ balance }}</strong>
-    </p>
+      <div class="smith-content">
+        <section class="smith-tab-panel {% if active_tab == 'upgrades' %}is-active{% endif %}" id="smith-upgrades">
+          <div class="smith-card-list smith-upgrade-grid">
+            {% for u in upgrades %}
+              {% if u.upgrade_type == 'steal_token_cap' %}
+                {% set upgrade_icon = 'classic_ui/icons/steal_token.png' %}
+                {% set upgrade_icon_alt = 'Steal token pouch' %}
+              {% elif u.upgrade_type == 'shield_bonus_pct' %}
+                {% set upgrade_icon = 'classic_ui/icons/shield.png' %}
+                {% set upgrade_icon_alt = 'Shield' %}
+              {% elif u.upgrade_type == 'mine_bonus' %}
+                {% set upgrade_icon = 'gear_icons/main_hand/main_hand_001.png' %}
+                {% set upgrade_icon_alt = 'Mining shovel' %}
+              {% elif u.upgrade_type == 'treasure_bonus' %}
+                {% set upgrade_icon = 'classic_ui/treasure/containers/chest_01_closed.png' %}
+                {% set upgrade_icon_alt = 'Treasure chest' %}
+              {% else %}
+                {% set upgrade_icon = 'classic_ui/icons/diamond.png' %}
+                {% set upgrade_icon_alt = 'Diamond' %}
+              {% endif %}
+              <article class="smith-card upgrade-card" data-upgrade-type="{{ u.upgrade_type }}">
+                <div class="upgrade-card-top">
+                  <div class="upgrade-icon-frame">
+                    <img class="upgrade-icon" src="{{ url_for('static', filename=upgrade_icon) }}" alt="{{ upgrade_icon_alt }}">
+                  </div>
+                  <div class="upgrade-title-line">
+                    <h2 class="smith-card-title">{{ u.label }}</h2>
+                    <span class="smith-level-pill">
+                      {% if u.maxed %}
+                        Max level
+                      {% else %}
+                        Level {{ u.current_level }} / {{ u.max_level }}
+                      {% endif %}
+                    </span>
+                    <div class="upgrade-level-track" aria-label="{{ u.current_level }} of {{ u.max_level }} levels purchased">
+                      {% for i in range(u.max_level) %}
+                        <span class="upgrade-level-dot {% if i < u.current_level %}is-filled{% endif %}"></span>
+                      {% endfor %}
+                    </div>
+                  </div>
+                </div>
 
-    <h2 style="font-size:1.1em; margin-bottom:12px;">Upgrades</h2>
-    <table style="width:100%; border-collapse:collapse;">
-        <thead>
-            <tr style="background:#f8f9fa; text-align:left;">
-                <th style="padding:10px 8px; border-bottom:2px solid #dee2e6;">Upgrade</th>
-                <th style="padding:10px 8px; border-bottom:2px solid #dee2e6; text-align:center;">Level</th>
-                <th style="padding:10px 8px; border-bottom:2px solid #dee2e6; text-align:center;">Next Cost</th>
-                <th style="padding:10px 8px; border-bottom:2px solid #dee2e6;"></th>
-            </tr>
-        </thead>
-        <tbody>
-        {% for u in upgrades %}
-        <tr data-upgrade-type="{{ u.upgrade_type }}" style="border-bottom:1px solid #dee2e6;">
-            <td style="padding:10px 8px;">
-                <strong>{{ u.label }}</strong><br>
-                <span style="font-size:0.88em; color:#666;">{{ u.description }}</span>
-            </td>
-            <td style="padding:10px 8px; text-align:center;">
-                {{ u.current_level }} / {{ u.max_level }}
-            </td>
-            <td style="padding:10px 8px; text-align:center;">
-                {% if u.maxed %}
-                    <em style="color:#888;">Maxed</em>
-                {% else %}
-                    {{ u.cost }} Diamond(s)
-                {% endif %}
-            </td>
-            <td style="padding:10px 8px; text-align:right;">
-                {% if not u.maxed %}
-                    <form method="POST" action="{{ url_for('player.blacksmith_buy') }}" style="display:inline;">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <input type="hidden" name="upgrade_type" value="{{ u.upgrade_type }}">
-                        <button type="submit"
-                                {% if not u.can_afford %}disabled{% endif %}
-                                style="padding:6px 14px; border:none; border-radius:4px; cursor:{% if u.can_afford %}pointer{% else %}not-allowed{% endif %};
-                                       background:{% if u.can_afford %}#007bff{% else %}#adb5bd{% endif %}; color:white;">
-                            Buy
-                        </button>
+                <div class="upgrade-effect-stack">
+                  <div class="upgrade-effect-row">
+                    <span class="upgrade-effect-label">Now</span>
+                    <span class="upgrade-effect-value">{{ u.current_effect }}</span>
+                  </div>
+                  <div class="upgrade-effect-row is-next">
+                    <span class="upgrade-effect-label">Next</span>
+                    <span class="upgrade-effect-value">
+                      {% if u.next_effect %}
+                        {{ u.next_effect }}
+                      {% else %}
+                        Fully upgraded
+                      {% endif %}
+                    </span>
+                  </div>
+                </div>
+
+                <div class="smith-card-footer">
+                  {% if u.maxed %}
+                    <span class="smith-cost-muted">Maxed</span>
+                  {% else %}
+                    <span class="smith-cost">Cost: &#128142; {{ u.cost }}</span>
+                  {% endif %}
+                  {% if not u.maxed %}
+                    <form class="smith-form" method="POST" action="{{ url_for('player.blacksmith_buy') }}">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <input type="hidden" name="upgrade_type" value="{{ u.upgrade_type }}">
+                      <input type="hidden" name="return_tab" value="upgrades">
+                      <button type="submit" class="smith-buy-button" {% if not u.can_afford %}disabled{% endif %}>
+                        Buy
+                      </button>
                     </form>
-                {% endif %}
-            </td>
-        </tr>
-        {% endfor %}
-        </tbody>
-    </table>
+                  {% endif %}
+                </div>
+              </article>
+            {% endfor %}
+          </div>
+        </section>
 
-    <div style="margin-top:32px;">
-        <h2 style="font-size:1.1em; margin-bottom:12px;">Gear</h2>
-        {% if gear_items %}
-        <table style="width:100%; border-collapse:collapse;">
-            <thead>
-                <tr style="background:#f8f9fa; text-align:left;">
-                    <th style="padding:10px 8px; border-bottom:2px solid #dee2e6;">Item</th>
-                    <th style="padding:10px 8px; border-bottom:2px solid #dee2e6;">Image</th>
-                    <th style="padding:10px 8px; border-bottom:2px solid #dee2e6;">Slot</th>
-                    <th style="padding:10px 8px; border-bottom:2px solid #dee2e6;">Effects</th>
-                    <th style="padding:10px 8px; border-bottom:2px solid #dee2e6; text-align:center;">Cost</th>
-                    <th style="padding:10px 8px; border-bottom:2px solid #dee2e6;"></th>
-                </tr>
-            </thead>
-            <tbody>
-            {% for item in gear_items %}
-            <tr data-item-id="{{ item.id }}" style="border-bottom:1px solid #dee2e6;">
-                <td style="padding:10px 8px;">
-                    <strong>{{ item.name }}</strong><br>
-                    <span style="font-size:0.88em; color:#666;">{{ item.description }}</span>
-                </td>
-                <td style="padding:10px 8px;">
-                    <img src="{{ item.icon_static_path }}" alt="{{ item.name }}" style="width:52px; height:52px; object-fit:cover; border:1px solid #ddd; border-radius:6px; background:#f8f9fa;">
-                </td>
-                <td style="padding:10px 8px;">{{ item.slot_type.replace('_', ' ')|title }}</td>
-                <td style="padding:10px 8px; font-size:0.9em; color:#555;">
-                    Mine {{ '%+d'|format(item.mine_gold_delta) }} |
-                    Steal {{ '%+d'|format(item.steal_gold_delta) }} |
-                    Shield {{ '%+d'|format(item.shield_duration_delta) }}s
-                </td>
-                <td style="padding:10px 8px; text-align:center;">{{ item.diamond_cost }} Diamond(s)</td>
-                <td style="padding:10px 8px; text-align:right;">
-                    <form method="POST" action="{{ url_for('player.blacksmith_buy_gear') }}" style="display:inline;">
+        <section class="smith-tab-panel {% if active_tab == 'gear' %}is-active{% endif %}" id="smith-gear">
+          {% if gear_items %}
+            <div class="smith-card-list">
+              {% for item in gear_items %}
+                <article class="smith-card gear-card" data-item-id="{{ item.id }}">
+                  <img class="gear-store-thumb" src="{{ item.icon_static_path }}" alt="{{ item.name }}">
+                  <div class="gear-card-body">
+                    <div class="gear-card-top">
+                      <h2 class="smith-card-title">{{ item.name }}</h2>
+                      <span class="smith-slot-pill">{{ item.slot_type.replace('_', ' ')|title }}</span>
+                    </div>
+                    <div class="gear-effects" aria-label="Gear effects">
+                      <span class="gear-effect-chip">Mine {{ '%+d'|format(item.mine_gold_delta) }}</span>
+                      <span class="gear-effect-chip">Steal {{ '%+d'|format(item.steal_gold_delta) }}</span>
+                      <span class="gear-effect-chip">Shield {{ '%+d'|format(item.shield_duration_delta) }}s</span>
+                    </div>
+                    <p class="smith-card-text gear-description">{{ item.description }}</p>
+                    <div class="smith-card-footer">
+                      <span class="smith-cost">Cost: &#128142; {{ item.diamond_cost }}</span>
+                      <form class="smith-form" method="POST" action="{{ url_for('player.blacksmith_buy_gear') }}">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="item_id" value="{{ item.id }}">
-                        <button type="submit"
-                                {% if balance < item.diamond_cost %}disabled{% endif %}
-                                style="padding:6px 14px; border:none; border-radius:4px; cursor:{% if balance >= item.diamond_cost %}pointer{% else %}not-allowed{% endif %};
-                                       background:{% if balance >= item.diamond_cost %}#007bff{% else %}#adb5bd{% endif %}; color:white;">
-                            Buy
+                        <input type="hidden" name="return_tab" value="gear">
+                        <button type="submit" class="smith-buy-button" {% if balance < item.diamond_cost %}disabled{% endif %}>
+                          Buy
                         </button>
-                    </form>
-                </td>
-            </tr>
-            {% endfor %}
-            </tbody>
-        </table>
-        {% else %}
-        <p style="color:#666; margin:0;">No gear is currently available for purchase.</p>
-        {% endif %}
+                      </form>
+                    </div>
+                  </div>
+                </article>
+              {% endfor %}
+            </div>
+          {% else %}
+            <p class="smith-empty">No gear is currently available for purchase.</p>
+          {% endif %}
+        </section>
+      </div>
     </div>
-
-    <p style="margin-top:24px;">
-        <a href="{{ url_for('player.dashboard') }}" style="color:#007bff;">&larr; Dashboard</a>
-    </p>
-
-</div>
+  </section>
+</main>
 {% endblock %}

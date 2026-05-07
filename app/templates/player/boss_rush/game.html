@@ -1,0 +1,1929 @@
+{% extends "base.html" %}
+
+{% block title %}Boss Rush{% endblock %}
+
+{% block flash_messages %}{% endblock %}
+
+{% block head %}
+<script src="/static/js/socket.io.min.js"></script>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<script src="{{ url_for('static', filename='js/problem_graph_renderer.js') }}"></script>
+<script>
+    window.MathJax = {
+        tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
+        options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'] }
+    };
+</script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+<style>
+    body {
+        --br-bg-wash: rgba(244, 235, 218, 0.22);
+        --br-panel: rgba(250, 244, 232, 0.62);
+        --br-panel-strong: rgba(255, 250, 240, 0.78);
+        --br-content: rgba(255, 252, 246, 0.88);
+        --br-content-strong: rgba(255, 253, 248, 0.94);
+        --br-chip: rgba(255, 249, 239, 0.66);
+        --br-border: rgba(127, 105, 72, 0.20);
+        --br-border-strong: rgba(127, 105, 72, 0.34);
+        --br-shadow: 0 10px 24px rgba(60, 43, 20, 0.08);
+        --br-shadow-soft: 0 5px 14px rgba(60, 43, 20, 0.06);
+        --br-text: #2f2a22;
+        --br-muted: #746956;
+        --br-heading: #5d4b32;
+        --br-accent: #4f7580;
+        --br-accent-strong: #3f646d;
+        --br-accent-soft: rgba(79, 117, 128, 0.18);
+        --br-warm-accent: #a77a2d;
+        --br-warm-accent-soft: rgba(167, 122, 45, 0.18);
+        --br-danger: #9b4f3f;
+        --br-danger-soft: rgba(155, 79, 63, 0.16);
+        --br-bg-image: url("{{ url_for('static', filename='classic_ui/player_ui/background_fire_giant.png') }}");
+        --br-bg-overlay: linear-gradient(180deg, rgba(244, 235, 218, 0.54), rgba(226, 211, 187, 0.42));
+        --br-shell-bg: linear-gradient(180deg, rgba(255, 249, 239, 0.18), rgba(236, 224, 202, 0.10)), linear-gradient(180deg, rgba(239, 227, 205, 0.26), rgba(234, 219, 195, 0.17));
+        --br-identity-glow: rgba(167, 122, 45, 0.12);
+        --br-hp-fill: linear-gradient(90deg, var(--br-danger), #c08345 54%, var(--br-warm-accent));
+        --br-ability-fill: linear-gradient(90deg, var(--br-accent), #72949b, var(--br-warm-accent));
+        --br-button: linear-gradient(180deg, rgba(255, 250, 240, 0.96), rgba(218, 189, 135, 0.92)), #dabb87;
+        --br-button-hover: linear-gradient(180deg, rgba(255, 253, 247, 1), rgba(196, 159, 92, 0.96)), #c49f5c;
+        --br-button-text: #3e3321;
+        --br-notification: linear-gradient(180deg, rgba(255, 252, 246, 0.94), rgba(244, 236, 224, 0.88));
+        --br-combo-bg: linear-gradient(180deg, rgba(239, 246, 245, 0.72), rgba(222, 235, 234, 0.56));
+        --br-focus: rgba(79, 117, 128, 0.34);
+        margin: 0;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--br-text);
+        overflow: hidden;
+        background: #eadfcd;
+    }
+
+    .boss-rush-page {
+        height: 100vh;
+        height: 100dvh;
+        padding: 8px;
+        box-sizing: border-box;
+        overflow: hidden;
+        background:
+            radial-gradient(circle at 18% 0%, rgba(255, 247, 230, 0.30), transparent 34%),
+            var(--br-bg-overlay),
+            var(--br-bg-image) center/cover no-repeat fixed;
+    }
+
+    .boss-battle-shell {
+        display: grid;
+        grid-template-columns: minmax(196px, 0.62fr) minmax(0, 2.55fr) minmax(218px, 0.72fr);
+        gap: 10px;
+        max-width: 1680px;
+        height: calc(100vh - 16px);
+        height: calc(100dvh - 16px);
+        min-height: 0;
+        margin: 0 auto;
+        padding: 10px;
+        box-sizing: border-box;
+        border: 1px solid rgba(87, 106, 126, 0.20);
+        border-radius: 22px;
+        background:
+            linear-gradient(135deg, rgba(250, 231, 235, 0.72), rgba(219, 238, 247, 0.70)),
+            linear-gradient(180deg, rgba(255, 255, 255, 0.58), rgba(238, 206, 218, 0.28));
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.74),
+            0 22px 50px rgba(52, 72, 92, 0.16);
+        overflow: hidden;
+    }
+
+    .boss-left-rail,
+    .boss-right-rail {
+        display: flex;
+        min-width: 0;
+        min-height: 0;
+        flex-direction: column;
+        gap: 7px;
+        height: 100%;
+        overflow: hidden;
+    }
+
+    .boss-left-rail {
+        overflow-y: auto;
+        padding-right: 2px;
+        scrollbar-color: rgba(126, 144, 169, 0.36) transparent;
+        scrollbar-width: thin;
+    }
+
+    .boss-left-rail::-webkit-scrollbar,
+    .problem-scroll::-webkit-scrollbar,
+    .problem-body-region::-webkit-scrollbar,
+    .choice-grid::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    .boss-left-rail::-webkit-scrollbar-thumb,
+    .problem-scroll::-webkit-scrollbar-thumb,
+    .problem-body-region::-webkit-scrollbar-thumb,
+    .choice-grid::-webkit-scrollbar-thumb {
+        border-radius: 999px;
+        background: rgba(126, 144, 169, 0.34);
+    }
+
+    .boss-left-rail::-webkit-scrollbar-track,
+    .problem-scroll::-webkit-scrollbar-track,
+    .problem-body-region::-webkit-scrollbar-track,
+    .choice-grid::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .boss-panel,
+    .problem-arena {
+        border: 1px solid rgba(92, 109, 128, 0.18);
+        border-radius: 20px;
+        background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(250, 231, 235, 0.40)),
+            rgba(255, 255, 255, 0.58);
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.80),
+            0 10px 22px rgba(69, 88, 106, 0.10);
+        backdrop-filter: blur(8px);
+    }
+
+    .boss-panel {
+        padding: 8px;
+    }
+
+    .ability-panel,
+    .stats-panel {
+        padding: 7px;
+    }
+
+    .boss-panel-title,
+    .arena-kicker {
+        margin: 0 0 6px;
+        color: #556579;
+        font-size: 0.74rem;
+        font-weight: 800;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+    }
+
+    .boss-identity-card {
+        background:
+            radial-gradient(circle at top, rgba(224, 212, 231, 0.88), transparent 44%),
+            linear-gradient(180deg, rgba(250, 231, 235, 0.76), rgba(219, 238, 247, 0.48));
+    }
+
+    .boss-portrait-wrap {
+        display: grid;
+        height: clamp(168px, 30vh, 258px);
+        min-height: 0;
+        place-items: center;
+        border: 1px solid rgba(100, 111, 132, 0.16);
+        border-radius: 16px;
+        background:
+            radial-gradient(circle at 50% 24%, rgba(255, 255, 255, 0.90), transparent 35%),
+            linear-gradient(180deg, rgba(255, 255, 255, 0.62), rgba(189, 210, 228, 0.32));
+        cursor: pointer;
+        overflow: hidden;
+    }
+
+    .boss-portrait-wrap:focus-visible {
+        outline: 3px solid rgba(126, 144, 169, 0.62);
+        outline-offset: 2px;
+    }
+
+    .boss-rush-boss-img {
+        display: block;
+        width: 108%;
+        height: 108%;
+        object-fit: contain;
+        object-position: center;
+        filter: drop-shadow(0 12px 16px rgba(51, 61, 77, 0.20));
+    }
+
+    .boss-name {
+        margin: 0;
+        color: #253142;
+        font-size: 1.08rem;
+        line-height: 1.08;
+    }
+
+    .boss-title-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin: 7px 0 5px;
+    }
+
+    .boss-info-btn,
+    .boss-modal-close {
+        border: 1px solid rgba(92, 109, 128, 0.18);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.70);
+        color: #536174;
+        cursor: pointer;
+        font-weight: 900;
+    }
+
+    .boss-info-btn {
+        width: 28px;
+        height: 28px;
+        flex: 0 0 auto;
+    }
+
+    .boss-info-btn:hover,
+    .boss-modal-close:hover {
+        background: rgba(255, 255, 255, 0.92);
+    }
+
+    .mini-hp-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 6px;
+        font-weight: 800;
+        font-size: 0.9rem;
+    }
+
+    .boss-rush-bar {
+        height: 13px;
+        overflow: hidden;
+        border: 1px solid rgba(95, 109, 126, 0.22);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.56);
+        box-shadow: inset 0 1px 3px rgba(78, 92, 110, 0.12);
+    }
+
+    .boss-rush-bar-fill {
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, #BDD2E4, #E0D4E7 54%, #EECEDA);
+        transition: width 0.18s ease;
+    }
+
+    .ability-chip {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px 10px;
+        margin-top: 0;
+        padding: 7px 8px 8px;
+        border: 1px solid rgba(92, 109, 128, 0.14);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.50);
+        color: #5a6676;
+        font-size: 0.78rem;
+        font-weight: 700;
+    }
+
+    .ability-chip > span {
+        color: #354458;
+        font-size: 0.86rem;
+        font-weight: 900;
+        line-height: 1.05;
+    }
+
+    .ability-time {
+        color: #704b78;
+        font-size: 1.42rem;
+        font-weight: 950;
+        line-height: 1;
+        min-width: 58px;
+        text-align: right;
+    }
+
+    .ability-chip small {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+    }
+
+    .ability-timer-track {
+        grid-column: 1 / -1;
+        height: 14px;
+        overflow: hidden;
+        border-radius: 999px;
+        border: 1px solid rgba(92, 109, 128, 0.14);
+        background: rgba(255, 255, 255, 0.66);
+    }
+
+    .ability-timer-fill {
+        width: 100%;
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, #BDD2E4, #EECEDA);
+        transition: width 0.18s linear;
+    }
+
+    .ability-toast {
+        position: fixed;
+        z-index: 1000;
+        top: 18px;
+        left: 50%;
+        max-width: min(680px, calc(100vw - 32px));
+        padding: 12px 18px;
+        border: 1px solid rgba(92, 109, 128, 0.22);
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.92);
+        box-shadow: 0 18px 42px rgba(52, 72, 92, 0.18);
+        color: #293545;
+        font-weight: 900;
+        opacity: 0;
+        pointer-events: none;
+        transform: translate(-50%, -12px);
+        transition: opacity 0.18s ease, transform 0.18s ease;
+    }
+
+    .ability-toast.is-visible {
+        opacity: 1;
+        transform: translate(-50%, 0);
+    }
+
+    .stat-stack {
+        display: grid;
+        gap: 5px;
+    }
+
+    .stat-stack.compact {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .stat-tile {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 10px;
+        min-height: 29px;
+        padding: 5px 7px;
+        border: 1px solid rgba(91, 106, 128, 0.14);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.58);
+    }
+
+    .stat-tile.stat-row {
+        grid-template-columns: 62px minmax(0, 1fr);
+    }
+
+    .stat-tile.stat-wide {
+        grid-column: 1 / -1;
+    }
+
+    .stat-tile.combo-primary {
+        background: rgba(224, 212, 231, 0.62);
+    }
+
+    .stat-tile.combo-primary .stat-value {
+        color: #704b78;
+        font-size: 1.48rem;
+        line-height: 1;
+    }
+
+    .stat-tile.stat-secondary .stat-label,
+    .stat-tile.stat-secondary .stat-value {
+        font-size: 0.72rem;
+    }
+
+    .stat-label {
+        color: #677386;
+        font-size: 0.68rem;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+
+    .stat-value {
+        min-width: 0;
+        color: #263241;
+        font-size: 0.94rem;
+        font-weight: 900;
+        text-align: right;
+        overflow-wrap: anywhere;
+    }
+
+    .stat-row .stat-value {
+        text-align: left;
+    }
+
+    .boss-rush-heart {
+        color: #a94e68;
+        font-size: 1.05rem;
+        letter-spacing: 1px;
+        white-space: nowrap;
+    }
+
+    .boss-rush-heart-empty {
+        color: rgba(95, 109, 126, 0.30);
+    }
+
+    .boss-rush-muted {
+        color: #6c7788;
+    }
+
+    .boss-rush-combo-hot {
+        color: #87527b;
+        font-weight: 900;
+    }
+
+    .active-bonuses-box {
+        min-height: 24px;
+        padding: 5px 7px;
+        border: 1px dashed rgba(92, 109, 128, 0.24);
+        border-radius: 14px;
+        background: rgba(219, 238, 247, 0.38);
+        color: #6a7584;
+        font-size: 0.78rem;
+        font-weight: 800;
+        line-height: 1.18;
+    }
+
+    .boss-info-modal {
+        position: fixed;
+        z-index: 1050;
+        top: 12px;
+        left: clamp(12px, calc((100vw - 1680px) / 2 + 24px), 28px);
+        display: none;
+        width: min(760px, calc(100vw - 28px));
+        pointer-events: none;
+    }
+
+    .boss-info-modal.is-open {
+        display: block;
+    }
+
+    .boss-info-card {
+        width: 100%;
+        max-height: min(74vh, 620px);
+        overflow: auto;
+        border: 1px solid rgba(92, 109, 128, 0.22);
+        border-radius: 18px;
+        background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(250, 231, 235, 0.90)),
+            #fff;
+        box-shadow: 0 18px 44px rgba(38, 50, 65, 0.18);
+        padding: 14px;
+        opacity: 0;
+        pointer-events: auto;
+        transform: translateY(-8px) scale(0.98);
+        transition: opacity 0.16s ease, transform 0.16s ease;
+    }
+
+    .boss-info-body {
+        display: grid;
+        grid-template-columns: minmax(168px, 220px) minmax(0, 1fr);
+        gap: 18px;
+        align-items: start;
+    }
+
+    .boss-info-art {
+        display: grid;
+        gap: 10px;
+        align-content: start;
+    }
+
+    .boss-info-art .boss-portrait-wrap {
+        height: 220px;
+        cursor: default;
+    }
+
+    .boss-info-art .boss-rush-boss-img {
+        width: 100%;
+        height: 100%;
+    }
+
+    .boss-info-copy {
+        min-width: 0;
+    }
+
+    .boss-info-modal.is-open .boss-info-card {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+
+    .boss-info-card header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 12px;
+    }
+
+    .boss-info-card h2,
+    .boss-info-card h3 {
+        margin: 0;
+        color: #253142;
+    }
+
+    .boss-info-card h3 {
+        margin-top: 12px;
+        font-size: 1rem;
+    }
+
+    .boss-info-card p {
+        color: #5b6676;
+        line-height: 1.35;
+        margin: 6px 0;
+    }
+
+    .boss-info-card h2 {
+        font-size: 1.55rem;
+        line-height: 1.1;
+    }
+
+    .boss-modal-close {
+        min-width: 36px;
+        height: 36px;
+    }
+
+    .problem-arena {
+        display: flex;
+        min-width: 0;
+        min-height: 0;
+        height: 100%;
+        flex-direction: column;
+        padding: 10px;
+    }
+
+    .arena-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 2px 2px 9px;
+        border-bottom: 1px solid rgba(92, 109, 128, 0.14);
+    }
+
+    .arena-title {
+        margin: 0;
+        color: #253142;
+        font-size: 1.34rem;
+        line-height: 1.1;
+    }
+
+    .arena-subtitle {
+        margin: 3px 0 0;
+        color: #647083;
+        font-size: 0.84rem;
+    }
+
+    .mode-pill {
+        flex: 0 0 auto;
+        padding: 7px 10px;
+        border: 1px solid rgba(92, 109, 128, 0.16);
+        border-radius: 999px;
+        background: rgba(224, 212, 231, 0.58);
+        color: #4f5f73;
+        font-size: 0.78rem;
+        font-weight: 900;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+    }
+
+    .mode-pill.recovery {
+        background: rgba(250, 231, 235, 0.78);
+        color: #80536a;
+    }
+
+    .problem-scroll {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        overflow: hidden;
+        padding: 10px 2px 2px;
+    }
+
+    .problem-card {
+        display: flex;
+        flex: 1 1 auto;
+        flex-direction: column;
+        min-height: 0;
+        padding: 16px;
+        box-sizing: border-box;
+        border: 1px solid rgba(92, 109, 128, 0.14);
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.74);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.74);
+    }
+
+    .problem-card h2 {
+        flex: 0 0 auto;
+        margin: 0 0 12px;
+        color: #2b3544;
+        font-size: 1.04rem;
+    }
+
+    .problem-body-region {
+        flex: 1 1 auto;
+        min-height: 260px;
+        overflow-y: auto;
+        padding: 2px 8px 8px 0;
+        border-radius: 14px;
+    }
+
+    .problem-body-region > :first-child {
+        margin-top: 0;
+    }
+
+    .problem-body-region > :last-child {
+        margin-bottom: 0;
+    }
+
+    .problem-body-rich-text p {
+        margin: 0 0 12px;
+        color: #2f3848;
+        font-size: 1.02rem;
+        line-height: 1.48;
+    }
+
+    .problem-body-image {
+        margin: 14px 0;
+    }
+
+    .problem-body-image img {
+        display: block;
+        height: auto;
+        max-width: 100%;
+        border: 1px solid rgba(92, 109, 128, 0.16);
+        border-radius: 14px;
+        background: white;
+    }
+
+    .problem-body-empty,
+    .problem-body-unsupported {
+        color: #6d7786;
+        font-style: italic;
+    }
+
+    .problem-body-graph {
+        margin: 14px 0;
+    }
+
+    .problem-graph-canvas {
+        width: 100%;
+        min-height: 430px;
+        border: 1px solid rgba(92, 109, 128, 0.16);
+        border-radius: 14px;
+        background: #fff;
+    }
+
+    .boss-rush-answer-row {
+        flex: 0 0 auto;
+        margin-top: 14px;
+        padding: 12px 0 0;
+        border-top: 1px solid rgba(92, 109, 128, 0.12);
+    }
+
+    .answer-label {
+        display: block;
+        margin-bottom: 8px;
+        color: #556579;
+        font-size: 0.78rem;
+        font-weight: 900;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+    }
+
+    .answer-line {
+        display: flex;
+        gap: 10px;
+        align-items: stretch;
+    }
+
+    .answer-input {
+        width: 100%;
+        min-height: 48px;
+        padding: 0 14px;
+        border: 1px solid rgba(92, 109, 128, 0.22);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.90);
+        color: #253142;
+        font-size: 1.02rem;
+        outline: none;
+    }
+
+    .answer-input:focus {
+        border-color: rgba(126, 144, 169, 0.62);
+        box-shadow: 0 0 0 3px rgba(189, 210, 228, 0.50);
+    }
+
+    .boss-submit-btn {
+        min-width: 136px;
+        min-height: 48px;
+        border: none;
+        border-radius: 14px;
+        background: linear-gradient(180deg, #8aa8c2, #637f9b);
+        color: #fff;
+        cursor: pointer;
+        font-size: 0.98rem;
+        font-weight: 900;
+        box-shadow: 0 10px 18px rgba(83, 104, 126, 0.20);
+    }
+
+    .boss-submit-btn:hover {
+        background: linear-gradient(180deg, #789ab8, #58758f);
+    }
+
+    .choice-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        max-height: clamp(150px, 24vh, 240px);
+        overflow-y: auto;
+        padding-right: 2px;
+    }
+
+    .boss-rush-choice {
+        position: relative;
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        min-height: 54px;
+        padding: 10px;
+        border: 1px solid rgba(92, 109, 128, 0.16);
+        border-radius: 15px;
+        background: rgba(255, 255, 255, 0.76);
+        cursor: pointer;
+        transition: border-color 0.14s ease, background 0.14s ease, box-shadow 0.14s ease;
+    }
+
+    .boss-rush-choice:hover {
+        border-color: rgba(128, 143, 168, 0.42);
+        box-shadow: 0 8px 14px rgba(69, 88, 106, 0.08);
+    }
+
+    .boss-rush-choice input {
+        margin-top: 3px;
+        accent-color: #7e93ae;
+    }
+
+    .choice-label {
+        min-width: 0;
+        line-height: 1.28;
+    }
+
+    .choice-label p {
+        margin: 0;
+    }
+
+    .state-card {
+        display: grid;
+        min-height: 100%;
+        place-items: center;
+        text-align: center;
+    }
+
+    .state-card-inner {
+        max-width: 560px;
+    }
+
+    .state-card h2 {
+        margin-bottom: 10px;
+        font-size: 1.7rem;
+    }
+
+    .right-info-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+
+    .info-chip {
+        padding: 7px 8px;
+        border: 1px solid rgba(92, 109, 128, 0.14);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.54);
+    }
+
+    .info-chip span {
+        display: block;
+        color: #6a7584;
+        font-size: 0.72rem;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+
+    .info-chip strong {
+        color: #293545;
+        font-size: 0.98rem;
+    }
+
+    .leaderboard-list {
+        display: grid;
+        gap: 8px;
+    }
+
+    .boss-rush-leaderboard-row {
+        display: grid;
+        grid-template-columns: 34px minmax(0, 1fr) auto;
+        gap: 8px;
+        align-items: center;
+        padding: 8px;
+        border: 1px solid rgba(92, 109, 128, 0.13);
+        border-radius: 15px;
+        background: rgba(255, 255, 255, 0.56);
+    }
+
+    .rank-badge {
+        display: inline-grid;
+        width: 28px;
+        height: 28px;
+        place-items: center;
+        border-radius: 999px;
+        background: rgba(224, 212, 231, 0.76);
+        color: #536174;
+        font-size: 0.82rem;
+        font-weight: 900;
+    }
+
+    .leader-name {
+        overflow: hidden;
+        color: #263241;
+        font-weight: 900;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .leader-meta {
+        color: #6b7687;
+        font-size: 0.78rem;
+        line-height: 1.25;
+    }
+
+    .leader-score {
+        text-align: right;
+        white-space: nowrap;
+    }
+
+    .leader-score strong {
+        color: #2e3b4b;
+    }
+
+    .flash-stack {
+        margin: 0 0 12px;
+    }
+
+    .flash-stack .notice,
+    .flash-stack .alert,
+    .flash-stack li {
+        padding: 10px 12px;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.72);
+        color: #374151;
+        list-style: none;
+    }
+
+    /* Boss Rush material alignment with Classic/Hub. Kept as a late visual layer
+       so existing data hooks, form actions, and live-update selectors remain intact. */
+    .boss-theme-fire-giant {
+        --br-bg-image: url("{{ url_for('static', filename='classic_ui/player_ui/background_fire_giant.png') }}");
+        --br-bg-overlay: linear-gradient(180deg, rgba(255, 238, 214, 0.48), rgba(231, 199, 162, 0.40));
+        --br-panel: rgba(253, 242, 223, 0.66);
+        --br-panel-strong: rgba(255, 248, 236, 0.84);
+        --br-content: rgba(255, 251, 244, 0.90);
+        --br-content-strong: rgba(255, 253, 248, 0.96);
+        --br-border: rgba(132, 78, 44, 0.24);
+        --br-border-strong: rgba(132, 78, 44, 0.40);
+        --br-heading: #74482f;
+        --br-accent: #9b5a32;
+        --br-accent-strong: #784426;
+        --br-accent-soft: rgba(155, 90, 50, 0.18);
+        --br-warm-accent: #b97b2f;
+        --br-danger: #a04432;
+        --br-danger-soft: rgba(160, 68, 50, 0.16);
+        --br-shell-bg: linear-gradient(180deg, rgba(255, 241, 223, 0.22), rgba(231, 204, 174, 0.13)), linear-gradient(180deg, rgba(132, 78, 44, 0.10), rgba(185, 123, 47, 0.08));
+        --br-identity-glow: rgba(185, 94, 40, 0.20);
+        --br-hp-fill: linear-gradient(90deg, #9f3f2f, #c96f35 52%, #d99a45);
+        --br-ability-fill: linear-gradient(90deg, #914d2e, #c96f35, #e0a64d);
+        --br-button: linear-gradient(180deg, #f8d59a, #c77938);
+        --br-button-hover: linear-gradient(180deg, #ffe1aa, #ae6330);
+        --br-button-text: #3f2618;
+        --br-notification: linear-gradient(180deg, rgba(255, 247, 234, 0.96), rgba(244, 215, 184, 0.90));
+        --br-combo-bg: linear-gradient(180deg, rgba(255, 242, 225, 0.78), rgba(237, 210, 177, 0.62));
+        --br-focus: rgba(155, 90, 50, 0.36);
+    }
+
+    .boss-theme-air-elemental {
+        --br-bg-image: url("{{ url_for('static', filename='classic_ui/player_ui/background_air_elemental.png') }}");
+        --br-bg-overlay: linear-gradient(180deg, rgba(250, 245, 232, 0.46), rgba(224, 229, 225, 0.38));
+        --br-panel: rgba(250, 246, 235, 0.64);
+        --br-panel-strong: rgba(255, 252, 244, 0.84);
+        --br-content: rgba(255, 253, 247, 0.90);
+        --br-border: rgba(107, 119, 122, 0.24);
+        --br-border-strong: rgba(107, 119, 122, 0.40);
+        --br-heading: #596861;
+        --br-accent: #78909a;
+        --br-accent-strong: #536b73;
+        --br-accent-soft: rgba(120, 144, 154, 0.18);
+        --br-warm-accent: #b79d68;
+        --br-danger: #9d6653;
+        --br-danger-soft: rgba(157, 102, 83, 0.15);
+        --br-shell-bg: linear-gradient(180deg, rgba(255, 252, 242, 0.22), rgba(226, 224, 211, 0.12)), linear-gradient(180deg, rgba(120, 144, 154, 0.10), rgba(183, 157, 104, 0.08));
+        --br-identity-glow: rgba(120, 144, 154, 0.20);
+        --br-hp-fill: linear-gradient(90deg, #8d6655, #b79d68 50%, #78909a);
+        --br-ability-fill: linear-gradient(90deg, #cbbf9c, #96aab0, #6f8791);
+        --br-button: linear-gradient(180deg, #f7efd8, #c7b57e);
+        --br-button-hover: linear-gradient(180deg, #fff7e1, #b7a264);
+        --br-button-text: #403827;
+        --br-notification: linear-gradient(180deg, rgba(255, 253, 247, 0.96), rgba(235, 232, 219, 0.90));
+        --br-combo-bg: linear-gradient(180deg, rgba(239, 246, 244, 0.78), rgba(225, 232, 230, 0.62));
+        --br-focus: rgba(120, 144, 154, 0.36);
+    }
+
+    .boss-theme-mirror-phantom {
+        --br-bg-image: url("{{ url_for('static', filename='classic_ui/player_ui/background_mirror_cave.png') }}");
+        --br-bg-overlay: linear-gradient(180deg, rgba(240, 246, 247, 0.48), rgba(223, 228, 230, 0.40));
+        --br-panel: rgba(244, 248, 248, 0.66);
+        --br-panel-strong: rgba(252, 254, 254, 0.86);
+        --br-content: rgba(255, 255, 252, 0.91);
+        --br-border: rgba(96, 114, 124, 0.24);
+        --br-border-strong: rgba(96, 114, 124, 0.40);
+        --br-heading: #52636c;
+        --br-accent: #7f9aa7;
+        --br-accent-strong: #5e7580;
+        --br-accent-soft: rgba(127, 154, 167, 0.18);
+        --br-warm-accent: #a69a79;
+        --br-danger: #956070;
+        --br-danger-soft: rgba(149, 96, 112, 0.15);
+        --br-shell-bg: linear-gradient(180deg, rgba(248, 253, 253, 0.24), rgba(225, 232, 234, 0.14)), linear-gradient(180deg, rgba(127, 154, 167, 0.10), rgba(166, 154, 121, 0.08));
+        --br-identity-glow: rgba(163, 199, 209, 0.24);
+        --br-hp-fill: linear-gradient(90deg, #956070, #a69a79 50%, #8fb3bf);
+        --br-ability-fill: linear-gradient(90deg, #c9d7da, #91aebb, #6f8792);
+        --br-button: linear-gradient(180deg, #edf5f5, #aebfc3);
+        --br-button-hover: linear-gradient(180deg, #f8ffff, #98adb2);
+        --br-button-text: #26373d;
+        --br-notification: linear-gradient(180deg, rgba(252, 254, 254, 0.96), rgba(229, 237, 239, 0.90));
+        --br-combo-bg: linear-gradient(180deg, rgba(242, 249, 249, 0.80), rgba(223, 234, 236, 0.64));
+        --br-focus: rgba(127, 154, 167, 0.36);
+    }
+
+    .boss-theme-swamp-monster {
+        --br-bg-image: url("{{ url_for('static', filename='classic_ui/player_ui/background_mud_monster.png') }}");
+        --br-bg-overlay: linear-gradient(180deg, rgba(240, 233, 210, 0.52), rgba(207, 195, 157, 0.42));
+        --br-panel: rgba(244, 238, 219, 0.68);
+        --br-panel-strong: rgba(253, 249, 238, 0.86);
+        --br-content: rgba(255, 252, 244, 0.91);
+        --br-border: rgba(94, 91, 54, 0.26);
+        --br-border-strong: rgba(94, 91, 54, 0.42);
+        --br-heading: #5d5f35;
+        --br-accent: #758047;
+        --br-accent-strong: #596333;
+        --br-accent-soft: rgba(117, 128, 71, 0.20);
+        --br-warm-accent: #9b7b44;
+        --br-danger: #8f5a3d;
+        --br-danger-soft: rgba(143, 90, 61, 0.16);
+        --br-shell-bg: linear-gradient(180deg, rgba(248, 241, 222, 0.24), rgba(214, 204, 169, 0.14)), linear-gradient(180deg, rgba(117, 128, 71, 0.11), rgba(120, 90, 55, 0.08));
+        --br-identity-glow: rgba(117, 128, 71, 0.24);
+        --br-hp-fill: linear-gradient(90deg, #7a4f36, #8a833f 50%, #6f7d40);
+        --br-ability-fill: linear-gradient(90deg, #6f7d40, #9b7b44, #b69858);
+        --br-button: linear-gradient(180deg, #dfd29a, #9c864f);
+        --br-button-hover: linear-gradient(180deg, #eee0a8, #83733f);
+        --br-button-text: #302d18;
+        --br-notification: linear-gradient(180deg, rgba(253, 249, 238, 0.96), rgba(229, 221, 190, 0.90));
+        --br-combo-bg: linear-gradient(180deg, rgba(238, 242, 220, 0.80), rgba(219, 224, 190, 0.64));
+        --br-focus: rgba(117, 128, 71, 0.38);
+    }
+
+    .boss-theme-stone-golem {
+        --br-bg-image: url("{{ url_for('static', filename='classic_ui/player_ui/background_stone_golem.png') }}");
+        --br-bg-overlay: linear-gradient(180deg, rgba(241, 235, 224, 0.50), rgba(216, 207, 193, 0.40));
+        --br-panel: rgba(245, 240, 231, 0.66);
+        --br-panel-strong: rgba(253, 250, 244, 0.86);
+        --br-content: rgba(255, 253, 248, 0.91);
+        --br-border: rgba(101, 91, 78, 0.25);
+        --br-border-strong: rgba(101, 91, 78, 0.42);
+        --br-heading: #655b4e;
+        --br-accent: #817669;
+        --br-accent-strong: #5f554a;
+        --br-accent-soft: rgba(129, 118, 105, 0.19);
+        --br-warm-accent: #a48659;
+        --br-danger: #8e5d4d;
+        --br-danger-soft: rgba(142, 93, 77, 0.15);
+        --br-shell-bg: linear-gradient(180deg, rgba(249, 245, 238, 0.24), rgba(219, 211, 200, 0.14)), linear-gradient(180deg, rgba(129, 118, 105, 0.10), rgba(164, 134, 89, 0.08));
+        --br-identity-glow: rgba(164, 134, 89, 0.18);
+        --br-hp-fill: linear-gradient(90deg, #8e5d4d, #9d8c71 50%, #70675e);
+        --br-ability-fill: linear-gradient(90deg, #6f665e, #9d8c71, #b19362);
+        --br-button: linear-gradient(180deg, #e4d8c4, #b49a73);
+        --br-button-hover: linear-gradient(180deg, #f0e4cf, #a4875c);
+        --br-button-text: #332b21;
+        --br-notification: linear-gradient(180deg, rgba(253, 250, 244, 0.96), rgba(230, 223, 211, 0.90));
+        --br-combo-bg: linear-gradient(180deg, rgba(242, 240, 235, 0.80), rgba(224, 220, 212, 0.64));
+        --br-focus: rgba(129, 118, 105, 0.38);
+    }
+
+    .boss-theme-time-wraith {
+        --br-bg-image: url("{{ url_for('static', filename='classic_ui/player_ui/background_time_keeper.png') }}");
+        --br-bg-overlay: linear-gradient(180deg, rgba(247, 235, 207, 0.50), rgba(222, 199, 157, 0.42));
+        --br-panel: rgba(249, 239, 218, 0.68);
+        --br-panel-strong: rgba(255, 249, 235, 0.86);
+        --br-content: rgba(255, 252, 244, 0.91);
+        --br-border: rgba(128, 91, 47, 0.25);
+        --br-border-strong: rgba(128, 91, 47, 0.42);
+        --br-heading: #76572c;
+        --br-accent: #9a7538;
+        --br-accent-strong: #735626;
+        --br-accent-soft: rgba(154, 117, 56, 0.19);
+        --br-warm-accent: #b99345;
+        --br-danger: #895343;
+        --br-danger-soft: rgba(137, 83, 67, 0.15);
+        --br-shell-bg: linear-gradient(180deg, rgba(255, 244, 221, 0.25), rgba(226, 204, 165, 0.15)), linear-gradient(180deg, rgba(154, 117, 56, 0.10), rgba(93, 71, 45, 0.08));
+        --br-identity-glow: rgba(185, 147, 69, 0.22);
+        --br-hp-fill: linear-gradient(90deg, #895343, #aa7b36 50%, #d1a54a);
+        --br-ability-fill: linear-gradient(90deg, #735626, #a9833d, #d0aa55);
+        --br-button: linear-gradient(180deg, #efd18a, #b8853e);
+        --br-button-hover: linear-gradient(180deg, #f9df9a, #9f7335);
+        --br-button-text: #33220f;
+        --br-notification: linear-gradient(180deg, rgba(255, 249, 235, 0.96), rgba(235, 215, 178, 0.90));
+        --br-combo-bg: linear-gradient(180deg, rgba(251, 241, 217, 0.80), rgba(230, 212, 177, 0.64));
+        --br-focus: rgba(154, 117, 56, 0.38);
+    }
+
+    .boss-battle-shell {
+        border-color: var(--br-border);
+        background: var(--br-shell-bg);
+        box-shadow:
+            inset 0 1px 0 rgba(255, 251, 243, 0.68),
+            0 20px 44px rgba(59, 42, 20, 0.10);
+    }
+
+    .boss-panel,
+    .problem-arena {
+        border-color: var(--br-border);
+        background:
+            linear-gradient(180deg, rgba(255, 252, 245, 0.38), rgba(244, 236, 224, 0.24)),
+            var(--br-panel);
+        box-shadow:
+            inset 0 1px 0 rgba(255, 252, 244, 0.64),
+            var(--br-shadow-soft);
+        backdrop-filter: none;
+    }
+
+    .boss-identity-card {
+        background:
+            radial-gradient(circle at top right, var(--br-identity-glow), transparent 38%),
+            linear-gradient(180deg, rgba(255, 252, 244, 0.58), rgba(242, 230, 210, 0.48));
+    }
+
+    .ability-panel,
+    .stats-panel,
+    .boss-right-rail .boss-panel {
+        background:
+            linear-gradient(180deg, rgba(247, 243, 235, 0.60), rgba(238, 231, 219, 0.50));
+    }
+
+    .boss-panel-title,
+    .arena-kicker {
+        margin-bottom: 7px;
+        color: var(--br-heading);
+        font-size: 0.78rem;
+        font-weight: 800;
+        letter-spacing: 0.045em;
+        text-transform: uppercase;
+    }
+
+    .boss-name,
+    .arena-title,
+    .problem-card h2,
+    .boss-info-card h2,
+    .boss-info-card h3,
+    .leader-name,
+    .leader-score strong {
+        color: var(--br-text);
+    }
+
+    .boss-portrait-wrap {
+        border-color: var(--br-border);
+        background:
+            radial-gradient(circle at 50% 22%, rgba(255, 248, 230, 0.66), transparent 36%),
+            linear-gradient(180deg, rgba(247, 239, 225, 0.54), rgba(223, 204, 176, 0.42));
+        box-shadow: inset 0 1px 0 rgba(255, 252, 244, 0.72);
+    }
+
+    .boss-portrait-wrap:focus-visible,
+    .answer-input:focus {
+        outline: 2px solid var(--br-focus);
+        outline-offset: 2px;
+        box-shadow: 0 0 0 3px var(--br-accent-soft);
+    }
+
+    .boss-rush-boss-img {
+        filter: drop-shadow(0 12px 16px rgba(52, 39, 20, 0.20));
+    }
+
+    .boss-info-btn,
+    .boss-modal-close {
+        border-color: var(--br-border);
+        background: rgba(255, 250, 242, 0.72);
+        color: var(--br-heading);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.56);
+    }
+
+    .boss-info-btn:hover,
+    .boss-modal-close:hover {
+        background: rgba(255, 250, 242, 0.90);
+        border-color: var(--br-border-strong);
+    }
+
+    .mini-hp-row,
+    .stat-value,
+    .info-chip strong {
+        color: var(--br-text);
+    }
+
+    .boss-rush-bar,
+    .ability-timer-track {
+        border-color: rgba(127, 105, 72, 0.22);
+        background: rgba(255, 250, 242, 0.58);
+        box-shadow: inset 0 1px 3px rgba(60, 43, 20, 0.12);
+    }
+
+    .boss-rush-bar-fill {
+        background: var(--br-hp-fill);
+    }
+
+    .ability-chip,
+    .stat-tile,
+    .info-chip,
+    .boss-rush-leaderboard-row,
+    .active-bonuses-box {
+        border-color: rgba(127, 105, 72, 0.16);
+        background:
+            linear-gradient(180deg, rgba(255, 251, 245, 0.68), rgba(242, 234, 220, 0.54));
+        color: var(--br-muted);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.56);
+    }
+
+    .ability-chip > span {
+        color: var(--br-heading);
+    }
+
+    .ability-time {
+        color: var(--br-accent-strong);
+    }
+
+    .ability-timer-fill {
+        background: var(--br-ability-fill);
+    }
+
+    .ability-toast {
+        border-color: var(--br-border-strong);
+        background: var(--br-notification);
+        box-shadow: 0 18px 42px rgba(60, 43, 20, 0.16);
+        color: var(--br-text);
+    }
+
+    .stat-tile.combo-primary {
+        background: var(--br-combo-bg);
+        border-color: var(--br-accent-soft);
+    }
+
+    .stat-tile.combo-primary .stat-value {
+        color: var(--br-accent-strong);
+    }
+
+    .stat-label,
+    .info-chip span,
+    .answer-label {
+        color: var(--br-muted);
+        letter-spacing: 0.04em;
+    }
+
+    .boss-rush-heart {
+        color: var(--br-danger);
+    }
+
+    .boss-rush-heart-empty {
+        color: rgba(127, 105, 72, 0.26);
+    }
+
+    .boss-rush-muted,
+    .arena-subtitle,
+    .leader-meta,
+    .boss-info-card p,
+    .problem-body-empty,
+    .problem-body-unsupported {
+        color: var(--br-muted);
+    }
+
+    .boss-rush-combo-hot {
+        color: var(--br-warm-accent);
+        font-weight: 900;
+    }
+
+    .boss-info-modal {
+        left: clamp(12px, calc((100vw - 1680px) / 2 + 18px), 26px);
+        width: min(520px, calc(100vw - 28px));
+    }
+
+    .boss-info-card {
+        border-color: var(--br-border-strong);
+        background:
+            linear-gradient(180deg, rgba(255, 252, 246, 0.94), rgba(244, 236, 224, 0.90));
+        box-shadow: 0 18px 44px rgba(60, 43, 20, 0.18);
+    }
+
+    .boss-info-body {
+        grid-template-columns: minmax(132px, 170px) minmax(0, 1fr);
+        gap: 14px;
+    }
+
+    .boss-info-art .boss-portrait-wrap {
+        height: 170px;
+    }
+
+    .problem-arena {
+        background:
+            linear-gradient(180deg, rgba(254, 249, 241, 0.72), rgba(246, 238, 225, 0.62)),
+            radial-gradient(circle at top, rgba(255, 247, 231, 0.22), transparent 42%);
+    }
+
+    .arena-header {
+        border-bottom-color: rgba(127, 105, 72, 0.14);
+    }
+
+    .mode-pill {
+        border-color: var(--br-border-strong);
+        background: var(--br-accent-soft);
+        color: var(--br-accent-strong);
+        letter-spacing: 0.035em;
+    }
+
+    .mode-pill.recovery {
+        border-color: rgba(155, 79, 63, 0.22);
+        background: var(--br-danger-soft);
+        color: var(--br-danger);
+    }
+
+    .problem-card {
+        border-color: rgba(127, 105, 72, 0.16);
+        background:
+            linear-gradient(180deg, rgba(255, 253, 249, 0.90), rgba(249, 245, 237, 0.86));
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.78),
+            0 7px 16px rgba(60, 43, 20, 0.05);
+    }
+
+    .problem-body-rich-text p {
+        color: var(--br-text);
+    }
+
+    .problem-body-image img,
+    .problem-graph-canvas {
+        border-color: rgba(127, 105, 72, 0.16);
+        background: #fff;
+    }
+
+    .boss-rush-answer-row {
+        border-top-color: rgba(127, 105, 72, 0.14);
+    }
+
+    .answer-input,
+    .boss-rush-choice {
+        border-color: rgba(127, 105, 72, 0.18);
+        background: var(--br-content);
+        color: var(--br-text);
+    }
+
+    .boss-rush-choice:hover {
+        border-color: var(--br-accent);
+        background: var(--br-content-strong);
+        box-shadow: 0 8px 14px rgba(60, 43, 20, 0.08);
+    }
+
+    .boss-rush-choice input {
+        accent-color: var(--br-accent);
+    }
+
+    .boss-submit-btn {
+        border: 1px solid rgba(127, 105, 72, 0.28);
+        background: var(--br-button);
+        color: var(--br-button-text);
+        box-shadow: 0 10px 18px rgba(93, 72, 36, 0.18);
+    }
+
+    .boss-submit-btn:hover {
+        background: var(--br-button-hover);
+    }
+
+    .rank-badge {
+        background: var(--br-accent-soft);
+        color: var(--br-accent-strong);
+    }
+
+    .flash-stack .notice,
+    .flash-stack .alert,
+    .flash-stack li {
+        border: 1px solid var(--br-border);
+        background: var(--br-panel-strong);
+        color: var(--br-text);
+    }
+
+    @media (max-width: 1180px) {
+        .boss-battle-shell {
+            grid-template-columns: minmax(200px, 0.8fr) minmax(420px, 1.55fr);
+        }
+        .boss-right-rail {
+            grid-column: 1 / -1;
+            display: grid;
+            grid-template-columns: 0.7fr 1.3fr;
+        }
+    }
+
+    @media (max-width: 820px) {
+        body {
+            overflow: auto;
+        }
+        .boss-rush-page {
+            height: auto;
+            min-height: 100vh;
+            padding: 8px;
+            overflow: visible;
+        }
+        .boss-battle-shell,
+        .boss-right-rail {
+            display: flex;
+            flex-direction: column;
+            height: auto;
+            min-height: auto;
+            overflow: visible;
+        }
+        .boss-left-rail,
+        .boss-right-rail {
+            height: auto;
+            overflow: visible;
+        }
+        .problem-scroll {
+            overflow: visible;
+        }
+        .problem-body-region,
+        .choice-grid {
+            max-height: none;
+            overflow: visible;
+        }
+        .choice-grid,
+        .answer-line {
+            grid-template-columns: 1fr;
+            flex-direction: column;
+        }
+        .boss-submit-btn {
+            width: 100%;
+        }
+        .boss-info-modal {
+            top: 12px;
+            left: 12px;
+            width: calc(100vw - 24px);
+        }
+        .boss-info-body {
+            grid-template-columns: 1fr;
+        }
+        .boss-info-art .boss-portrait-wrap {
+            height: 180px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+{% set boss_descriptions = {
+    'fire_giant': 'Deep in the mine, a giant made of fire blocks the tunnel. When the cave becomes quiet, it sends a wave of heat through the mine.',
+    'stone_golem': 'A huge stone guard stands in front of the deepest tunnel. Random hits do not break its armor. Only careful, correct answers can open a way through.',
+    'air_elemental': 'A fast wind spirit flies through the mine and throws papers, maps, and tools into the air. If you spend too long on one problem, the wind may take it away.',
+    'swamp_monster': 'A muddy monster rises from water inside an old tunnel. When the miners slow down, the mud pulls it back together and it becomes stronger again.',
+    'mirror_phantom': 'A ghost appears in shiny crystals on the mine wall. It does not attack with force. Instead, it shows your old mistakes again.',
+    'time_wraith': 'The mine clock stops, then starts ticking loudly. The Time Wraith becomes stronger when players stop working.'
+} %}
+{% set mode_label = 'Boss Defeated' if player_state_payload.boss_defeated else ('Completed' if player_state_payload.mode == 'completed' else ('Recovery Problem' if player_state_payload.mode == 'recovery' else ('Waiting' if game_session.status != 'active' else 'Attack Problem'))) %}
+{% set hp_pct = ((player_state_payload.boss_hp / player_state_payload.boss_max_hp) * 100) if player_state_payload.boss_max_hp else 0 %}
+{% set battle_flash_messages = get_flashed_messages(with_categories=true) %}
+{% set boss_theme_class = 'boss-theme-' ~ ((config.boss_type if config else 'fire_giant')|replace('_', '-')) %}
+<main id="boss-rush-layout" class="boss-rush-page {{ boss_theme_class }}">
+    <div class="ability-toast" data-ability-toast role="status" aria-live="polite"></div>
+    <div class="boss-battle-shell">
+        <aside class="boss-left-rail" aria-label="Boss and player status">
+            <section class="boss-panel boss-identity-card">
+                <p class="boss-panel-title">Boss Rush</p>
+                <div class="boss-portrait-wrap" data-boss-info-open role="button" tabindex="0" aria-label="Open boss and ability info">
+                    {% if config and config.boss_image_path %}
+                    <img class="boss-rush-boss-img" src="{{ url_for('static', filename=config.boss_image_path) }}" alt="{{ config.boss_name }}">
+                    {% endif %}
+                </div>
+                <div class="boss-title-row">
+                    <h1 class="boss-name">{{ config.boss_name if config else 'Boss Rush' }}</h1>
+                    <button class="boss-info-btn" type="button" data-boss-info-open aria-label="Open boss and ability info">i</button>
+                </div>
+                <div class="mini-hp-row">
+                    <span>HP</span>
+                    <span><span data-boss-hp>{{ player_state_payload.boss_hp }}</span> / <span data-boss-max-hp>{{ player_state_payload.boss_max_hp }}</span></span>
+                </div>
+                <div class="boss-rush-bar" aria-label="Boss HP">
+                    <div class="boss-rush-bar-fill" data-boss-hp-fill style="width: {{ hp_pct }}%;"></div>
+                </div>
+            </section>
+
+            <section class="boss-panel ability-panel">
+                <div class="ability-chip">
+                    <span data-ability-name>{{ player_state_payload.ability.name }}</span>
+                    <strong class="ability-time" data-ability-timer>{% if player_state_payload.ability.enabled %}{{ player_state_payload.ability.seconds_remaining or 0 }}s{% else %}Inactive{% endif %}</strong>
+                    <small data-ability-summary>{{ player_state_payload.ability.hint }}</small>
+                    <div class="ability-timer-track" aria-hidden="true">
+                        <div class="ability-timer-fill" data-ability-timer-fill></div>
+                    </div>
+                </div>
+                <span style="display:none;" data-ability-count>#{{ player_state_payload.ability.ability_count }}</span>
+                <span style="display:none;" data-ability-event>{% if player_state_payload.ability.recent_event %}{{ player_state_payload.ability.recent_event.message }}{% else %}No ability yet{% endif %}</span>
+            </section>
+
+            <section class="boss-panel stats-panel">
+                <p class="boss-panel-title">Your Battle</p>
+                <div class="stat-stack compact">
+                    <div class="stat-tile stat-wide">
+                        <span class="stat-label">HP</span>
+                        <span class="stat-value boss-rush-heart" data-player-hearts></span>
+                    </div>
+                    <div class="stat-tile combo-primary">
+                        <span class="stat-label">Combo</span>
+                        <span class="stat-value"><span data-player-combo>{{ player_state_payload.current_combo }}</span> <small data-player-combo-bonus class="boss-rush-muted"></small></span>
+                    </div>
+                    <div class="stat-tile">
+                        <span class="stat-label">Damage</span>
+                        <span class="stat-value" data-player-damage>{{ player_state_payload.damage_dealt }}</span>
+                    </div>
+                    <div class="stat-tile stat-wide stat-row">
+                        <span class="stat-label">Status</span>
+                        <span class="stat-value" data-player-status>{{ player_state_payload.mode|title }}</span>
+                    </div>
+                    <div class="stat-tile stat-wide">
+                        <span class="stat-label">Solved</span>
+                        <span class="stat-value">{{ player_state_payload.attack_solved_count }} / {{ player_state_payload.attack_total_count }}</span>
+                    </div>
+                    <div class="stat-tile stat-wide stat-row">
+                        <span class="stat-label">Bonuses</span>
+                        <span class="stat-value active-bonuses-box" data-active-bonuses>No active bonuses</span>
+                    </div>
+                    <span style="display:none;" data-player-max-combo>{{ player_state_payload.max_combo }}</span>
+                </div>
+            </section>
+        </aside>
+
+        <section class="problem-arena" aria-label="Current Boss Rush problem">
+            <div class="arena-header">
+                <div>
+                    <p class="arena-kicker">Current Problem</p>
+                    <h2 class="arena-title">{{ mode_label }}</h2>
+                    <p class="arena-subtitle">
+                        {% if player_state_payload.mode == 'recovery' %}
+                            Restore HP by solving the recovery problem. It will not damage the boss.
+                        {% elif player_state_payload.mode == 'completed' %}
+                            You solved every attack problem and remain on the leaderboard.
+                        {% elif player_state_payload.boss_defeated %}
+                            The boss is down. Rewards are handled by the admin.
+                        {% else %}
+                            Solve the current problem to damage the shared boss.
+                        {% endif %}
+                    </p>
+                </div>
+                <div class="mode-pill {% if player_state_payload.mode == 'recovery' %}recovery{% endif %}">{{ mode_label }}</div>
+            </div>
+
+            <div class="problem-scroll">
+                {% if player_state_payload.boss_defeated %}
+                <div class="problem-card state-card">
+                    <div class="state-card-inner">
+                        <h2>Boss Defeated</h2>
+                        {% if battle_state.rewards_finalized_at %}
+                            <p>Rewards have been finalized.</p>
+                            {% if reward_entry %}
+                            <p><strong>Your Diamonds:</strong> {{ reward_entry.total_diamonds }}</p>
+                            <p>
+                                <strong>Rank:</strong> {% if reward_entry.rank %}#{{ reward_entry.rank }}{% else %}-{% endif %}
+                                |
+                                <strong>Damage:</strong> {{ reward_entry.damage_dealt }}
+                                |
+                                <strong>Max Combo:</strong> {{ reward_entry.max_combo }}
+                            </p>
+                            <p class="boss-rush-muted">
+                                Placement {{ reward_entry.breakdown.placement }},
+                                other participant {{ reward_entry.breakdown.other_participant }},
+                                highest combo {{ reward_entry.breakdown.highest_combo }}
+                            </p>
+                            {% else %}
+                            <p><strong>Your Diamonds:</strong> 0</p>
+                            {% endif %}
+                        {% else %}
+                            <p>The boss is down. Waiting for the admin to finalize Diamond rewards.</p>
+                            <p><strong>Your Damage:</strong> {{ player_state_payload.damage_dealt }} | <strong>Max Combo:</strong> {{ player_state_payload.max_combo }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+                {% elif player_state_payload.mode == 'completed' %}
+                <div class="problem-card state-card">
+                    <div class="state-card-inner">
+                        <h2>All Attack Problems Solved</h2>
+                        <p>You are now observing with {{ player_state_payload.damage_dealt }} damage dealt.</p>
+                    </div>
+                </div>
+                {% elif game_session.status != 'active' %}
+                <div class="problem-card state-card">
+                    <div class="state-card-inner">
+                        <h2>Waiting for the Battle</h2>
+                        <p>The battle has not started yet.</p>
+                    </div>
+                </div>
+                {% elif current_problem %}
+                <div class="problem-card">
+                    <h2>{{ current_problem.title }}</h2>
+                    <div class="problem-body-region">
+                        {% set body_view = body_view %}
+                        {% include 'shared/_problem_body_blocks.html' %}
+                    </div>
+
+                    <form method="POST" action="{{ url_for('boss_rush_player.submit_answer', session_id=game_session.id) }}" class="boss-rush-answer-row">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        {% if choice_view and choice_view.answer_type == multiple_choice_answer_type %}
+                            <span class="answer-label">Choose an answer</span>
+                            <div class="choice-grid">
+                                {% for option in choice_view.options %}
+                                <label class="boss-rush-choice">
+                                    <input type="radio" name="selected_option_id" value="{{ option.id }}" required>
+                                    <span class="choice-label">{{ option.rendered_html|safe }}</span>
+                                </label>
+                                {% endfor %}
+                            </div>
+                            <div class="answer-line" style="margin-top:12px;">
+                                <button class="boss-submit-btn" type="submit">Submit</button>
+                            </div>
+                        {% else %}
+                            <label class="answer-label" for="boss-rush-answer-text">Answer</label>
+                            <div class="answer-line">
+                                <input id="boss-rush-answer-text" class="answer-input" type="text" name="answer_text" autocomplete="off" required autofocus>
+                                <button class="boss-submit-btn" type="submit">Submit</button>
+                            </div>
+                        {% endif %}
+                    </form>
+                </div>
+                {% else %}
+                <div class="problem-card state-card">
+                    <div class="state-card-inner">
+                        <h2>No Problem Available</h2>
+                        <p>Ask the admin to check the selected Boss Rush problem sets.</p>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </section>
+
+        <aside class="boss-right-rail" aria-label="Shared battle information">
+            <section class="boss-panel">
+                <p class="boss-panel-title">Battle Notes</p>
+                <div class="right-info-grid">
+                    <div class="info-chip">
+                        <span>Status</span>
+                        <strong data-boss-status>{{ battle_state.status if battle_state else '?' }}</strong>
+                    </div>
+                    <div class="info-chip">
+                        <span>Boss</span>
+                        <strong>{{ config.boss_type.replace('_', ' ')|title if config else '?' }}</strong>
+                    </div>
+                    <div class="info-chip">
+                        <span>Rewards</span>
+                        <strong>{% if battle_state and battle_state.rewards_finalized_at %}Finalized{% elif battle_state and battle_state.is_defeated %}Pending{% else %}Locked{% endif %}</strong>
+                    </div>
+                    <div class="info-chip">
+                        <span>Combo</span>
+                        <strong>{% if config.combo_bonus_threshold == -1 %}Off{% else %}&gt; {{ config.combo_bonus_threshold }}{% endif %}</strong>
+                    </div>
+                    <div class="info-chip">
+                        <span>Ability</span>
+                        <strong data-battle-ability>{{ player_state_payload.ability.name }}</strong>
+                    </div>
+                    <div class="info-chip">
+                        <span>Guard</span>
+                        <strong data-stone-guard>{% if player_state_payload.ability.stone_guard_active %}Active{% else %}Off{% endif %}</strong>
+                    </div>
+                </div>
+            </section>
+
+            <section class="boss-panel" style="flex:1; min-height:0;">
+                <p class="boss-panel-title">Live Leaderboard</p>
+                <div class="leaderboard-list" data-boss-rush-leaderboard>
+                    <p class="boss-rush-muted">Waiting for leaderboard data.</p>
+                </div>
+            </section>
+        </aside>
+    </div>
+</main>
+
+<div class="boss-info-modal boss-info-drawer" data-boss-info-modal aria-hidden="true">
+    <div class="boss-info-card" role="dialog" aria-modal="true" aria-labelledby="boss-info-title">
+        <header>
+            <div>
+                <h2 id="boss-info-title">{{ config.boss_name if config else 'Boss Rush' }}</h2>
+            </div>
+            <button class="boss-modal-close" type="button" data-boss-info-close aria-label="Close boss info">x</button>
+        </header>
+        <div class="boss-info-body">
+            <div class="boss-info-art">
+                <div class="boss-portrait-wrap" aria-hidden="true">
+                    {% if config and config.boss_image_path %}
+                    <img class="boss-rush-boss-img" src="{{ url_for('static', filename=config.boss_image_path) }}" alt="">
+                    {% endif %}
+                </div>
+            </div>
+            <div class="boss-info-copy">
+                <h3>Boss</h3>
+                <p>{{ boss_descriptions.get(config.boss_type if config else '', 'A class boss battle. Solve problems to drive its HP down together.') }}</p>
+                <h3>Ability: {{ player_state_payload.ability.name }}</h3>
+                <p data-ability-full-rule>{{ player_state_payload.ability.summary }}</p>
+                <h3>Strategy</h3>
+                <p data-ability-strategy>{{ player_state_payload.ability.hint }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+  const SESSION_ID = {{ game_session.id }};
+  const CURRENT_PLAYER_ID = {{ current_user.id }};
+  const INITIAL_BOSS_RUSH_STATE = {{ live_state_payload|tojson }};
+  const INITIAL_BATTLE_FLASHES = {{ battle_flash_messages|tojson }};
+  let bossRushSocket = null;
+  let latestAbilityState = null;
+  let abilityCheckPending = false;
+  let lastShownAbilityCount = INITIAL_BOSS_RUSH_STATE && INITIAL_BOSS_RUSH_STATE.ability ? INITIAL_BOSS_RUSH_STATE.ability.ability_count || 0 : 0;
+  let toastTimer = null;
+
+  if (window.renderProblemGraphs) {
+    window.renderProblemGraphs(document);
+  }
+
+  function escapeHtml(value) {
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  function renderHearts(entry) {
+    const hearts = entry && entry.hp_hearts ? entry.hp_hearts : [];
+    return hearts.map(function (heart) {
+      return heart.filled ? '&hearts;' : '<span class="boss-rush-heart-empty">&hearts;</span>';
+    }).join(' ');
+  }
+
+  function comboLabel(entry) {
+    if (entry.combo_bonus && entry.combo_bonus.label) {
+      return entry.combo_bonus.label;
+    }
+    return 'Combo x' + entry.current_combo;
+  }
+
+  function abilitySecondsRemaining(ability) {
+    if (!ability || !ability.enabled) return null;
+    if (ability.next_ability_at) {
+      const target = new Date(ability.next_ability_at).getTime();
+      if (!Number.isNaN(target)) {
+        return Math.max(0, Math.ceil((target - Date.now()) / 1000));
+      }
+    }
+    return Math.max(0, Number(ability.seconds_remaining || 0));
+  }
+
+  function abilityProgressPercent(ability, seconds) {
+    if (!ability || !ability.enabled) return 0;
+    const interval = Math.max(Number(ability.interval_seconds || 0), 1);
+    return Math.max(0, Math.min(100, (seconds / interval) * 100));
+  }
+
+  function updateAbilityTimerDisplay() {
+    const timerNodes = document.querySelectorAll('[data-ability-timer]');
+    const fill = document.querySelector('[data-ability-timer-fill]');
+    if (!latestAbilityState || !latestAbilityState.enabled) {
+      timerNodes.forEach(function (node) { node.textContent = 'Inactive'; });
+      if (fill) fill.style.width = '0%';
+      return;
+    }
+    const seconds = abilitySecondsRemaining(latestAbilityState);
+    timerNodes.forEach(function (node) {
+      node.textContent = seconds <= 0 ? 'Ready' : seconds + 's';
+    });
+    if (fill) fill.style.width = abilityProgressPercent(latestAbilityState, seconds) + '%';
+    if (seconds <= 0 && !abilityCheckPending && bossRushSocket && bossRushSocket.connected) {
+      abilityCheckPending = true;
+      bossRushSocket.emit('boss_rush_check_ability', { session_id: SESSION_ID });
+      window.setTimeout(function () { abilityCheckPending = false; }, 4000);
+    }
+  }
+
+  function showAbilityToast(message) {
+    const toast = document.querySelector('[data-ability-toast]');
+    if (!toast || !message) return;
+    toast.textContent = message;
+    toast.classList.add('is-visible');
+    if (toastTimer) window.clearTimeout(toastTimer);
+    toastTimer = window.setTimeout(function () {
+      toast.classList.remove('is-visible');
+    }, 5200);
+  }
+
+  function applyLifecycleRedirect(payload, fromSocket) {
+    if (!fromSocket || !payload || !payload.session) return false;
+    if (payload.session.status === 'waiting' || payload.session.redirect_target === 'lobby') {
+      showAbilityToast('Round ended. Returning to lobby...');
+      window.setTimeout(function () {
+        window.location.href = '/boss-rush/lobby/' + SESSION_ID;
+      }, 900);
+      return true;
+    }
+    if (payload.session.status === 'finished' || payload.session.redirect_target === 'session_over') {
+      showAbilityToast('Boss Rush session ended. Returning to lobby...');
+      window.setTimeout(function () {
+        window.location.href = '/boss-rush/lobby/' + SESSION_ID;
+      }, 900);
+      return true;
+    }
+    return false;
+  }
+
+  function openBossInfo() {
+    const modal = document.querySelector('[data-boss-info-modal]');
+    if (!modal) return;
+    modal.classList.add('is-open');
+    modal.setAttribute('aria-hidden', 'false');
+    const close = modal.querySelector('[data-boss-info-close]');
+    if (close) close.focus();
+  }
+
+  function closeBossInfo() {
+    const modal = document.querySelector('[data-boss-info-modal]');
+    if (!modal) return;
+    modal.classList.remove('is-open');
+    modal.setAttribute('aria-hidden', 'true');
+  }
+
+  function isBossInfoOpenTarget(target) {
+    return Boolean(target && target.closest && target.closest('[data-boss-info-open]'));
+  }
+
+  function currentPlayerFromPayload(payload) {
+    return (payload.leaderboard || []).find(function (entry) {
+      return Number(entry.player_id) === Number(CURRENT_PLAYER_ID);
+    });
+  }
+
+  function renderLeaderboard(payload) {
+    const region = document.querySelector('[data-boss-rush-leaderboard]');
+    if (!region) return;
+    const rows = payload && payload.leaderboard ? payload.leaderboard : [];
+    if (!rows.length) {
+      region.innerHTML = '<p class="boss-rush-muted">No players have joined yet.</p>';
+      return;
+    }
+    region.innerHTML = rows.map(function (entry) {
+      const comboClass = entry.combo_bonus && entry.combo_bonus.active ? ' boss-rush-combo-hot' : '';
+      return '<div class="boss-rush-leaderboard-row">' +
+        '<div class="rank-badge">#' + entry.rank + '</div>' +
+        '<div>' +
+          '<div class="leader-name">' + escapeHtml(entry.username) + '</div>' +
+          '<div class="leader-meta">' + escapeHtml(entry.status) + ' &middot; HP ' + entry.hp + '/' + entry.max_hp + ' &middot; Max x' + entry.max_combo + '</div>' +
+        '</div>' +
+        '<div class="leader-score">' +
+          '<strong>' + entry.damage_dealt + ' dmg</strong><br>' +
+          '<span class="' + comboClass.trim() + '">' + escapeHtml(comboLabel(entry)) + '</span>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function applyBossRushState(payload, fromSocket) {
+    if (!payload || !payload.boss) return;
+    if (applyLifecycleRedirect(payload, fromSocket)) return;
+    const bossHp = document.querySelectorAll('[data-boss-hp]');
+    const bossMaxHp = document.querySelectorAll('[data-boss-max-hp]');
+    const bossStatus = document.querySelectorAll('[data-boss-status]');
+    const bossFill = document.querySelector('[data-boss-hp-fill]');
+    bossHp.forEach(function (node) { node.textContent = payload.boss.hp; });
+    bossMaxHp.forEach(function (node) { node.textContent = payload.boss.max_hp; });
+    bossStatus.forEach(function (node) { node.textContent = payload.boss.status; });
+    if (bossFill) bossFill.style.width = (payload.boss.hp_percent || 0) + '%';
+    renderLeaderboard(payload);
+
+    const previousAbilityCount = latestAbilityState ? latestAbilityState.ability_count || 0 : lastShownAbilityCount;
+    const current = currentPlayerFromPayload(payload);
+    if (current) {
+      const hearts = document.querySelector('[data-player-hearts]');
+      const damage = document.querySelector('[data-player-damage]');
+      const combo = document.querySelector('[data-player-combo]');
+      const comboBonus = document.querySelector('[data-player-combo-bonus]');
+      const maxCombo = document.querySelector('[data-player-max-combo]');
+      const status = document.querySelector('[data-player-status]');
+      const bonuses = document.querySelector('[data-active-bonuses]');
+      if (hearts) hearts.innerHTML = renderHearts(current);
+      if (damage) damage.textContent = current.damage_dealt;
+      if (combo) combo.textContent = current.current_combo;
+      if (comboBonus) comboBonus.textContent = current.combo_bonus && current.combo_bonus.active ? '(+' + current.combo_bonus.bonus_damage + ' dmg)' : '';
+      if (maxCombo) maxCombo.textContent = current.max_combo;
+      if (status) status.textContent = current.status;
+      if (bonuses) {
+        const active = current.active_bonuses || {};
+        const items = active.items || [];
+        bonuses.textContent = items.length ? items.join(', ') : (active.placeholder || 'No active bonuses');
+      }
+      if (fromSocket && current.active_bonuses && current.active_bonuses.personal_message) {
+        const msg = current.active_bonuses.personal_message;
+        if (msg.indexOf('Wind Shuffle') !== -1 || msg.indexOf('Reflection') !== -1 || current.status === 'recovery') {
+          const reloadKey = 'boss-rush-reload-' + SESSION_ID + '-' + (payload.ability ? payload.ability.ability_count : 'state') + '-' + msg;
+          if (sessionStorage.getItem(reloadKey) !== '1') {
+            sessionStorage.setItem(reloadKey, '1');
+            showAbilityToast(msg);
+            window.setTimeout(function () {
+              window.location.reload();
+            }, 1400);
+          }
+        }
+      }
+    }
+    if (payload.ability) {
+      latestAbilityState = payload.ability;
+      abilityCheckPending = false;
+      const abilityName = document.querySelectorAll('[data-ability-name], [data-battle-ability]');
+      const abilityTimer = document.querySelector('[data-ability-timer]');
+      const abilitySummary = document.querySelector('[data-ability-summary]');
+      const abilityFullRule = document.querySelector('[data-ability-full-rule]');
+      const abilityStrategy = document.querySelector('[data-ability-strategy]');
+      const abilityEvent = document.querySelector('[data-ability-event]');
+      const abilityCount = document.querySelector('[data-ability-count]');
+      const stoneGuard = document.querySelector('[data-stone-guard]');
+      abilityName.forEach(function (node) { node.textContent = payload.ability.name || 'Ability'; });
+      if (abilityTimer) abilityTimer.textContent = payload.ability.enabled ? ((payload.ability.seconds_remaining || 0) + 's') : 'Inactive';
+      if (abilitySummary) abilitySummary.textContent = payload.ability.hint || payload.ability.summary || '';
+      if (abilityFullRule) abilityFullRule.textContent = payload.ability.summary || '';
+      if (abilityStrategy) abilityStrategy.textContent = payload.ability.hint || '';
+      if (abilityEvent) abilityEvent.textContent = payload.ability.recent_event && payload.ability.recent_event.message ? payload.ability.recent_event.message : 'No ability yet';
+      if (abilityCount) abilityCount.textContent = '#' + (payload.ability.ability_count || 0);
+      if (stoneGuard) stoneGuard.textContent = payload.ability.stone_guard_active ? ('Active: x' + payload.ability.stone_guard_combo_required) : 'Off';
+      updateAbilityTimerDisplay();
+      const newCount = payload.ability.ability_count || 0;
+      if (fromSocket && newCount > previousAbilityCount) {
+        const personal = current && current.active_bonuses ? current.active_bonuses.personal_message : '';
+        const eventMessage = payload.ability.recent_event && payload.ability.recent_event.message ? payload.ability.recent_event.message : '';
+        showAbilityToast(personal || eventMessage);
+        lastShownAbilityCount = newCount;
+      }
+    }
+  }
+
+  applyBossRushState(INITIAL_BOSS_RUSH_STATE, false);
+  (INITIAL_BATTLE_FLASHES || []).forEach(function (row, index) {
+    const message = Array.isArray(row) ? row[1] : row;
+    window.setTimeout(function () { showAbilityToast(message); }, index * 180);
+  });
+  window.setInterval(updateAbilityTimerDisplay, 1000);
+
+  document.querySelectorAll('[data-boss-info-open]').forEach(function (node) {
+    node.addEventListener('click', openBossInfo);
+    node.addEventListener('keydown', function (event) {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        openBossInfo();
+      }
+    });
+  });
+  document.querySelectorAll('[data-boss-info-close]').forEach(function (node) {
+    node.addEventListener('click', closeBossInfo);
+  });
+  const infoModal = document.querySelector('[data-boss-info-modal]');
+  if (infoModal) {
+    infoModal.addEventListener('click', function (event) {
+      if (event.target === infoModal) closeBossInfo();
+    });
+  }
+  document.addEventListener('click', function (event) {
+    const modal = document.querySelector('[data-boss-info-modal]');
+    if (!modal || !modal.classList.contains('is-open')) return;
+    if (modal.contains(event.target) || isBossInfoOpenTarget(event.target)) return;
+    closeBossInfo();
+  });
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape') closeBossInfo();
+  });
+
+  if (window.io) {
+    bossRushSocket = io();
+    bossRushSocket.on('connect', function () {
+      bossRushSocket.emit('boss_rush_join', { session_id: SESSION_ID });
+    });
+    bossRushSocket.on('boss_rush_state_update', function (payload) {
+      applyBossRushState(payload, true);
+    });
+    bossRushSocket.on('boss_rush_error', function (data) {
+      abilityCheckPending = false;
+      console.warn('Boss Rush socket:', data && data.msg);
+    });
+  }
+</script>
+{% endblock %}

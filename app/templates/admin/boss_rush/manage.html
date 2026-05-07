@@ -1,0 +1,371 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}Manage Boss Rush #{{ game_session.id }}{% endblock %}
+
+{% block admin_content %}
+<style>
+    .boss-rush-admin-toast {
+        position: fixed;
+        z-index: 1000;
+        top: 18px;
+        left: 50%;
+        max-width: min(720px, calc(100vw - 32px));
+        padding: 12px 18px;
+        border: 1px solid rgba(82, 97, 116, 0.24);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.96);
+        box-shadow: 0 16px 36px rgba(24, 39, 58, 0.18);
+        color: #263241;
+        font-weight: 800;
+        opacity: 0;
+        pointer-events: none;
+        transform: translate(-50%, -12px);
+        transition: opacity 0.18s ease, transform 0.18s ease;
+    }
+    .boss-rush-admin-toast.is-visible {
+        opacity: 1;
+        transform: translate(-50%, 0);
+    }
+    .boss-rush-admin-timer-track {
+        max-width: 220px;
+        height: 7px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: #e7edf4;
+    }
+    .boss-rush-admin-timer-fill {
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, #7fa1bd, #d6a6ba);
+        transition: width 0.18s linear;
+    }
+</style>
+<div class="boss-rush-admin-toast" data-ability-toast role="status" aria-live="polite"></div>
+<h1>Boss Rush Session #{{ game_session.id }}</h1>
+
+<div style="background:#e8f4f8; border:1px solid #bee5eb; border-radius:6px; padding:12px 16px; margin-bottom:16px;">
+    <strong>Player entry link:</strong>
+    <code>{{ request.host_url }}boss-rush/play</code>
+            <small style="color:#666; display:block; margin-top:4px;">Players join from the Hub or this entry route; waiting players move into the battle when you start the round.</small>
+</div>
+
+<section class="admin-section-card">
+    <div class="admin-summary-grid">
+        <div>
+            <h2 class="admin-toolbar-title">Session</h2>
+            <p><strong>Label:</strong> {{ game_session.display_label }}</p>
+            <p><strong>Status:</strong> {{ game_session.status }}</p>
+            <p><strong>Class:</strong> {% if game_session.group %}{{ game_session.group.name }}{% else %}Open{% endif %}</p>
+            <p><strong>Attack Set:</strong> {{ config.attack_problem_set.name if config else 'Missing' }}</p>
+            <p><strong>Recovery Set:</strong> {{ config.recovery_problem_set.name if config else 'Missing' }}</p>
+        </div>
+        <div>
+            <h2 class="admin-toolbar-title">Boss</h2>
+            {% if config and config.boss_image_path %}
+            <img src="{{ url_for('static', filename=config.boss_image_path) }}" alt="{{ config.boss_name }}" style="max-width:160px; max-height:160px; object-fit:contain;">
+            {% endif %}
+            <p><strong>Name:</strong> {{ config.boss_name if config else 'Missing' }}</p>
+            <p><strong>HP:</strong> <span data-boss-hp>{{ battle_state.current_boss_hp if battle_state else '?' }}</span> / <span data-boss-max-hp>{{ config.boss_max_hp if config else '?' }}</span></p>
+            <p><strong>Player HP:</strong> {{ config.player_max_hp if config else '?' }}</p>
+            <p><strong>Battle Status:</strong> <span data-boss-status>{{ battle_state.status if battle_state else 'Missing' }}</span></p>
+            <p><strong>Ability:</strong> <span data-ability-name>{{ live_state_payload.ability.name if live_state_payload else 'Missing' }}</span></p>
+            <p><strong>Next Ability:</strong> <span data-ability-timer>{% if live_state_payload and live_state_payload.ability.enabled %}{{ live_state_payload.ability.seconds_remaining or 0 }}s{% else %}Inactive{% endif %}</span></p>
+            <div class="boss-rush-admin-timer-track" aria-hidden="true"><div class="boss-rush-admin-timer-fill" data-ability-timer-fill></div></div>
+            <p><strong>Ability Count:</strong> <span data-ability-count>{{ battle_state.ability_count if battle_state else 0 }}</span></p>
+            <p><strong>Recent Ability:</strong> <span data-ability-event>{% if battle_state and battle_state.last_ability_summary_json %}{{ battle_state.last_ability_summary_json.message }}{% else %}None{% endif %}</span></p>
+            <p><strong>Stone Guard:</strong> <span data-stone-guard>{% if battle_state and battle_state.stone_guard_active %}Active{% else %}Off{% endif %}</span></p>
+            {% if battle_state and battle_state.is_defeated %}
+            <p><strong>Defeated At:</strong> {{ battle_state.defeated_at.strftime('%Y-%m-%d %H:%M:%S') if battle_state.defeated_at else 'Recorded' }}</p>
+            {% endif %}
+        </div>
+    </div>
+</section>
+
+{% if game_round and game_round.ended_at %}
+<section class="admin-section-card admin-section-card-muted">
+    <h2 class="admin-toolbar-title">
+        {% if battle_state and battle_state.is_defeated %}Boss Defeated{% else %}Round Ended{% endif %}
+    </h2>
+    <p class="admin-toolbar-subtitle">
+        Round {{ game_round.round_number }} is closed. Configure the next Boss Rush round to change boss, problem sets, HP, rewards, combo, and ability settings before players continue.
+    </p>
+</section>
+{% endif %}
+
+<div style="display:flex; gap:12px; margin-bottom:24px; flex-wrap:wrap;">
+    {% if game_round and not game_round.started_at and not game_round.ended_at and game_session.status == 'waiting' %}
+    <form method="POST" action="{{ url_for('boss_rush_admin.start_round', session_id=game_session.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="admin-btn admin-btn-primary" type="submit">Start Boss Rush Round</button>
+    </form>
+    {% endif %}
+
+    {% if game_session.status == 'active' and game_round and not game_round.ended_at %}
+    <form method="POST" action="{{ url_for('boss_rush_admin.end_round', session_id=game_session.id) }}"
+          onsubmit="return confirm('End this Boss Rush round and return players to the lobby?')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="admin-btn admin-btn-secondary" type="submit">End Round (return to lobby)</button>
+    </form>
+    {% endif %}
+
+    {% if game_session.status == 'waiting' and game_round and game_round.ended_at %}
+    <a class="admin-btn admin-btn-primary" href="{{ url_for('boss_rush_admin.next_round', session_id=game_session.id) }}">Configure Next Boss Rush Round</a>
+
+    <form method="POST" action="{{ url_for('boss_rush_admin.end_session', session_id=game_session.id) }}"
+          onsubmit="return confirm('End the Boss Rush session permanently?')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="admin-btn admin-btn-secondary" type="submit">End Session</button>
+    </form>
+    {% endif %}
+
+    {% if battle_state and battle_state.is_defeated and not battle_state.rewards_finalized_at %}
+    <form method="POST" action="{{ url_for('boss_rush_admin.finalize_rewards', session_id=game_session.id) }}"
+          onsubmit="return confirm('Finalize Boss Rush rewards? This awards Diamonds once.')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="admin-btn admin-btn-primary" type="submit">Finalize Rewards</button>
+    </form>
+    {% endif %}
+</div>
+
+{% if battle_state and battle_state.is_defeated %}
+<section class="admin-section-card">
+    <div class="admin-toolbar">
+        <div>
+            <h2 class="admin-toolbar-title">
+                {% if battle_state.rewards_finalized_at %}Final Rewards{% else %}Pending Reward Preview{% endif %}
+            </h2>
+            <p class="admin-toolbar-subtitle">
+                {% if battle_state.rewards_finalized_at %}
+                    Finalized {{ battle_state.rewards_finalized_at.strftime('%Y-%m-%d %H:%M:%S') }}.
+                {% else %}
+                    Preview only. Diamonds are not awarded until Finalize Rewards is pressed.
+                {% endif %}
+            </p>
+        </div>
+    </div>
+
+    {% if reward_snapshot and reward_snapshot.entries %}
+    <div class="admin-table-wrap">
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Rank</th>
+                    <th>Player</th>
+                    <th>Damage</th>
+                    <th>Max Combo</th>
+                    <th>Placement</th>
+                    <th>Other</th>
+                    <th>Combo</th>
+                    <th>Total Diamonds</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in reward_snapshot.entries %}
+                <tr>
+                    <td>{% if entry.rank %}#{{ entry.rank }}{% else %}-{% endif %}</td>
+                    <td>{{ entry.username }}</td>
+                    <td>{{ entry.damage_dealt }}</td>
+                    <td>{{ entry.max_combo }}</td>
+                    <td>{{ entry.breakdown.placement }}</td>
+                    <td>{{ entry.breakdown.other_participant }}</td>
+                    <td>{{ entry.breakdown.highest_combo }}</td>
+                    <td><strong>{{ entry.total_diamonds }}</strong></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="admin-empty-state">No rewardable player results yet.</div>
+    {% endif %}
+</section>
+{% endif %}
+
+<section class="admin-section-card">
+    <div class="admin-toolbar">
+        <div>
+            <h2 class="admin-toolbar-title">Battle Progress</h2>
+            <p class="admin-toolbar-subtitle">Live persisted state. Rewards are still deferred.</p>
+        </div>
+    </div>
+
+    <div class="admin-table-wrap">
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Player</th>
+                    <th>HP</th>
+                    <th>Damage</th>
+                    <th>Combo</th>
+                    <th>Max Combo</th>
+                    <th>Correct / Wrong</th>
+                    <th>Ability</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody data-boss-rush-admin-leaderboard>
+                {% if player_states %}
+                {% for state in player_states %}
+                <tr>
+                    <td>{{ state.player.username }}</td>
+                    <td>{{ state.hp }}</td>
+                    <td>{{ state.damage_dealt }}</td>
+                    <td>{{ state.current_combo }}</td>
+                    <td>{{ state.max_combo }}</td>
+                    <td>{{ state.correct_count }} / {{ state.incorrect_count }}</td>
+                    <td>
+                        {% if state.fire_shield_stacks %}Fire Shield x{{ state.fire_shield_stacks }}{% endif %}
+                        {% if config and config.boss_type == 'time_wraith' %}{% if state.submitted_since_last_ability %}Safe{% else %}Inactive{% endif %}{% endif %}
+                    </td>
+                    <td>
+                        {% if state.is_completed %}Completed{% elif state.hp <= 0 %}Recovery{% else %}Attacking{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                {% else %}
+                <tr><td colspan="8" style="color:#777;">No players have joined this Boss Rush shell.</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<script src="/static/js/socket.io.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const SESSION_ID = {{ game_session.id }};
+    const INITIAL_BOSS_RUSH_STATE = {{ live_state_payload|tojson }};
+    let bossRushSocket = null;
+    let latestAbilityState = null;
+    let abilityCheckPending = false;
+    let lastShownAbilityCount = INITIAL_BOSS_RUSH_STATE && INITIAL_BOSS_RUSH_STATE.ability ? INITIAL_BOSS_RUSH_STATE.ability.ability_count || 0 : 0;
+    let toastTimer = null;
+
+    function escapeHtml(value) {
+        return String(value == null ? '' : value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function comboLabel(entry) {
+        if (entry.combo_bonus && entry.combo_bonus.label) return entry.combo_bonus.label;
+        return 'Combo x' + entry.current_combo;
+    }
+
+    function abilitySecondsRemaining(ability) {
+        if (!ability || !ability.enabled) return null;
+        if (ability.next_ability_at) {
+            const target = new Date(ability.next_ability_at).getTime();
+            if (!Number.isNaN(target)) {
+                return Math.max(0, Math.ceil((target - Date.now()) / 1000));
+            }
+        }
+        return Math.max(0, Number(ability.seconds_remaining || 0));
+    }
+
+    function updateAbilityTimerDisplay() {
+        const timer = document.querySelector('[data-ability-timer]');
+        const fill = document.querySelector('[data-ability-timer-fill]');
+        if (!latestAbilityState || !latestAbilityState.enabled) {
+            if (timer) timer.textContent = 'Inactive';
+            if (fill) fill.style.width = '0%';
+            return;
+        }
+        const seconds = abilitySecondsRemaining(latestAbilityState);
+        const interval = Math.max(Number(latestAbilityState.interval_seconds || 0), 1);
+        if (timer) timer.textContent = seconds <= 0 ? 'Ready' : seconds + 's';
+        if (fill) fill.style.width = Math.max(0, Math.min(100, (seconds / interval) * 100)) + '%';
+        if (seconds <= 0 && !abilityCheckPending && bossRushSocket && bossRushSocket.connected) {
+            abilityCheckPending = true;
+            bossRushSocket.emit('boss_rush_check_ability', { session_id: SESSION_ID });
+            window.setTimeout(function () { abilityCheckPending = false; }, 4000);
+        }
+    }
+
+    function showAbilityToast(message) {
+        const toast = document.querySelector('[data-ability-toast]');
+        if (!toast || !message) return;
+        toast.textContent = message;
+        toast.classList.add('is-visible');
+        if (toastTimer) window.clearTimeout(toastTimer);
+        toastTimer = window.setTimeout(function () {
+            toast.classList.remove('is-visible');
+        }, 5200);
+    }
+
+    function applyBossRushState(payload) {
+        if (!payload || !payload.boss) return;
+        const bossHp = document.querySelector('[data-boss-hp]');
+        const bossMaxHp = document.querySelector('[data-boss-max-hp]');
+        const bossStatus = document.querySelector('[data-boss-status]');
+        if (bossHp) bossHp.textContent = payload.boss.hp;
+        if (bossMaxHp) bossMaxHp.textContent = payload.boss.max_hp;
+        if (bossStatus) bossStatus.textContent = payload.boss.status;
+        if (payload.ability) {
+            const previousAbilityCount = latestAbilityState ? latestAbilityState.ability_count || 0 : lastShownAbilityCount;
+            latestAbilityState = payload.ability;
+            abilityCheckPending = false;
+            const abilityName = document.querySelector('[data-ability-name]');
+            const abilityTimer = document.querySelector('[data-ability-timer]');
+            const abilityCount = document.querySelector('[data-ability-count]');
+            const abilityEvent = document.querySelector('[data-ability-event]');
+            const stoneGuard = document.querySelector('[data-stone-guard]');
+            if (abilityName) abilityName.textContent = payload.ability.name || 'Ability';
+            if (abilityTimer) abilityTimer.textContent = payload.ability.enabled ? ((payload.ability.seconds_remaining || 0) + 's') : 'Inactive';
+            if (abilityCount) abilityCount.textContent = payload.ability.ability_count || 0;
+            if (abilityEvent) abilityEvent.textContent = payload.ability.recent_event && payload.ability.recent_event.message ? payload.ability.recent_event.message : 'None';
+            if (stoneGuard) stoneGuard.textContent = payload.ability.stone_guard_active ? ('Active: x' + payload.ability.stone_guard_combo_required) : 'Off';
+            updateAbilityTimerDisplay();
+            const newCount = payload.ability.ability_count || 0;
+            if (newCount > previousAbilityCount) {
+                const message = payload.ability.recent_event && payload.ability.recent_event.message ? payload.ability.recent_event.message : 'Boss ability triggered.';
+                showAbilityToast(message);
+                lastShownAbilityCount = newCount;
+            }
+        }
+
+        const tbody = document.querySelector('[data-boss-rush-admin-leaderboard]');
+        if (!tbody) return;
+        const rows = payload.leaderboard || [];
+        tbody.innerHTML = '';
+        if (!rows.length) {
+            const tr = document.createElement('tr');
+            tr.innerHTML = '<td colspan="8" style="color:#777;">No players have joined this Boss Rush shell.</td>';
+            tbody.appendChild(tr);
+            return;
+        }
+        rows.forEach(function (entry) {
+            const tr = document.createElement('tr');
+            tr.innerHTML =
+                '<td>#' + entry.rank + ' ' + escapeHtml(entry.username) + '</td>' +
+                '<td>' + entry.hp + ' / ' + entry.max_hp + '</td>' +
+                '<td>' + entry.damage_dealt + '</td>' +
+                '<td>' + entry.current_combo + '</td>' +
+                '<td>' + entry.max_combo + '</td>' +
+                '<td>' + entry.correct_count + ' / ' + entry.incorrect_count + '</td>' +
+                '<td>' + escapeHtml((entry.active_bonuses && entry.active_bonuses.items && entry.active_bonuses.items.length) ? entry.active_bonuses.items.join(', ') : '-') + '</td>' +
+                '<td>' + escapeHtml(entry.status) + ' · ' + escapeHtml(comboLabel(entry)) + '</td>';
+            tbody.appendChild(tr);
+        });
+    }
+
+    applyBossRushState(INITIAL_BOSS_RUSH_STATE);
+    window.setInterval(updateAbilityTimerDisplay, 1000);
+
+    if (window.io) {
+        bossRushSocket = io();
+        bossRushSocket.on('connect', function () {
+            bossRushSocket.emit('boss_rush_join', { session_id: SESSION_ID });
+        });
+        bossRushSocket.on('boss_rush_state_update', applyBossRushState);
+        bossRushSocket.on('boss_rush_error', function (data) {
+            abilityCheckPending = false;
+            console.warn('Boss Rush socket:', data && data.msg);
+        });
+    }
+});
+</script>
+{% endblock %}

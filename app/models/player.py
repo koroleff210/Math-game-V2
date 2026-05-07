@@ -20,11 +20,16 @@ class Player(UserMixin, db.Model):
     is_admin   = db.Column(db.Boolean, default=False, nullable=False)
     yeargroup  = db.Column(db.String(32), nullable=True)
     selected_face_key = db.Column(db.String(16), nullable=False, default='001')
+    character_locked_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(
         db.DateTime,
         default=lambda: datetime.now(timezone.utc),
         nullable=False
     )
+
+    @property
+    def is_character_locked(self):
+        return self.character_locked_at is not None
 
     # ── Password helpers ──────────────────────────────────────────────────────
     def set_password(self, password):

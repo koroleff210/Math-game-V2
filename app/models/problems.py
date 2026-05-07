@@ -130,6 +130,10 @@ class ProblemSet(db.Model):
     id          = db.Column(db.Integer, primary_key=True)
     name        = db.Column(db.String(128), nullable=False)
     description = db.Column(db.Text, nullable=True)
+    usable_in_classic = db.Column(db.Boolean, nullable=False, default=True, server_default='1')
+    usable_in_boss_rush = db.Column(db.Boolean, nullable=False, default=False, server_default='0')
+    usable_as_recovery = db.Column(db.Boolean, nullable=False, default=False, server_default='0')
+    usable_in_team = db.Column(db.Boolean, nullable=False, default=False, server_default='0')
     created_at  = db.Column(
         db.DateTime,
         default=lambda: datetime.now(timezone.utc),
@@ -212,3 +216,31 @@ class ProblemChoiceOption(db.Model):
 
     def __repr__(self):
         return f'<ProblemChoiceOption {self.id} problem={self.problem_id}>'
+
+
+class ProblemSourceMetadata(db.Model):
+    __tablename__ = 'problem_source_metadata'
+    __table_args__ = (
+        db.UniqueConstraint('source_system', 'canonical_id', name='uq_problem_source_metadata_source_canonical'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    problem_id = db.Column(db.Integer, db.ForeignKey('problem.id'), nullable=False, unique=True, index=True)
+    source_system = db.Column(db.String(128), nullable=False)
+    source_bank_path = db.Column(db.String(512), nullable=True)
+    source_id = db.Column(db.String(256), nullable=True)
+    canonical_id = db.Column(db.String(256), nullable=False)
+    content_hash = db.Column(db.String(128), nullable=True)
+    answer_hash = db.Column(db.String(128), nullable=True)
+    imported_at = db.Column(
+        db.DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+    import_batch_id = db.Column(db.String(64), nullable=False, index=True)
+    raw_metadata_json = db.Column(db.JSON, nullable=True)
+
+    problem = db.relationship('Problem', backref=db.backref('source_metadata', uselist=False))
+
+    def __repr__(self):
+        return f'<ProblemSourceMetadata {self.source_system!r}:{self.canonical_id!r}>'

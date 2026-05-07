@@ -1,0 +1,324 @@
+{% extends 'base.html' %}
+
+{% block title %}My Progress - Math Game{% endblock %}
+
+{% macro pct(value) -%}
+  {%- if value is not none -%}{{ (value * 100) | round(1) }}%{%- else -%}<span class="muted">n/a</span>{%- endif -%}
+{%- endmacro %}
+
+{% macro dt(value) -%}
+  {{ value.strftime('%Y-%m-%d') if value else 'n/a' }}
+{%- endmacro %}
+
+{% block head %}
+<style>
+  body {
+    font-family: sans-serif;
+    margin: 0;
+    color: #2f2a22;
+    background:
+      linear-gradient(180deg, rgba(244, 235, 219, 0.72), rgba(226, 211, 187, 0.70)),
+      url("{{ url_for('static', filename='classic_ui/player_ui/background_001.png') }}") center/cover no-repeat fixed;
+  }
+  .progress-page {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 22px 18px 44px;
+  }
+  .progress-header {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 18px;
+  }
+  .progress-header h1 {
+    margin: 0 0 4px;
+    font-size: 2rem;
+    color: #342c22;
+  }
+  .progress-header p {
+    margin: 0;
+    color: #665847;
+  }
+  .back-link {
+    text-decoration: none;
+    color: #3e5f67;
+    font-weight: 800;
+  }
+  .panel {
+    border: 1px solid rgba(112, 95, 68, 0.14);
+    border-radius: 16px;
+    background: rgba(250, 245, 236, 0.92);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.64), 0 10px 24px rgba(63, 47, 24, 0.06);
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .panel h2 {
+    margin: 0 0 12px;
+    font-size: 1.1rem;
+    color: #67563f;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .overview-grid,
+  .records-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+  }
+  .metric {
+    border-radius: 12px;
+    background: rgba(255, 251, 245, 0.86);
+    border: 1px solid rgba(112, 95, 68, 0.12);
+    padding: 12px;
+  }
+  .metric-label {
+    color: #786a58;
+    font-size: 0.86rem;
+    margin-bottom: 6px;
+  }
+  .metric-value {
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: #342c22;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92rem;
+  }
+  th,
+  td {
+    border-bottom: 1px solid rgba(112, 95, 68, 0.13);
+    padding: 9px 8px;
+    vertical-align: top;
+  }
+  th {
+    text-align: left;
+    color: #67563f;
+    background: rgba(244, 236, 223, 0.58);
+  }
+  td.num,
+  th.num {
+    text-align: right;
+  }
+  .muted {
+    color: #827565;
+  }
+  .review-list {
+    display: grid;
+    gap: 9px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .review-list li {
+    padding: 11px 12px;
+    border-radius: 12px;
+    background: rgba(255, 251, 245, 0.88);
+    border: 1px solid rgba(112, 95, 68, 0.12);
+  }
+  .missed-answer {
+    color: #665847;
+    margin-top: 4px;
+  }
+  @media (max-width: 720px) {
+    .progress-header {
+      display: block;
+    }
+    .back-link {
+      display: inline-block;
+      margin-top: 10px;
+    }
+    table {
+      font-size: 0.82rem;
+    }
+    th,
+    td {
+      padding: 7px 5px;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="progress-page">
+  <header class="progress-header">
+    <div>
+      <h1>My Progress</h1>
+      <p>Recent games, topics practiced, and a few records from Classic and Boss Rush.</p>
+    </div>
+    <a class="back-link" href="{{ url_for('player.dashboard') }}">Back to Hub</a>
+  </header>
+
+  <section class="panel">
+    <h2>Overview</h2>
+    <div class="overview-grid">
+      <div class="metric"><div class="metric-label">Rounds played</div><div class="metric-value">{{ dashboard.overview.rounds_played }}</div></div>
+      <div class="metric"><div class="metric-label">Problems tried</div><div class="metric-value">{{ dashboard.overview.problems_tried }}</div></div>
+      <div class="metric"><div class="metric-label">Correct answers</div><div class="metric-value">{{ dashboard.overview.correct }}</div></div>
+      <div class="metric"><div class="metric-label">Incorrect answers</div><div class="metric-value">{{ dashboard.overview.incorrect }}</div></div>
+      <div class="metric"><div class="metric-label">Accuracy</div><div class="metric-value">{{ pct(dashboard.overview.accuracy) }}</div></div>
+      <div class="metric"><div class="metric-label">First try correct</div><div class="metric-value">{{ pct(dashboard.overview.first_try_accuracy) }}</div></div>
+      <div class="metric"><div class="metric-label">Eventually solved</div><div class="metric-value">{{ dashboard.overview.eventually_solved }}</div></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Recent Rounds</h2>
+    {% if dashboard.recent_rounds %}
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Mode</th>
+          <th>Problem Set</th>
+          <th class="num">Tried</th>
+          <th class="num">Correct / Incorrect</th>
+          <th class="num">Accuracy</th>
+          <th class="num">Game Record</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in dashboard.recent_rounds %}
+        <tr>
+          <td>{{ dt(item.date) }}</td>
+          <td>{{ item.mode or 'n/a' }}</td>
+          <td>{{ item.problem_set or 'n/a' }}</td>
+          <td class="num">{{ item.problems_attempted }}</td>
+          <td class="num">{{ item.correct }} / {{ item.incorrect }}</td>
+          <td class="num">{{ pct(item.accuracy) }}</td>
+          <td class="num">
+            {% if item.mode == 'classic' %}
+              Gold net {{ item.classic_gold_net if item.classic_gold_net is not none else 'n/a' }}
+            {% elif item.mode == 'boss_rush' %}
+              Damage {{ item.boss_damage }}, max combo {{ item.boss_max_combo }}
+            {% else %}
+              <span class="muted">n/a</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="muted">No rounds recorded yet.</p>
+    {% endif %}
+  </section>
+
+  <section class="panel">
+    <h2>Topic Practice</h2>
+    {% if dashboard.topic_rows %}
+    <table>
+      <thead>
+        <tr>
+          <th>Topic</th>
+          <th class="num">Attempts</th>
+          <th class="num">Correct</th>
+          <th class="num">Accuracy</th>
+          <th class="num">First try correct</th>
+          <th class="num">Eventually correct</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in dashboard.topic_rows %}
+        <tr>
+          <td>{{ row.topic_name }} <span class="muted">{{ row.subject_name }}</span></td>
+          <td class="num">{{ row.attempts }}</td>
+          <td class="num">{{ row.correct }}</td>
+          <td class="num">{{ pct(row.accuracy) }}</td>
+          <td class="num">{{ pct(row.first_try_accuracy) }}</td>
+          <td class="num">{{ pct(row.eventual_correct_pct) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="muted">Play a round to start building your topic practice summary.</p>
+    {% endif %}
+  </section>
+
+  <section class="panel">
+    <h2>Topics To Review</h2>
+    {% if dashboard.topics_to_review %}
+    <p class="muted">These are topics where more practice may help.</p>
+    <ul class="review-list">
+      {% for row in dashboard.topics_to_review %}
+      <li>
+        <strong>{{ row.topic_name }}</strong>
+        <span class="muted">{{ row.subject_name }}</span><br>
+        Accuracy {{ pct(row.accuracy) }}, first try {{ pct(row.first_try_accuracy) }}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="muted">No review topics yet. More completed attempts will make this smarter.</p>
+    {% endif %}
+  </section>
+
+  <section class="panel">
+    <h2>Recent Missed Problems</h2>
+    {% if dashboard.recent_missed %}
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Problem</th>
+          <th>Topic</th>
+          <th>Your answer</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in dashboard.recent_missed %}
+        <tr>
+          <td>{{ dt(item.date) }}</td>
+          <td>{{ item.problem_title }}</td>
+          <td>{{ item.topic_name }}</td>
+          <td>
+            {% if item.selected_answer %}
+              {{ item.selected_answer }}
+            {% elif item.submitted_text %}
+              {{ item.submitted_text }}
+            {% else %}
+              <span class="muted">No answer text recorded</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="muted">No missed attempts recorded yet.</p>
+    {% endif %}
+  </section>
+
+  <section class="panel">
+    <h2>Classic Records</h2>
+    <div class="records-grid">
+      <div class="metric"><div class="metric-label">Total gold net</div><div class="metric-value">{{ dashboard.classic_records.total_gold_net }}</div></div>
+      <div class="metric"><div class="metric-label">Best final gold</div><div class="metric-value">{{ dashboard.classic_records.best_final_gold if dashboard.classic_records.best_final_gold is not none else 'n/a' }}</div></div>
+      <div class="metric"><div class="metric-label">Gold mined</div><div class="metric-value">{{ dashboard.classic_records.total_mined_gold }}</div></div>
+      <div class="metric"><div class="metric-label">Gold stolen</div><div class="metric-value">{{ dashboard.classic_records.total_stolen_gold }}</div></div>
+      <div class="metric"><div class="metric-label">Gold lost to steals</div><div class="metric-value">{{ dashboard.classic_records.gold_lost_to_steals }}</div></div>
+      <div class="metric"><div class="metric-label">Successful steals</div><div class="metric-value">{{ dashboard.classic_records.successful_steals }}</div></div>
+      <div class="metric"><div class="metric-label">Failed steals</div><div class="metric-value">{{ dashboard.classic_records.failed_steals }}</div></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Boss Rush Records</h2>
+    <div class="records-grid">
+      <div class="metric"><div class="metric-label">Total damage</div><div class="metric-value">{{ dashboard.boss_records.total_damage }}</div></div>
+      <div class="metric"><div class="metric-label">Best round damage</div><div class="metric-value">{{ dashboard.boss_records.best_damage }}</div></div>
+      <div class="metric"><div class="metric-label">Best combo</div><div class="metric-value">{{ dashboard.boss_records.best_combo }}</div></div>
+      <div class="metric"><div class="metric-label">Diamonds earned</div><div class="metric-value">{{ dashboard.boss_records.diamonds_earned }}</div></div>
+      <div class="metric"><div class="metric-label">Recovery successes</div><div class="metric-value">{{ dashboard.boss_records.recovery_successes }}</div></div>
+      <div class="metric"><div class="metric-label">Bosses fought</div><div class="metric-value">{{ dashboard.boss_records.bosses_fought|length }}</div></div>
+    </div>
+    {% if dashboard.boss_records.bosses_fought %}
+    <p class="muted">Bosses: {{ dashboard.boss_records.bosses_fought|join(', ') }}</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

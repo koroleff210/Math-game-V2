@@ -97,6 +97,10 @@ class ProblemSetForm(FlaskForm):
         'Description (optional)',
         validators=[Optional()],
     )
+    usable_in_classic = BooleanField('Classic', default=True)
+    usable_in_boss_rush = BooleanField('Boss Rush attack', default=False)
+    usable_as_recovery = BooleanField('Boss Rush recovery', default=False)
+    usable_in_team = BooleanField('Team later', default=False)
     submit = SubmitField('Save Problem Set')
 
 

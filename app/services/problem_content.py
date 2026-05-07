@@ -43,6 +43,39 @@ EDITOR_BLOCK_TYPE_CHOICES = [
 
 GRAPH_FUNCTION_FAMILIES = ('linear', 'quadratic', 'exponential', 'sine', 'cosine')
 _GRAPH_NUMBER_RE = r'(?:\d+(?:\.\d+)?|\.\d+)'
+_GRAPH_FUNCTION_SAMPLE_COUNT = 240
+_GRAPH_DEFAULT_TRACE_COLORS = (
+    '#2563eb',
+    '#dc2626',
+    '#059669',
+    '#d97706',
+    '#7c3aed',
+    '#0891b2',
+)
+_GRAPH_DEFAULT_POINT_COLOR = '#dc2626'
+_GRAPH_FONT_FAMILY = 'Aptos, Calibri, "Segoe UI", sans-serif'
+_GRAPH_MINOR_GRID_COLOR = '#f3f5f8'
+_GRAPH_MAJOR_GRID_COLOR = '#d7dde5'
+_GRAPH_AXIS_COLOR = '#1f2937'
+_GRAPH_TICK_COLOR = '#64748b'
+_GRAPH_TARGET_TICK_LABELS = 11
+GRAPH_COLOR_PALETTE = (
+    {'key': 'blue', 'label': 'Blue', 'value': '#2563eb'},
+    {'key': 'red', 'label': 'Red', 'value': '#dc2626'},
+    {'key': 'green', 'label': 'Green', 'value': '#059669'},
+    {'key': 'orange', 'label': 'Orange', 'value': '#d97706'},
+    {'key': 'purple', 'label': 'Purple', 'value': '#7c3aed'},
+    {'key': 'gray', 'label': 'Gray', 'value': '#64748b'},
+    {'key': 'black', 'label': 'Black', 'value': '#111827'},
+)
+
+
+def normalize_supported_latex(source: str | None) -> str:
+    raw = '' if source is None else str(source)
+    # MathJax on the gameplay page handles \text{...} reliably, while some
+    # imported banks still use \textup{...}. Normalize the narrower command to
+    # the supported equivalent without changing the visible math meaning.
+    return re.sub(r'\\textup\s*\{', r'\\text{', raw)
 
 
 def _default_graph_viewport() -> dict:
@@ -449,6 +482,43 @@ def _dump_graph_config(config: dict) -> str:
     return json.dumps(config, sort_keys=True)
 
 
+def _graph_axis_layout(
+    *,
+    title: str,
+    axis_range: list[float],
+    show_grid: bool,
+) -> dict:
+    return {
+        'title': {
+            'text': title,
+            'standoff': 10,
+            'font': {'size': 12, 'color': '#344054'},
+        },
+        'range': axis_range,
+        'tickmode': 'auto',
+        'nticks': _GRAPH_TARGET_TICK_LABELS,
+        'showgrid': show_grid,
+        'gridcolor': _GRAPH_MAJOR_GRID_COLOR,
+        'gridwidth': 1,
+        'minor': {
+            'showgrid': show_grid,
+            'gridcolor': _GRAPH_MINOR_GRID_COLOR,
+            'gridwidth': 0.5,
+        },
+        'zeroline': True,
+        'zerolinecolor': _GRAPH_AXIS_COLOR,
+        'zerolinewidth': 2,
+        'showline': False,
+        'ticks': 'outside',
+        'ticklen': 4,
+        'tickwidth': 1,
+        'tickcolor': _GRAPH_TICK_COLOR,
+        'tickfont': {'size': 11, 'color': '#475467'},
+        'tickangle': 0,
+        'mirror': False,
+    }
+
+
 def _build_graph_plot_payload(graph_config: dict) -> dict:
     x_min = graph_config['x_min']
     x_max = graph_config['x_max']
@@ -456,10 +526,10 @@ def _build_graph_plot_payload(graph_config: dict) -> dict:
     y_max = graph_config['y_max']
     traces = []
 
-    for element in graph_config['elements']:
+    for element_index, element in enumerate(graph_config['elements']):
         if element['element_type'] == 'point':
             hover = element['label'] + '<br>' if element['label'] else ''
-            hover += '(%{x}, %{y})'
+            hover += '(%{x:.1f}, %{y:.1f})'
             traces.append({
                 'type': 'scatter',
                 'mode': 'markers+text' if element['label'] else 'markers',
@@ -469,8 +539,12 @@ def _build_graph_plot_payload(graph_config: dict) -> dict:
                 'textposition': 'top center',
                 'name': element['label'] or 'Point',
                 'marker': {
-                    'size': 10,
-                    'color': element['color'] or '#d62728',
+                    'size': 11,
+                    'color': element['color'] or _GRAPH_DEFAULT_POINT_COLOR,
+                    'line': {
+                        'color': '#ffffff',
+                        'width': 1.5,
+                    },
                 },
                 'hovertemplate': hover + '<extra></extra>',
             })
@@ -479,7 +553,10 @@ def _build_graph_plot_payload(graph_config: dict) -> dict:
         family = element['family']
         trace_x_min = element.get('x_min', x_min)
         trace_x_max = element.get('x_max', x_max)
-        x_values = [trace_x_min + (trace_x_max - trace_x_min) * (idx / 119.0) for idx in range(120)]
+        x_values = [
+            trace_x_min + (trace_x_max - trace_x_min) * (idx / (_GRAPH_FUNCTION_SAMPLE_COUNT - 1))
+            for idx in range(_GRAPH_FUNCTION_SAMPLE_COUNT)
+        ]
         y_values = []
         for x in x_values:
             if family == 'linear':
@@ -502,32 +579,62 @@ def _build_graph_plot_payload(graph_config: dict) -> dict:
             'y': y_values,
             'name': label,
             'line': {
-                'color': element['color'] or '#1f77b4',
-                'width': 3,
+                'color': element['color'] or _GRAPH_DEFAULT_TRACE_COLORS[element_index % len(_GRAPH_DEFAULT_TRACE_COLORS)],
+                'width': 3.25,
+                'shape': 'linear',
             },
-            'hovertemplate': '%{x}, %{y}<extra>' + html.escape(label) + '</extra>',
+            'hovertemplate': '%{x:.1f}, %{y:.1f}<extra>' + html.escape(label) + '</extra>',
         })
 
     return {
         'data': traces,
         'layout': {
-            'margin': {'l': 46, 'r': 18, 't': 18, 'b': 42},
-            'paper_bgcolor': '#ffffff',
+            'margin': {'l': 50, 'r': 20, 't': 18, 'b': 46},
+            'paper_bgcolor': '#fbfaf7',
             'plot_bgcolor': '#ffffff',
-            'showlegend': bool(traces),
-            'dragmode': 'pan',
-            'xaxis': {
-                'title': graph_config['x_label'],
-                'range': [x_min, x_max],
-                'showgrid': graph_config['show_grid'],
-                'zeroline': True,
+            'font': {
+                'family': _GRAPH_FONT_FAMILY,
+                'size': 12,
+                'color': '#344054',
             },
+            'showlegend': bool(traces),
+            'legend': {
+                'orientation': 'h',
+                'x': 0,
+                'xanchor': 'left',
+                'y': 1.08,
+                'yanchor': 'bottom',
+                'font': {
+                    'size': 11,
+                    'color': '#475467',
+                },
+                'bgcolor': 'rgba(255, 255, 255, 0)',
+            },
+            'dragmode': 'pan',
+            'hovermode': 'closest',
+            'hoverlabel': {
+                'bgcolor': '#111827',
+                'bordercolor': '#111827',
+                'font': {
+                    'family': _GRAPH_FONT_FAMILY,
+                    'size': 12,
+                    'color': '#ffffff',
+                },
+            },
+            'xaxis': _graph_axis_layout(
+                title=graph_config['x_label'],
+                axis_range=[x_min, x_max],
+                show_grid=graph_config['show_grid'],
+            ),
             'yaxis': {
-                'title': graph_config['y_label'],
-                'range': [y_min, y_max],
-                'showgrid': graph_config['show_grid'],
-                'zeroline': True,
-                'scaleanchor': False,
+                **_graph_axis_layout(
+                    title=graph_config['y_label'],
+                    axis_range=[y_min, y_max],
+                    show_grid=graph_config['show_grid'],
+                ),
+                'scaleanchor': 'x',
+                'scaleratio': 1,
+                'constrain': 'domain',
             },
         },
         'config': {
@@ -707,7 +814,7 @@ def check_problem_multiple_choice_answer(problem, submitted_option_id: int | Non
 
 
 def render_inline_text_html(source: str | None) -> str:
-    raw = '' if source is None else str(source)
+    raw = normalize_supported_latex(source)
     escaped = html.escape(raw)
     escaped = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', escaped)
     escaped = escaped.replace('\n', '<br>')
@@ -715,7 +822,7 @@ def render_inline_text_html(source: str | None) -> str:
 
 
 def render_rich_text_html(source: str | None) -> str:
-    raw = '' if source is None else str(source)
+    raw = normalize_supported_latex(source)
     if not raw.strip():
         return '<p class="problem-body-empty">Empty text block.</p>'
 

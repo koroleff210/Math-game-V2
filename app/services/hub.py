@@ -17,6 +17,8 @@ from app.extensions import db
 from app.models.game import GameSession, RoundPlayer
 from app.models.groups import PlayerGroup
 
+HUB_SUPPORTED_MODES = ('classic', 'boss_rush')
+
 # ── Hub state constants ────────────────────────────────────────────────────────
 
 HUB_STATE_NO_SESSION          = 'no_session'
@@ -36,6 +38,10 @@ class PlayerHubStatus:
     state: str                  # one of the HUB_STATE_* constants
     session: object = None      # the relevant GameSession instance, or None
 
+    @property
+    def mode(self) -> str | None:
+        return self.session.mode if self.session else None
+
 
 # ── Public API ─────────────────────────────────────────────────────────────────
 
@@ -50,7 +56,7 @@ def get_player_hub_status(player) -> PlayerHubStatus:
         .join(GameSession, RoundPlayer.session_id == GameSession.id)
         .filter(
             RoundPlayer.player_id == player.id,
-            GameSession.mode == 'classic',
+            GameSession.mode.in_(HUB_SUPPORTED_MODES),
             GameSession.status != 'finished',
         )
         .first()
@@ -63,7 +69,7 @@ def get_player_hub_status(player) -> PlayerHubStatus:
     live_sessions = (
         GameSession.query
         .filter(
-            GameSession.mode == 'classic',
+            GameSession.mode.in_(HUB_SUPPORTED_MODES),
             GameSession.status.in_(['waiting', 'active']),
         )
         .order_by(GameSession.id.desc())

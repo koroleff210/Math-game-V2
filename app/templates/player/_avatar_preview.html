@@ -18,22 +18,28 @@
   </div>
 
   <div class="avatar-face-controls" data-gear-face-controls-region>
-    <form method="POST" action="{{ url_for('player.avatar_face') }}" data-gear-shell-form>
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="direction" value="prev">
-      <input type="hidden" name="gear_filter" value="{{ gear_filter }}">
-      <input type="hidden" name="selected_item" value="{{ gear_selected_item.id if gear_selected_item else '' }}">
-      <button type="submit" class="btn btn-secondary btn-small">Previous</button>
-    </form>
+    {% if not character_face_locked %}
+      <form method="POST" action="{{ url_for('player.avatar_face') }}" data-gear-shell-form>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="direction" value="prev">
+        <input type="hidden" name="gear_filter" value="{{ gear_filter }}">
+        <input type="hidden" name="selected_item" value="{{ gear_selected_item.id if gear_selected_item else '' }}">
+        <button type="submit" class="btn btn-secondary btn-small">Previous</button>
+      </form>
+    {% endif %}
     <div class="avatar-face-label" data-avatar-face-key="{{ gear_avatar.selected_face_key }}" data-avatar-face-label-region>
       {{ gear_avatar.face_label }}
     </div>
-    <form method="POST" action="{{ url_for('player.avatar_face') }}" data-gear-shell-form>
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="direction" value="next">
-      <input type="hidden" name="gear_filter" value="{{ gear_filter }}">
-      <input type="hidden" name="selected_item" value="{{ gear_selected_item.id if gear_selected_item else '' }}">
-      <button type="submit" class="btn btn-secondary btn-small">Next</button>
-    </form>
+    {% if character_face_locked %}
+      <p class="character-lock-note">Face locked. Gear can still be changed.</p>
+    {% else %}
+      <form method="POST" action="{{ url_for('player.avatar_face') }}" data-gear-shell-form>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="direction" value="next">
+        <input type="hidden" name="gear_filter" value="{{ gear_filter }}">
+        <input type="hidden" name="selected_item" value="{{ gear_selected_item.id if gear_selected_item else '' }}">
+        <button type="submit" class="btn btn-secondary btn-small">Next</button>
+      </form>
+    {% endif %}
   </div>
 </div>

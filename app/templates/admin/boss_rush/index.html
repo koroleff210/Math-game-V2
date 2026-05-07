@@ -1,0 +1,90 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}Boss Rush{% endblock %}
+
+{% block admin_content %}
+{% set title = 'Boss Rush' %}
+{% set eyebrow = 'Launch' %}
+{% set description = 'Phase 1 setup shell for cooperative boss sessions. Battle answers, HP damage, recovery, and rewards are deferred.' %}
+{% include "admin/_page_header.html" %}
+
+<div class="admin-toolbar" style="margin-bottom:18px;">
+    <a class="admin-btn admin-btn-primary" href="{{ url_for('boss_rush_admin.new_session') }}">Create Boss Rush</a>
+</div>
+
+<section class="admin-section-card">
+    <div class="admin-toolbar">
+        <div>
+            <h2 class="admin-toolbar-title">Live Boss Rush Sessions</h2>
+            <p class="admin-toolbar-subtitle">{{ live_sessions|length }} waiting/active session{{ '' if live_sessions|length == 1 else 's' }}</p>
+        </div>
+    </div>
+
+    {% if live_sessions %}
+    <div class="admin-table-wrap">
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Label</th>
+                    <th>Status</th>
+                    <th>Class</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for session in live_sessions %}
+                <tr>
+                    <td>{{ session.id }}</td>
+                    <td>{{ session.display_label }}</td>
+                    <td>{{ session.status }}</td>
+                    <td>{% if session.group %}{{ session.group.name }}{% else %}Open{% endif %}</td>
+                    <td><a href="{{ url_for('boss_rush_admin.manage', session_id=session.id) }}">Manage</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="admin-empty-state">No live Boss Rush session yet.</div>
+    {% endif %}
+</section>
+
+<section class="admin-section-card">
+    <div class="admin-toolbar">
+        <div>
+            <h2 class="admin-toolbar-title">Recent Boss Rush Sessions</h2>
+            <p class="admin-toolbar-subtitle">Newest sessions first.</p>
+        </div>
+    </div>
+
+    {% if recent_sessions %}
+    <div class="admin-table-wrap">
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Label</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for session in recent_sessions %}
+                <tr>
+                    <td>{{ session.id }}</td>
+                    <td>{{ session.display_label }}</td>
+                    <td>{{ session.status }}</td>
+                    <td>{{ session.created_at.strftime('%Y-%m-%d %H:%M') if session.created_at else '' }}</td>
+                    <td><a href="{{ url_for('boss_rush_admin.manage', session_id=session.id) }}">Open</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="admin-empty-state">No Boss Rush sessions have been created.</div>
+    {% endif %}
+</section>
+{% endblock %}

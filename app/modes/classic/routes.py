@@ -20,10 +20,11 @@
 #   GET  /classic/game/<id>  → participant-only game screen (real-time via Socket.IO)
 
 from datetime import datetime, timezone
+from pathlib import Path
 from types import SimpleNamespace
 
 from flask import (
-    Blueprint, render_template, redirect, url_for,
+    Blueprint, render_template, redirect, url_for, current_app,
     flash, request, abort, make_response, jsonify,
 )
 from flask_login import login_required, current_user
@@ -46,6 +47,12 @@ from app.services.progression import ensure_session_participant_snapshot, ensure
 from app.services.avatar import build_player_avatar_view
 from app.models.gear import PlayerGearLoadout
 from app.services.overlay_layouts import build_overlay_asset_payload, load_overlay_layouts, save_overlay_layouts
+from app.services.analytics import (
+    ensure_analytics_round,
+    ensure_player_round,
+    finalize_classic_round,
+    snapshot_classic_round_problem_set,
+)
 
 # Config fields that map 1:1 between NextRoundForm and ClassicRoundConfig.
 # Used to pre-fill the next-round form and to build a new config from submitted data.
@@ -62,6 +69,10 @@ _ROUND_CONFIG_FIELDS = (
 
 classic_admin_bp = Blueprint('classic_admin', __name__, url_prefix='/admin/classic')
 classic_player_bp = Blueprint('classic_player', __name__, url_prefix='/classic')
+
+_CLASSIC_ROUND_BACKGROUND_FILENAMES = (
+    'background_002a.png',
+)
 
 
 def player_in_session_group(player, session):
@@ -83,12 +94,35 @@ def _emit_hub_session_available(game_session):
     payload = {
         'session_id': game_session.id,
         'label': game_session.display_label or '',
+        'mode': 'classic',
     }
     if game_session.group_id:
         socketio.emit('session_available', payload,
                       room=f'hub_group_{game_session.group_id}')
     else:
         socketio.emit('session_available', payload, room='hub_open')
+
+
+def _list_round_background_urls() -> list[str]:
+    player_ui_dir = Path(current_app.static_folder) / 'classic_ui' / 'player_ui'
+    filenames = [
+        filename
+        for filename in _CLASSIC_ROUND_BACKGROUND_FILENAMES
+        if (player_ui_dir / filename).is_file()
+    ]
+    return [
+        url_for('static', filename=f'classic_ui/player_ui/{filename}')
+        for filename in filenames
+    ]
+
+
+def _select_round_background_url(*, session_id: int, game_round, background_urls: list[str]) -> str | None:
+    if not background_urls or not game_round:
+        return None
+    round_id = int(getattr(game_round, 'id', 0) or 0)
+    round_number = int(getattr(game_round, 'round_number', 0) or 0)
+    seed = (int(session_id) * 131) + (round_id * 17) + (round_number * 19)
+    return background_urls[seed % len(background_urls)]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -140,7 +174,7 @@ def new_session():
     form = ClassicSessionForm()
 
     # Populate the problem set choices from the DB
-    all_sets = ProblemSet.query.order_by(ProblemSet.name).all()
+    all_sets = ProblemSet.query.filter_by(usable_in_classic=True).order_by(ProblemSet.name).all()
     form.problem_set_id.choices = [(s.id, s.name) for s in all_sets]
 
     # Populate group restriction choices (0 = no restriction)
@@ -215,6 +249,8 @@ def new_session():
             treasure_second_chance_chance=form.treasure_second_chance_chance.data,
         )
         db.session.add(config)
+        ensure_analytics_round(game_round, 'classic', config=config)
+        snapshot_classic_round_problem_set(game_round)
         db.session.commit()
 
         # Notify Hub-connected players that a session is available.
@@ -263,7 +299,7 @@ def manage(session_id):
     history_count = RoundHistory.query.filter_by(session_id=session_id).count()
 
     # Populate next-round form problem set choices
-    all_sets = ProblemSet.query.order_by(ProblemSet.name).all()
+    all_sets = ProblemSet.query.filter_by(usable_in_classic=True).order_by(ProblemSet.name).all()
     next_round_form = NextRoundForm(formdata=None)
     next_round_form.problem_set_id.choices = [(s.id, s.name) for s in all_sets]
     if game_session.problem_set_id:
@@ -378,6 +414,11 @@ def start_round(session_id):
     # join_session() creates each player's snapshot at join time; this is a
     # safety net covering players enrolled before the explicit-join boundary.
     ensure_all_session_participant_snapshots(session_id)
+    ensure_analytics_round(game_round, 'classic', config=game_round.classic_config)
+    snapshot_classic_round_problem_set(game_round)
+    for round_player in RoundPlayer.query.filter_by(session_id=session_id).all():
+        wallet = PlayerWallet.query.filter_by(player_id=round_player.player_id, session_id=session_id).first()
+        ensure_player_round(game_round, round_player.player, 'classic', wallet=wallet)
     db.session.commit()
 
     # Initialise in-memory timer state
@@ -418,6 +459,7 @@ def end_round(session_id):
         # Snapshot history BEFORE commit so wallet gold/gems reflect round-end values.
         # This must come after ended_at is set but before any next-round carry resets.
         freeze_round_history(game_round, game_session, now)
+        finalize_classic_round(game_round)
 
     # Return to between-rounds waiting state — do NOT close the session.
     game_session.status = 'waiting'
@@ -501,8 +543,14 @@ def next_round(session_id):
 
     # Bind form to POST data and validate
     form = NextRoundForm()
-    all_sets = ProblemSet.query.order_by(ProblemSet.name).all()
+    all_sets = ProblemSet.query.filter_by(usable_in_classic=True).order_by(ProblemSet.name).all()
     form.problem_set_id.choices = [(s.id, s.name) for s in all_sets]
+    for field_name in _ROUND_CONFIG_FIELDS:
+        field = getattr(form, field_name)
+        if field.raw_data in (None, []):
+            field.data = getattr(old_config, field_name)
+    if form.problem_set_id.raw_data in (None, []):
+        form.problem_set_id.data = game_session.problem_set_id
 
     if not form.validate():
         for field_name, errors in form.errors.items():
@@ -514,8 +562,8 @@ def next_round(session_id):
         return redirect(url_for('classic_admin.manage', session_id=session_id))
 
     # Carry-over controls
-    carry_over_gold = form.carry_over_gold.data
-    carry_over_gems = form.carry_over_gems.data
+    carry_over_gold = 'carry_over_gold' in request.form
+    carry_over_gems = 'carry_over_gems' in request.form
 
     # Optional problem set switch for the new round.
     new_ps_id = form.problem_set_id.data
@@ -550,6 +598,8 @@ def next_round(session_id):
         **{f: getattr(form, f).data for f in _ROUND_CONFIG_FIELDS}
     )
     db.session.add(new_config)
+    ensure_analytics_round(new_round, 'classic', config=new_config)
+    snapshot_classic_round_problem_set(new_round)
 
     # Ensure session-scoped participant snapshots exist for all enrolled players.
     ensure_all_session_participant_snapshots(session_id)
@@ -832,6 +882,11 @@ def join_session():
     #    This is the Step 4 runtime source of truth for upgrade-derived gameplay effects.
     #    Idempotent — safe to call even if the player re-submits the join form.
     ensure_session_participant_snapshot(session_id, current_user.id)
+    game_round = GameRound.query.filter_by(
+        session_id=session_id, ended_at=None
+    ).order_by(GameRound.round_number.desc()).first()
+    if game_round:
+        ensure_player_round(game_round, current_user, 'classic', wallet=wallet)
 
     db.session.commit()
 
@@ -946,6 +1001,8 @@ def game(session_id):
             pocket2_item_id=None,
         )
 
+    round_background_urls = _list_round_background_urls()
+
     return render_template(
         'player/classic/game.html',
         game_session=game_session,
@@ -955,6 +1012,12 @@ def game(session_id):
         gear_avatar=build_player_avatar_view(current_user, loadout),
         overlay_layouts=load_overlay_layouts(),
         overlay_assets=build_overlay_asset_payload(),
+        round_background_urls=round_background_urls,
+        current_round_background_url=_select_round_background_url(
+            session_id=session_id,
+            game_round=game_round,
+            background_urls=round_background_urls,
+        ),
     )
 
 

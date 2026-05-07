@@ -118,6 +118,41 @@
 <h1>Problem Set Builder: {{ pset.name }}</h1>
 {% if pset.description %}<p>{{ pset.description }}</p>{% endif %}
 
+<details class="admin-details" style="margin-bottom:18px;">
+  <summary class="admin-details-summary">
+    <span class="admin-details-summary-text">
+      <span class="admin-details-summary-title">Set Settings &amp; Mode Eligibility</span>
+      <span class="admin-details-summary-hint">These tags only filter where this set appears. They do not change problem content.</span>
+    </span>
+    <span class="admin-details-summary-icon">v</span>
+  </summary>
+  <div class="admin-details-body">
+    <form method="POST" action="{{ url_for('admin.problem_set_settings', set_id=pset.id) }}" class="admin-form-stack">
+      {{ settings_form.hidden_tag() }}
+      <p class="admin-field">
+        {{ settings_form.name.label }}
+        {{ settings_form.name(size=40) }}
+        {% if settings_form.name.errors %}
+          <span class="admin-field-error">{{ settings_form.name.errors[0] }}</span>
+        {% endif %}
+      </p>
+      <p class="admin-field">
+        {{ settings_form.description.label }}
+        {{ settings_form.description(rows=3, cols=40) }}
+      </p>
+      <div class="admin-form-grid">
+        <label class="admin-checkbox-row">{{ settings_form.usable_in_classic() }} <span>{{ settings_form.usable_in_classic.label.text }}</span></label>
+        <label class="admin-checkbox-row">{{ settings_form.usable_in_boss_rush() }} <span>{{ settings_form.usable_in_boss_rush.label.text }}</span></label>
+        <label class="admin-checkbox-row">{{ settings_form.usable_as_recovery() }} <span>{{ settings_form.usable_as_recovery.label.text }}</span></label>
+        <label class="admin-checkbox-row">{{ settings_form.usable_in_team() }} <span>{{ settings_form.usable_in_team.label.text }}</span></label>
+      </div>
+      <div>
+        <button class="admin-btn admin-btn-primary" type="submit">Save Set Settings</button>
+      </div>
+    </form>
+  </div>
+</details>
+
 <div class="set-builder-filters">
   <h3 style="margin-top:0;">Filters</h3>
   <form method="GET" action="{{ url_for('admin.problem_set_detail', set_id=pset.id) }}#builder-workspace">
@@ -174,9 +209,7 @@
 <div class="set-builder-grid" id="builder-workspace">
   <div class="set-builder-pane" id="available-problems">
     <h3>Available Problems</h3>
-    {% if not selected_subject_id %}
-    <p class="set-builder-empty">Choose a subject and click Filter to load problems.</p>
-    {% elif available_problem_rows %}
+    {% if available_problem_rows %}
     <div class="set-builder-list">
       {% for row in available_problem_rows %}
       <div class="set-builder-row">

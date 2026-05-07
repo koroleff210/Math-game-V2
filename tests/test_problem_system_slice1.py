@@ -28,6 +28,7 @@ from app.services.problem_content import (
     PROBLEM_BLOCK_TYPE_RICH_TEXT,
     build_problem_body_view,
     check_problem_text_input_answer,
+    render_rich_text_html,
 )
 
 
@@ -155,6 +156,9 @@ def test_services_and_admin():
               not block_view['uses_legacy_fallback'] and len(block_view['blocks']) == 2)
         check('PS1-04: rich_text block renders simple HTML',
               '<strong>block</strong>' in block_view['blocks'][0]['rendered_html'])
+        check('PS1-04b: imported inline latex textup is normalized for MathJax',
+              '\\text{' in render_rich_text_html('Value is $2.0\\:\\textup{mol}$')
+              and '\\textup{' not in render_rich_text_html('Value is $2.0\\:\\textup{mol}$'))
 
         check('PS1-05: accepted answers use modest normalization',
               check_problem_text_input_answer(block_problem, '   (2,3)   '))

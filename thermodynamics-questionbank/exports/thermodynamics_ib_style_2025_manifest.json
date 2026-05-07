@@ -1,0 +1,115 @@
+{
+  "title": "Thermodynamics IB-style Practice Paper",
+  "paper1": [
+    {
+      "display_number": 1,
+      "source_bank": "thermodynamics-questionbank",
+      "source_id": "P1-Q01",
+      "prompt": "A heat engine wastes $4000\\: \\textup{J}$ of energy during a cycle. The work done by the heat engine during the same cycle is $1000\\: \\textup{J}$ ."
+    },
+    {
+      "display_number": 2,
+      "source_bank": "thermodynamics-questionbank",
+      "source_id": "P1-Q03",
+      "prompt": "For a Carnot engine with an efficiency of $0.50$ , $T_{\\textup{c}} = 100\\:\\textup{K}$ , where $T_{\\textup{c}}$ is the temperature at which heat leaves the engine."
+    },
+    {
+      "display_number": 3,
+      "source_bank": "thermodynamics-questionbank",
+      "source_id": "P1-Q04",
+      "prompt": "The first law of thermodynamics"
+    },
+    {
+      "display_number": 4,
+      "source_bank": "thermodynamics-questionbank",
+      "source_id": "P1-Q05",
+      "prompt": "Which of the following statements is not an expression of the second law of thermodynamics?"
+    },
+    {
+      "display_number": 5,
+      "source_bank": "thermodynamics-questionbank",
+      "source_id": "P1-Q06",
+      "prompt": "What happens to entropy during a reversible and during an irreversible process?"
+    },
+    {
+      "display_number": 6,
+      "source_bank": "thermodynamics-questionbank",
+      "source_id": "P1-Q07",
+      "prompt": "Liquid nitrogen in an open container at its boiling point $(-196\\:^{\\circ}\\textup{C})$ is placed in a sealed room and is allowed to completely evaporate."
+    },
+    {
+      "display_number": 7,
+      "source_bank": "thermodynamics-questionbank",
+      "source_id": "P1-Q08",
+      "prompt": "What is true about a closed system and an isolated system?"
+    },
+    {
+      "display_number": 8,
+      "source_bank": "thermodynamics-questionbank",
+      "source_id": "P1-Q09",
+      "prompt": "An air conditioner is installed inside a sealed container."
+    },
+    {
+      "display_number": 9,
+      "source_bank": "thermodynamics-questionbank",
+      "source_id": "P1-Q10",
+      "prompt": "The graph shows how the pressure of an ideal gas varies with its volume during change AB."
+    },
+    {
+      "display_number": 10,
+      "source_bank": "thermodynamics-questionbank",
+      "source_id": "P1-Q11",
+      "prompt": "A functioning freezer, with its door open, is placed inside a thermally isolated room."
+    },
+    {
+      "display_number": 11,
+      "source_bank": "thermodynamics-questionbank",
+      "source_id": "P1-Q13",
+      "prompt": "The reservoirs of a Carnot engine are maintained at temperatures of $200\\:^{\\circ}\\textup{C}$ and $300\\:^{\\circ}\\textup{C}$ , respectively."
+    },
+    {
+      "display_number": 12,
+      "source_bank": "thermodynamics-questionbank",
+      "source_id": "P1-Q14",
+      "prompt": "Three statements about entropy are:"
+    },
+    {
+      "display_number": 13,
+      "source_bank": "thermodynamics-questionbank",
+      "source_id": "P1-Q15",
+      "prompt": "A gas undergoes a complete thermodynamic cycle. The internal energy of the gas before the cycle is $E_{1}$ and after the cycle it is $E_{2}$ . What is true about $E_{1}$ and $E_{2}\\,?$"
+    },
+    {
+      "display_number": 14,
+      "source_bank": "thermodynamics-questionbank",
+      "source_id": "P1-Q16",
+      "prompt": "The diagram shows cycle ABCDA for an ideal gas."
+    },
+    {
+      "display_number": 15,
+      "source_bank": "thermodynamics-questionbank",
+      "source_id": "P1-Q17",
+      "prompt": "During an experiment a monatomic ideal gas is subjected to an adiabatic compression, transitioning from initial state $Y$ to a final state with volume $V$ . The work done on the gas during the process is $W$ . What is the work done on the gas and the change in the internal energy of the gas during an isothermal compression from initial state $Y$ to a final state with volume $V$ ?"
+    },
+    {
+      "display_number": 16,
+      "source_bank": "thermodynamics-questionbank",
+      "source_id": "P1-Q25",
+      "prompt": "An ideal gas is used to operate a Carnot engine. The energy transferred from the gas to the cold reservoir per cycle is $6000\\:\\textup{J}$ and the energy absorbed by the gas from the hot reservoir per cycle is $10000\\:\\textup{J}$ . The cold reservoir is kept at a constant temperature of $27\\:^{\\circ}\\textup{C}$ and the hot reservoir is kept at a constant temperature of $T\\:^{\\circ}\\textup{C}$ ."
+    }
+  ],
+  "paper2": [
+    {
+      "display_number": 1,
+      "source_bank": "lvl3-questionbank",
+      "source_id": "P2-Q01",
+      "prompt": "A container is filled with an ideal, monatomic gas and sealed with a movable piston. The volume of the gas is $3.7$ m $^{3}$ , the temperature of the gas is $28 \\: ^{\\circ}$ C and the pressure of the gas is $7.2$ Pa."
+    },
+    {
+      "display_number": 2,
+      "source_bank": "lvl1-questionbank",
+      "source_id": "P2-Q03",
+      "prompt": "An expandable balloon is filled with a fixed mass of argon-40 gas. The pressure of the gas is maintained at $1.3$ kPa. The graph shows how the volume of the gas varies with temperature."
+    }
+  ]
+}

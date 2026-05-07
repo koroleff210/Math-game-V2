@@ -122,6 +122,15 @@
       inset 0 1px 0 rgba(255, 251, 243, 0.68),
       0 12px 28px rgba(63, 47, 24, 0.045);
   }
+  .hub-main-grid.character-selection-mode {
+    grid-template-columns: minmax(280px, 560px);
+    justify-content: center;
+    align-items: start;
+    padding-top: 28px;
+  }
+  .hub-main-grid.character-selection-mode .hub-gear-region {
+    grid-column: 1;
+  }
   .hub-gear-region {
     grid-column: 1 / span 2;
     min-width: 0;
@@ -130,10 +139,7 @@
     padding: 8px;
     border-radius: 18px;
     background:
-      linear-gradient(180deg, rgba(252, 247, 239, 0.48), rgba(245, 236, 220, 0.34)),
-      url("{{ url_for('static', filename='classic_ui/player_ui/panel_texture.png') }}");
-    background-repeat: no-repeat, repeat;
-    background-size: auto, 240px 240px;
+      linear-gradient(180deg, rgba(252, 247, 239, 0.32), rgba(245, 236, 220, 0.20));
     border: 1px solid rgba(115, 95, 63, 0.07);
     box-shadow:
       inset 0 1px 0 rgba(255, 252, 245, 0.78),
@@ -150,10 +156,7 @@
     padding: 10px 10px 12px;
     border-radius: 18px;
     background:
-      linear-gradient(180deg, rgba(243, 238, 229, 0.46), rgba(233, 225, 212, 0.32)),
-      url("{{ url_for('static', filename='classic_ui/player_ui/panel_texture.png') }}");
-    background-repeat: no-repeat, repeat;
-    background-size: auto, 240px 240px;
+      linear-gradient(180deg, rgba(243, 238, 229, 0.30), rgba(233, 225, 212, 0.18));
     border: 1px solid rgba(112, 95, 68, 0.06);
     box-shadow:
       inset 0 1px 0 rgba(255, 250, 241, 0.66),
@@ -400,6 +403,30 @@
   .gear-session-pane {
     min-width: 0;
   }
+  @media (min-width: 901px) {
+    .gear-avatar-column .equipment-pane {
+      position: relative;
+      padding-top: 10px;
+    }
+    .gear-avatar-column .equipment-pane > .gear-card-title {
+      position: absolute;
+      top: 14px;
+      left: 16px;
+      z-index: 2;
+      max-width: 128px;
+      margin: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      line-height: 1.1;
+    }
+    .gear-avatar-column .avatar-loadout-stage {
+      padding-top: 0;
+    }
+    .gear-avatar-column .equipment-slot--head {
+      transform: translateY(-6px);
+    }
+  }
 
   .avatar-pane-layout {
     display: flex;
@@ -419,10 +446,7 @@
     border: 1px solid rgba(127, 103, 66, 0.12);
     border-radius: 14px;
     background:
-      linear-gradient(180deg, rgba(247, 239, 225, 0.26), rgba(236, 225, 206, 0.18)),
-      url("{{ url_for('static', filename='classic_ui/player_ui/panel_texture.png') }}");
-    background-repeat: no-repeat, repeat;
-    background-size: auto, 240px 240px;
+      linear-gradient(180deg, rgba(247, 239, 225, 0.18), rgba(236, 225, 206, 0.10));
     box-shadow:
       inset 0 1px 0 rgba(255, 252, 245, 0.72),
       0 6px 14px rgba(63, 47, 24, 0.04);
@@ -480,10 +504,37 @@
     font-size: 0.78rem;
     border-radius: 10px;
   }
+  .character-selection-card {
+    display: grid;
+    gap: 12px;
+    padding: 18px;
+  }
+  .character-selection-copy {
+    display: grid;
+    gap: 6px;
+    text-align: center;
+  }
+  .character-selection-title {
+    margin: 0;
+    font-size: 1.25rem;
+    color: #3e352b;
+  }
+  .character-selection-text,
+  .character-lock-note {
+    margin: 0;
+    color: #675a49;
+    line-height: 1.4;
+    font-size: 0.92rem;
+  }
+  .character-confirm-form {
+    display: flex;
+    justify-content: center;
+    margin: 0;
+  }
 
   .avatar-loadout-stage {
     display: grid;
-    grid-template-columns: minmax(0, 70px) minmax(0, 1fr) minmax(0, 70px);
+    grid-template-columns: minmax(0, 80px) minmax(0, 1fr) minmax(0, 80px);
     grid-template-areas:
       ". head ."
       "main avatar off"
@@ -513,7 +564,7 @@
     background:
       linear-gradient(180deg, rgba(255, 251, 245, 0.96), rgba(239, 229, 211, 0.88));
     padding: 6px 6px 7px;
-    min-height: 74px;
+    min-height: 78px;
     text-align: center;
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.78),
@@ -545,7 +596,7 @@
     box-shadow: none;
   }
   .equipment-slot-label {
-    font-size: 0.62rem;
+    font-size: 0.63rem;
     font-weight: 700;
     color: #7b6a54;
     text-transform: uppercase;
@@ -557,24 +608,25 @@
     align-items: center;
     justify-content: center;
     width: 100%;
-    flex: 1 1 auto;
+    flex: 0 0 auto;
+    min-height: 48px;
   }
   .equipment-slot-row .gear-thumb {
-    width: 38px;
-    height: 38px;
-    border-radius: 11px;
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
     margin: 0;
   }
   .equipment-slot-thumb-placeholder {
-    width: 38px;
-    height: 38px;
-    border-radius: 11px;
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
     border: 1px dashed rgba(130, 109, 81, 0.20);
     background: linear-gradient(180deg, rgba(249, 245, 238, 0.92) 0%, rgba(237, 229, 217, 0.84) 100%);
   }
   .equipment-slot-name {
     font-weight: 700;
-    font-size: 0.66rem;
+    font-size: 0.68rem;
     line-height: 1.15;
     max-width: 100%;
     overflow: hidden;
@@ -582,7 +634,7 @@
     white-space: nowrap;
   }
   .equipment-slot-caption {
-    min-height: 0;
+    min-height: 1.1em;
     width: 100%;
   }
   .equipment-slot--head { grid-area: head; }
@@ -729,10 +781,7 @@
     padding: 14px 16px 16px;
     border-radius: 18px;
     background:
-      linear-gradient(180deg, rgba(249, 243, 232, 0.56), rgba(239, 230, 214, 0.40)),
-      url("{{ url_for('static', filename='classic_ui/player_ui/panel_texture.png') }}");
-    background-repeat: no-repeat, repeat;
-    background-size: auto, 240px 240px;
+      linear-gradient(180deg, rgba(249, 243, 232, 0.36), rgba(239, 230, 214, 0.22));
     border: 1px solid rgba(116, 95, 63, 0.08);
     box-shadow:
       inset 0 1px 0 rgba(255, 252, 246, 0.76),
@@ -888,10 +937,7 @@
   }
   .equipment-pane {
     background:
-      linear-gradient(180deg, rgba(248, 240, 225, 0.38), rgba(238, 227, 206, 0.26)),
-      url("{{ url_for('static', filename='classic_ui/player_ui/panel_texture.png') }}");
-    background-repeat: no-repeat, repeat;
-    background-size: auto, 240px 240px;
+      linear-gradient(180deg, rgba(248, 240, 225, 0.24), rgba(238, 227, 206, 0.14));
     border-color: rgba(118, 95, 63, 0.14);
     box-shadow:
       inset 0 0 0 1px rgba(118, 95, 63, 0.12),
@@ -1010,8 +1056,8 @@
       gap: 6px;
     }
     .avatar-loadout-stage {
-      grid-template-columns: minmax(0, 64px) minmax(0, 1fr) minmax(0, 64px);
-      gap: 6px 8px;
+      grid-template-columns: minmax(0, 68px) minmax(0, 1fr) minmax(0, 68px);
+      gap: 6px 7px;
     }
     .avatar-stage-wrap {
       padding: 6px;
@@ -1039,8 +1085,8 @@
     }
     .equipment-slot-row .gear-thumb,
     .equipment-slot-thumb-placeholder {
-      width: 34px;
-      height: 34px;
+      width: 40px;
+      height: 40px;
       border-radius: 10px;
     }
     .equipment-slot-name {
@@ -1258,6 +1304,10 @@
       background: transparent;
       box-shadow: none;
     }
+    .hub-main-grid.character-selection-mode {
+      grid-template-columns: 1fr;
+      padding-top: 0;
+    }
     .hub-gear-region {
       padding: 0;
       border-radius: 12px;
@@ -1348,6 +1398,7 @@
     }
     .equipment-slot-name {
       font-size: 0.56rem;
+      white-space: nowrap;
     }
     .avatar-face-controls {
       padding: 4px 5px;
@@ -1576,11 +1627,12 @@
 
 {% block content %}
 <div class="hub-page">
-  <div class="hub-main-grid">
+  <div class="hub-main-grid {% if character_selection_required %}character-selection-mode{% endif %}">
     <div class="hub-gear-region">
       {% include 'player/_gear_shell.html' %}
     </div>
 
+    {% if not character_selection_required %}
     <aside class="hub-side-column">
       <div class="hub-utility-row">
         <a href="/logout" class="hub-logout-link">Logout</a>
@@ -1621,12 +1673,14 @@
       <div class="hub-side-card hub-meta-card">
         <h2>Player Meta</h2>
         <div class="hub-meta-links">
+          <a href="{{ url_for('player.progress') }}" class="hub-meta-link">My Progress</a>
           <a href="{{ url_for('player.performance') }}" class="hub-meta-link">Performance</a>
           <a href="{{ url_for('player.history') }}" class="hub-meta-link">History</a>
         </div>
-        <p class="hub-meta-note">Future analysis and past-results tools will live here.</p>
+        <p class="hub-meta-note">Review recent games, topics, and records here.</p>
       </div>
     </aside>
+    {% endif %}
   </div>
 </div>
 
@@ -1638,8 +1692,10 @@
 
   var groupIds = {{ group_ids | tojson }};
   var socket = io();
-  var joinSessionUrl = '{{ url_for('classic_player.join_session') }}';
-  var playUrl = '{{ url_for('classic_player.play') }}';
+  var classicJoinSessionUrl = '{{ url_for('classic_player.join_session') }}';
+  var bossRushJoinSessionUrl = '{{ url_for('boss_rush_player.join_entry') }}';
+  var classicPlayUrl = '{{ url_for('classic_player.play') }}';
+  var bossRushPlayUrl = '{{ url_for('boss_rush_player.play_entry') }}';
   var csrfToken = '{{ csrf_token() }}';
 
   function renderSessionControl(state, data) {
@@ -1648,6 +1704,9 @@
 
     var label = data && data.label ? data.label : '';
     var sessionId = data && data.session_id ? data.session_id : '';
+    var mode = data && data.mode ? data.mode : 'classic';
+    var joinSessionUrl = mode === 'boss_rush' ? bossRushJoinSessionUrl : classicJoinSessionUrl;
+    var playUrl = mode === 'boss_rush' ? bossRushPlayUrl : classicPlayUrl;
 
     if (state === 'eligible' && sessionId) {
       control.innerHTML =

@@ -26,3 +26,6 @@ def register_all_handlers(socketio):
 
     from app.socketio_handlers.hub import register_hub_handlers
     register_hub_handlers(socketio)
+
+    from app.modes.boss_rush.events import register_boss_rush_handlers
+    register_boss_rush_handlers(socketio)

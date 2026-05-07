@@ -45,8 +45,28 @@ from app.models.game import GameSession
 from app.models.groups import PlayerGroup
 from app.models.gear import GearItemDefinition
 from app.models.history import RoundHistory, RoundPlayerResult, build_history_csv
+from app.models.analytics import (
+    AnalyticsAnswerAttempt,
+    AnalyticsBossRushBattleEvent,
+    AnalyticsClassicEconomyEvent,
+    AnalyticsPlayerProblem,
+    AnalyticsPlayerRound,
+    AnalyticsRound,
+    AnalyticsRoundProblem,
+)
 from app.routes.forms import TopicForm, SubjectForm, ProblemForm, ProblemSetForm, PlayerCreateForm, PlayerEditForm, PlayerGroupForm, DiamondAwardForm, GearItemForm
 from app.services.progression import get_or_create_player_progression, award_diamonds_to_player
+from app.services.analytics_reports import (
+    build_class_dashboard,
+    parse_date_filter,
+    recent_groups_with_analytics,
+)
+from app.services.analytics_exports import (
+    analytics_class_dashboard_filename,
+    analytics_round_filename,
+    build_class_dashboard_csv,
+    build_round_detail_csv,
+)
 from app.services.gear import (
     list_admin_gear_catalog,
     build_admin_gear_item_view,
@@ -59,6 +79,7 @@ from app.services.gear import (
 from app.services.problem_content import (
     ANSWER_TYPE_CHOICES,
     EDITOR_BLOCK_TYPE_CHOICES,
+    GRAPH_COLOR_PALETTE,
     add_problem_block,
     add_problem_choice_option,
     add_graph_block_element,
@@ -332,6 +353,8 @@ def _build_problem_editor_create_context(*, subject_helper_value: int):
         'answer_type_value': request.form.get('answer_type', 'text_input'),
         'answer_type_choices': ANSWER_TYPE_CHOICES,
         'block_type_choices': EDITOR_BLOCK_TYPE_CHOICES,
+        'graph_color_palette': GRAPH_COLOR_PALETTE,
+        'graph_color_palette_values': {row['value'] for row in GRAPH_COLOR_PALETTE},
     }
 
 
@@ -457,6 +480,8 @@ def _build_problem_content_context(problem):
         'answer_type_value': problem.answer_type,
         'accepted_answers_text': accepted_answers_text,
         'graph_editor_views': graph_editor_views,
+        'graph_color_palette': GRAPH_COLOR_PALETTE,
+        'graph_color_palette_values': {row['value'] for row in GRAPH_COLOR_PALETTE},
         'has_structured_body': has_structured_body,
         'has_structured_answers': has_structured_answers,
         'has_choice_options': has_choice_options,
@@ -831,6 +856,7 @@ def _problem_set_builder_preview_url(set_id, filter_state, problem_id):
 
 
 def _build_problem_set_detail_context(pset, filter_state):
+    settings_form = ProblemSetForm(obj=pset)
     set_problems = pset.problems.order_by(Problem.id).all()
     set_problem_ids = {problem.id for problem in set_problems}
     subjects = Subject.query.order_by(Subject.name).all()
@@ -850,21 +876,16 @@ def _build_problem_set_detail_context(pset, filter_state):
             if topic_id in allowed_topic_ids
         ]
 
-    available_problems = []
+    query = Problem.query.filter(Problem.answer_type == filter_state['answer_type'])
     if filter_state['subject_id']:
-        query = (
-            Problem.query
-            .join(Topic, Problem.topic_id == Topic.id)
-            .filter(Topic.subject_id == filter_state['subject_id'])
-            .filter(Problem.answer_type == filter_state['answer_type'])
-        )
-        if set_problem_ids:
-            query = query.filter(~Problem.id.in_(set_problem_ids))
+        query = query.join(Topic, Problem.topic_id == Topic.id).filter(Topic.subject_id == filter_state['subject_id'])
         if valid_topic_ids:
             query = query.filter(Problem.topic_id.in_(valid_topic_ids))
-        if filter_state['difficulty']:
-            query = query.filter(Problem.difficulty == filter_state['difficulty'])
-        available_problems = query.order_by(Problem.id).all()
+    if set_problem_ids:
+        query = query.filter(~Problem.id.in_(set_problem_ids))
+    if filter_state['difficulty']:
+        query = query.filter(Problem.difficulty == filter_state['difficulty'])
+    available_problems = query.order_by(Problem.id).all()
 
     preview_problem = None
     requested_preview_id = filter_state.get('preview_problem_id')
@@ -913,6 +934,7 @@ def _build_problem_set_detail_context(pset, filter_state):
         'preview_problem': preview_problem,
         'preview_body_view': preview_body_view,
         'preview_choice_view': preview_choice_view,
+        'settings_form': settings_form,
     }
 
 
@@ -926,6 +948,10 @@ def problem_sets():
         pset = ProblemSet(
             name=form.name.data.strip(),
             description=(form.description.data or '').strip() or None,
+            usable_in_classic=form.usable_in_classic.data,
+            usable_in_boss_rush=form.usable_in_boss_rush.data,
+            usable_as_recovery=form.usable_as_recovery.data,
+            usable_in_team=form.usable_in_team.data,
         )
         db.session.add(pset)
         db.session.commit()
@@ -947,6 +973,30 @@ def problem_set_detail(set_id):
 
     filter_state = _parse_problem_set_builder_filters(request.args)
     return render_template('admin/problem_set_detail.html', **_build_problem_set_detail_context(pset, filter_state))
+
+
+@admin_bp.route('/sets/<int:set_id>/settings', methods=['POST'])
+@login_required
+@admin_required
+def problem_set_settings(set_id):
+    pset = db.session.get(ProblemSet, set_id)
+    if pset is None:
+        flash('Problem set not found.', 'error')
+        return redirect(url_for('admin.problem_sets'))
+
+    form = ProblemSetForm()
+    if form.validate_on_submit():
+        pset.name = form.name.data.strip()
+        pset.description = (form.description.data or '').strip() or None
+        pset.usable_in_classic = form.usable_in_classic.data
+        pset.usable_in_boss_rush = form.usable_in_boss_rush.data
+        pset.usable_as_recovery = form.usable_as_recovery.data
+        pset.usable_in_team = form.usable_in_team.data
+        db.session.commit()
+        flash(f'Problem set "{pset.name}" settings updated.', 'success')
+    else:
+        flash('Problem set settings could not be saved. Check the highlighted fields.', 'error')
+    return redirect(url_for('admin.problem_set_detail', set_id=set_id))
 
 
 @admin_bp.route('/sets/<int:set_id>/add', methods=['POST'])
@@ -1417,6 +1467,234 @@ def subject_delete(subject_id):
     db.session.commit()
     flash(f'Subject "{name}" deleted.', 'success')
     return redirect(url_for('admin.subjects_index'))
+
+
+# ── Analytics round viewer ─────────────────────────────────────────────────
+
+def _answer_attempt_counts(round_id, *, problem_id=None):
+    rows = AnalyticsAnswerAttempt.query.filter_by(round_id=round_id)
+    if problem_id is not None:
+        rows = rows.filter_by(problem_id=problem_id)
+    attempts = rows.all()
+    correct = sum(1 for attempt in attempts if attempt.is_correct)
+    incorrect = len(attempts) - correct
+    return {
+        'attempts': len(attempts),
+        'correct': correct,
+        'incorrect': incorrect,
+        'accuracy': (correct / len(attempts)) if attempts else None,
+    }
+
+
+def _build_analytics_problem_summaries(analytics_round):
+    rows = (
+        AnalyticsRoundProblem.query
+        .filter_by(analytics_round_id=analytics_round.id)
+        .order_by(AnalyticsRoundProblem.mode_context, AnalyticsRoundProblem.problem_title_snapshot, AnalyticsRoundProblem.problem_id)
+        .all()
+    )
+    summaries = []
+    for row in rows:
+        player_problem_rows = AnalyticsPlayerProblem.query.filter_by(
+            round_id=analytics_round.round_id,
+            problem_id=row.problem_id,
+            mode_context=row.mode_context,
+        ).all()
+        counts = _answer_attempt_counts(analytics_round.round_id, problem_id=row.problem_id)
+        summaries.append({
+            'row': row,
+            'players_seen': sum(1 for item in player_problem_rows if item.first_seen_at is not None),
+            'players_attempted': sum(1 for item in player_problem_rows if (item.attempt_count or 0) > 0),
+            'players_solved': sum(1 for item in player_problem_rows if item.eventual_correct is True),
+            'attempts': counts['attempts'],
+            'correct': counts['correct'],
+            'incorrect': counts['incorrect'],
+            'accuracy': counts['accuracy'],
+        })
+    return summaries
+
+
+def _analytics_csv_response(csv_data, filename):
+    response = make_response(csv_data)
+    response.headers['Content-Type'] = 'text/csv; charset=utf-8'
+    response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
+
+def _build_analytics_round_detail_context(analytics_round):
+    player_rounds = (
+        AnalyticsPlayerRound.query
+        .filter_by(analytics_round_id=analytics_round.id)
+        .order_by(AnalyticsPlayerRound.player_name_snapshot, AnalyticsPlayerRound.player_id)
+        .all()
+    )
+    player_problems = (
+        AnalyticsPlayerProblem.query
+        .filter_by(analytics_round_id=analytics_round.id)
+        .order_by(AnalyticsPlayerProblem.player_id, AnalyticsPlayerProblem.mode_context, AnalyticsPlayerProblem.problem_title_snapshot)
+        .all()
+    )
+    answer_attempts = (
+        AnalyticsAnswerAttempt.query
+        .filter_by(analytics_round_id=analytics_round.id)
+        .order_by(AnalyticsAnswerAttempt.submitted_at, AnalyticsAnswerAttempt.id)
+        .all()
+    )
+    classic_events = []
+    boss_events = []
+    if analytics_round.mode == 'classic':
+        classic_events = (
+            AnalyticsClassicEconomyEvent.query
+            .filter_by(analytics_round_id=analytics_round.id)
+            .order_by(AnalyticsClassicEconomyEvent.occurred_at, AnalyticsClassicEconomyEvent.id)
+            .all()
+        )
+    if analytics_round.mode == 'boss_rush':
+        boss_events = (
+            AnalyticsBossRushBattleEvent.query
+            .filter_by(analytics_round_id=analytics_round.id)
+            .order_by(AnalyticsBossRushBattleEvent.occurred_at, AnalyticsBossRushBattleEvent.id)
+            .all()
+        )
+    return {
+        'analytics_round': analytics_round,
+        'player_rounds': player_rounds,
+        'problem_summaries': _build_analytics_problem_summaries(analytics_round),
+        'player_problems': player_problems,
+        'answer_attempts': answer_attempts,
+        'classic_events': classic_events,
+        'boss_events': boss_events,
+        'answer_counts': _answer_attempt_counts(analytics_round.round_id),
+    }
+
+
+@admin_bp.route('/analytics/')
+@admin_bp.route('/analytics/rounds')
+@login_required
+@admin_required
+def analytics_rounds():
+    mode = (request.args.get('mode') or '').strip()
+    q = AnalyticsRound.query
+    if mode:
+        q = q.filter_by(mode=mode)
+    rounds = (
+        q.order_by(
+            AnalyticsRound.ended_at.desc().nullslast(),
+            AnalyticsRound.started_at.desc().nullslast(),
+            AnalyticsRound.id.desc(),
+        )
+        .limit(100)
+        .all()
+    )
+    return render_template(
+        'admin/analytics/index.html',
+        rounds=rounds,
+        selected_mode=mode,
+    )
+
+
+@admin_bp.route('/analytics/class-dashboard')
+@login_required
+@admin_required
+def analytics_class_dashboard():
+    groups = PlayerGroup.query.order_by(PlayerGroup.name).all()
+    subjects = Subject.query.order_by(Subject.name).all()
+    selected_group_id = request.args.get('group_id', type=int)
+    selected_subject_id = request.args.get('subject_id', type=int)
+    selected_mode = (request.args.get('mode') or '').strip()
+    if selected_mode not in ('classic', 'boss_rush'):
+        selected_mode = ''
+    date_from_text = (request.args.get('date_from') or '').strip()
+    date_to_text = (request.args.get('date_to') or '').strip()
+    date_from = parse_date_filter(date_from_text)
+    date_to = parse_date_filter(date_to_text, end=True)
+    selected_group = db.session.get(PlayerGroup, selected_group_id) if selected_group_id else None
+    dashboard = build_class_dashboard(
+        selected_group.id,
+        subject_id=selected_subject_id,
+        mode=selected_mode,
+        date_from=date_from,
+        date_to=date_to,
+    ) if selected_group else None
+    return render_template(
+        'admin/analytics/class_dashboard.html',
+        groups=groups,
+        subjects=subjects,
+        selected_group=selected_group,
+        selected_group_id=selected_group_id,
+        selected_subject_id=selected_subject_id or 0,
+        selected_mode=selected_mode,
+        date_from_text=date_from_text,
+        date_to_text=date_to_text,
+        dashboard=dashboard,
+        recent_groups=recent_groups_with_analytics(),
+        export_args=request.args.to_dict(flat=True),
+    )
+
+
+@admin_bp.route('/analytics/class-dashboard/export.csv')
+@login_required
+@admin_required
+def analytics_class_dashboard_export_csv():
+    selected_group_id = request.args.get('group_id', type=int)
+    selected_group = db.session.get(PlayerGroup, selected_group_id) if selected_group_id else None
+    if selected_group is None:
+        abort(404)
+
+    selected_subject_id = request.args.get('subject_id', type=int)
+    selected_mode = (request.args.get('mode') or '').strip()
+    if selected_mode not in ('classic', 'boss_rush'):
+        selected_mode = ''
+    date_from_text = (request.args.get('date_from') or '').strip()
+    date_to_text = (request.args.get('date_to') or '').strip()
+    dashboard = build_class_dashboard(
+        selected_group.id,
+        subject_id=selected_subject_id,
+        mode=selected_mode,
+        date_from=parse_date_filter(date_from_text),
+        date_to=parse_date_filter(date_to_text, end=True),
+    )
+    csv_data = build_class_dashboard_csv(
+        selected_group,
+        dashboard,
+        filters={
+            'subject_id': selected_subject_id,
+            'mode': selected_mode,
+            'date_from': date_from_text,
+            'date_to': date_to_text,
+        },
+    )
+    filename = analytics_class_dashboard_filename(
+        selected_group,
+        mode=selected_mode,
+        subject_id=selected_subject_id,
+    )
+    return _analytics_csv_response(csv_data, filename)
+
+
+@admin_bp.route('/analytics/rounds/<int:analytics_round_id>')
+@login_required
+@admin_required
+def analytics_round_detail(analytics_round_id):
+    analytics_round = db.session.get(AnalyticsRound, analytics_round_id)
+    if analytics_round is None:
+        abort(404)
+    return render_template(
+        'admin/analytics/round_detail.html',
+        **_build_analytics_round_detail_context(analytics_round),
+    )
+
+
+@admin_bp.route('/analytics/rounds/<int:analytics_round_id>/export.csv')
+@login_required
+@admin_required
+def analytics_round_detail_export_csv(analytics_round_id):
+    analytics_round = db.session.get(AnalyticsRound, analytics_round_id)
+    if analytics_round is None:
+        abort(404)
+    context = _build_analytics_round_detail_context(analytics_round)
+    csv_data = build_round_detail_csv(**context)
+    return _analytics_csv_response(csv_data, analytics_round_filename(analytics_round))
 
 
 # ── History index + archive/delete/export controls ────────────────────────────────────────

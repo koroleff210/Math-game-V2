@@ -193,7 +193,10 @@ class SessionParticipantSnapshot(db.Model):
         db.UniqueConstraint('session_id', 'player_id', name='uq_session_participant_snapshot'),
     )
 
-    session = db.relationship('GameSession', backref='participant_snapshots')
+    session = db.relationship(
+        'GameSession',
+        backref=db.backref('participant_snapshots', cascade='all, delete-orphan'),
+    )
     player  = db.relationship('Player',      backref='session_snapshots')
 
     def __repr__(self):

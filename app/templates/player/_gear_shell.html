@@ -11,6 +11,25 @@
     {% endif %}
   </div>
 
+  {% if character_selection_required %}
+    <div class="equipment-pane character-selection-card">
+      <div class="character-selection-copy">
+        <h2 class="character-selection-title">Choose Your Character</h2>
+        <p class="character-selection-text">
+          Choose your character. You can change gear later, but your character face will be locked after confirmation.
+        </p>
+      </div>
+
+      <div data-gear-avatar-preview-region>
+        {% include 'player/_avatar_preview.html' %}
+      </div>
+
+      <form method="POST" action="{{ url_for('player.avatar_confirm') }}" class="character-confirm-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-success">Confirm Character</button>
+      </form>
+    </div>
+  {% else %}
   <div class="gear-work-top">
     <div class="gear-avatar-column">
       <div class="equipment-pane">
@@ -37,7 +56,12 @@
         <h3 class="gear-card-title">Active Gear Bonuses</h3>
         <div class="gear-session-control" data-hub-session-control>
           {% if hub_status.state == 'eligible' and hub_status.session %}
-            <form method="POST" action="{{ url_for('classic_player.join_session') }}">
+            {% if hub_status.session.mode == 'boss_rush' %}
+              {% set join_action = url_for('boss_rush_player.join_entry') %}
+            {% else %}
+              {% set join_action = url_for('classic_player.join_session') %}
+            {% endif %}
+            <form method="POST" action="{{ join_action }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="session_id" value="{{ hub_status.session.id }}">
               <button type="submit" class="btn btn-success btn-small">Join Game</button>
@@ -50,7 +74,12 @@
               {% endif %}
             </p>
           {% elif hub_status.state == 'enrolled_unfinished' and hub_status.session %}
-            <a href="{{ url_for('classic_player.play') }}" class="btn btn-secondary btn-small">Return to Game</a>
+            {% if hub_status.session.mode == 'boss_rush' %}
+              {% set return_url = url_for('boss_rush_player.play_entry') %}
+            {% else %}
+              {% set return_url = url_for('classic_player.play') %}
+            {% endif %}
+            <a href="{{ return_url }}" class="btn btn-secondary btn-small">Return to Game</a>
             <p class="gear-session-control-note">
               {% if hub_status.session.display_label %}
                 Current session: {{ hub_status.session.display_label }}
@@ -72,8 +101,7 @@
     </div>
   </div>
 
-  {% if gear_inventory_items %}
-    <div class="gear-inventory-section" data-gear-inventory-region>
+  <div class="gear-inventory-section" data-gear-inventory-region>
       <div class="filter-tabs">
         {% for tab in gear_filter_tabs %}
           {% if tab.default_selected_item_id %}
@@ -126,8 +154,6 @@
           <p class="inventory-empty">No owned items match this filter yet.</p>
         {% endif %}
       </div>
-    </div>
-  {% else %}
-    <p class="muted-empty">You do not own any gear yet.</p>
+  </div>
   {% endif %}
 </div>

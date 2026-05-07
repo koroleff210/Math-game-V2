@@ -48,26 +48,26 @@ class ClassicRoundConfig(db.Model):
     treasure_search_max_reward = db.Column(db.Integer, nullable=False, default=5)
     gem_milestone_count        = db.Column(db.Integer, nullable=False, default=5)
     gem_streak_count           = db.Column(db.Integer, nullable=False, default=3)
-    gem_treasure_chance        = db.Column(db.Float,   nullable=False, default=0.10)
+    gem_treasure_chance        = db.Column(db.Float,   nullable=False, default=0.5)
 
     # [Step D] Steal system config
     steal_percent               = db.Column(db.Float,   nullable=False, default=0.10)
     steal_min_cap               = db.Column(db.Integer, nullable=False, default=10)
     steal_max_cap               = db.Column(db.Integer, nullable=False, default=50)   # -1 = no upper cap
     steal_fallback_gold         = db.Column(db.Integer, nullable=False, default=5)
-    steal_chest_count           = db.Column(db.Integer, nullable=False, default=2)    # 0 = mini-game disabled
-    steal_winning_chest_count   = db.Column(db.Integer, nullable=False, default=1)
+    steal_chest_count           = db.Column(db.Integer, nullable=False, default=6)    # 0 = mini-game disabled
+    steal_winning_chest_count   = db.Column(db.Integer, nullable=False, default=4)
     shield_duration              = db.Column(db.Integer, nullable=False, default=60)   # deprecated schema residue; runtime uses split fields below
     active_shield_duration       = db.Column(db.Integer, nullable=False, default=60)   # manual shield-token activation
-    reactive_shield_duration     = db.Column(db.Integer, nullable=False, default=60)   # victim protection after steal
+    reactive_shield_duration     = db.Column(db.Integer, nullable=False, default=20)   # victim protection after steal
     # treasure_steal_token_chance: probability that a Treasure Search action awards a steal token.
     # Named under the treasure system because it is a treasure reward, not a steal mechanic.
-    treasure_steal_token_chance = db.Column(db.Float,   nullable=False, default=0.0)  # 0.0 = disabled
+    treasure_steal_token_chance = db.Column(db.Float,   nullable=False, default=0.6)
 
     # Treasure chest fill chances. Each currently eligible reward type becomes one chest.
     # Each shown chest rolls filled/empty independently.
-    treasure_active_shield_chance = db.Column(db.Float, nullable=False, default=0.0)   # 0.0 = disabled
-    treasure_second_chance_chance = db.Column(db.Float, nullable=False, default=0.0)   # 0.0 = disabled
+    treasure_active_shield_chance = db.Column(db.Float, nullable=False, default=0.6)
+    treasure_second_chance_chance = db.Column(db.Float, nullable=False, default=0.5)
 
     round = db.relationship('GameRound', backref=db.backref('classic_config', uselist=False))
 

@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Boss Rush Lobby{% endblock %}
+
+{% block head %}
+<script src="/static/js/socket.io.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<main style="max-width:920px; margin:40px auto; padding:24px; background:#fff; border:1px solid #ddd; border-radius:10px;">
+    <h1>Boss Rush Lobby</h1>
+    <p>Session #{{ game_session.id }} · Status: <strong data-session-status>{{ game_session.status }}</strong></p>
+    {% if game_session.status == 'finished' %}
+        <p data-lobby-status>Boss Rush session ended. You can return to the Hub.</p>
+        <p><a href="{{ url_for('player.dashboard') }}">Back to Hub</a></p>
+    {% elif game_round and game_round.ended_at %}
+        <p data-lobby-status>Round {{ game_round.round_number }} is complete. Waiting for the next Boss Rush round.</p>
+    {% else %}
+        <p data-lobby-status>Waiting for the admin to start the Boss Rush round.</p>
+    {% endif %}
+</main>
+
+<script>
+(function () {
+    const SESSION_ID = {{ game_session.id }};
+    const statusNode = document.querySelector('[data-session-status]');
+    const lobbyStatus = document.querySelector('[data-lobby-status]');
+    if (!window.io) return;
+    const socket = io();
+    socket.on('connect', function () {
+        socket.emit('boss_rush_join', { session_id: SESSION_ID });
+    });
+    socket.on('boss_rush_state_update', function (payload) {
+        if (!payload || !payload.session) return;
+        if (statusNode) statusNode.textContent = payload.session.status;
+        if (payload.session.status === 'active') {
+            if (lobbyStatus) lobbyStatus.textContent = 'Boss Rush started. Entering battle...';
+            window.setTimeout(function () {
+                window.location.href = '/boss-rush/game/' + SESSION_ID;
+            }, 700);
+        } else if (payload.session.status === 'finished') {
+            if (lobbyStatus) lobbyStatus.textContent = 'Boss Rush session ended. You can return to the Hub.';
+        } else if (payload.session.round_ended) {
+            if (lobbyStatus) lobbyStatus.textContent = 'Round complete. Waiting for the next Boss Rush round.';
+        }
+    });
+})();
+</script>
+{% endblock %}

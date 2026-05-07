@@ -1,0 +1,319 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}Analytics Round #{{ analytics_round.id }}{% endblock %}
+
+{% macro pct(value) -%}
+    {%- if value is not none -%}{{ (value * 100) | round(1) }}%{%- else -%}<span style="color:#999;">n/a</span>{%- endif -%}
+{%- endmacro %}
+
+{% macro dt(value) -%}
+    {{ value.strftime("%Y-%m-%d %H:%M:%S") if value else "n/a" }}
+{%- endmacro %}
+
+{% macro json_block(value) -%}
+    {% if value %}
+    <details>
+        <summary>JSON</summary>
+        <pre style="white-space:pre-wrap; max-width:520px; overflow:auto;">{{ value | tojson(indent=2) }}</pre>
+    </details>
+    {% else %}
+    <span style="color:#999;">n/a</span>
+    {% endif %}
+{%- endmacro %}
+
+{% block admin_content %}
+{% set title = "Analytics Round #" ~ analytics_round.id %}
+{% set eyebrow = analytics_round.mode %}
+{% set description = "Session #" ~ analytics_round.session_id ~ ", game round #" ~ analytics_round.round_id %}
+{% set secondary_href = url_for('admin.analytics_rounds') %}
+{% set secondary_label = "Back to Analytics" %}
+{% include "admin/_page_header.html" %}
+
+<div style="margin-bottom:16px;">
+    <a href="{{ url_for('admin.analytics_class_dashboard', group_id=analytics_round.group_id) if analytics_round.group_id else url_for('admin.analytics_class_dashboard') }}">Class Dashboard</a>
+    <span style="color:#999; margin:0 8px;">|</span>
+    <a href="{{ url_for('admin.analytics_round_detail_export_csv', analytics_round_id=analytics_round.id) }}">Export CSV</a>
+</div>
+
+<section style="margin-bottom:28px;">
+    <h2>Round Metadata</h2>
+    <table border="1" cellpadding="8" style="border-collapse:collapse; width:100%; font-size:0.92em;">
+        <tbody>
+            <tr><th style="text-align:left; width:220px;">Mode</th><td>{{ analytics_round.mode }}</td></tr>
+            <tr><th style="text-align:left;">Session</th><td>#{{ analytics_round.session_id }}{% if analytics_round.session_label_snapshot %} - {{ analytics_round.session_label_snapshot }}{% endif %}</td></tr>
+            <tr><th style="text-align:left;">Round</th><td>#{{ analytics_round.round_id }} / number {{ analytics_round.round_number or "n/a" }}</td></tr>
+            <tr><th style="text-align:left;">Class</th><td>{{ analytics_round.group_name_snapshot or "Open" }}</td></tr>
+            <tr><th style="text-align:left;">Subject</th><td>{{ analytics_round.subject_name_snapshot or "n/a" }}</td></tr>
+            <tr><th style="text-align:left;">Problem Set</th><td>{{ analytics_round.problem_set_name_snapshot or "n/a" }}</td></tr>
+            <tr><th style="text-align:left;">Started</th><td>{{ dt(analytics_round.started_at) }}</td></tr>
+            <tr><th style="text-align:left;">Ended</th><td>{{ dt(analytics_round.ended_at) }}</td></tr>
+            <tr><th style="text-align:left;">Finalized</th><td>{{ dt(analytics_round.finalized_at) }}</td></tr>
+            <tr><th style="text-align:left;">Answer Attempts</th><td>{{ answer_counts.attempts }} total, {{ answer_counts.correct }} correct, {{ answer_counts.incorrect }} incorrect, accuracy {{ pct(answer_counts.accuracy) }}</td></tr>
+        </tbody>
+    </table>
+</section>
+
+<section style="margin-bottom:28px;">
+    <h2>Player Summaries</h2>
+    {% if player_rounds %}
+    <table border="1" cellpadding="8" style="border-collapse:collapse; width:100%; font-size:0.9em;">
+        <thead style="background:#f1f3f5;">
+            <tr>
+                <th style="text-align:left;">Player</th>
+                <th>Seen</th>
+                <th>Attempted</th>
+                <th>Solved</th>
+                <th>Correct</th>
+                <th>Incorrect</th>
+                <th>First Try</th>
+                <th>Accuracy</th>
+                {% if analytics_round.mode == "classic" %}
+                <th>Gold</th>
+                <th>Gems</th>
+                {% endif %}
+                {% if analytics_round.mode == "boss_rush" %}
+                <th>Damage</th>
+                <th>Combo</th>
+                <th>HP</th>
+                <th>Diamonds</th>
+                {% endif %}
+                <th>Summary</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for row in player_rounds %}
+        <tr>
+            <td>{{ row.player_name_snapshot or ("Player #" ~ row.player_id) }}</td>
+            <td style="text-align:right;">{{ row.problems_seen }}</td>
+            <td style="text-align:right;">{{ row.problems_attempted }}</td>
+            <td style="text-align:right;">{{ row.problems_solved }}</td>
+            <td style="text-align:right;">{{ row.correct_attempts }}</td>
+            <td style="text-align:right;">{{ row.incorrect_attempts }}</td>
+            <td style="text-align:right;">{{ row.first_try_correct_count }}</td>
+            <td style="text-align:right;">{{ pct(row.accuracy) }}</td>
+            {% if analytics_round.mode == "classic" %}
+            <td style="text-align:right;">{{ row.gold_start if row.gold_start is not none else "n/a" }} -> {{ row.gold_end if row.gold_end is not none else "n/a" }}</td>
+            <td style="text-align:right;">{{ row.gems_start if row.gems_start is not none else "n/a" }} -> {{ row.gems_end if row.gems_end is not none else "n/a" }}</td>
+            {% endif %}
+            {% if analytics_round.mode == "boss_rush" %}
+            <td style="text-align:right;">{{ row.damage_dealt }}</td>
+            <td style="text-align:right;">{{ row.final_combo }} / max {{ row.max_combo }}</td>
+            <td style="text-align:right;">{{ row.hp_final if row.hp_final is not none else "n/a" }}</td>
+            <td style="text-align:right;">{{ row.diamonds_awarded }}</td>
+            {% endif %}
+            <td>{{ json_block(row.summary_json) }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:#666;">No player summary rows recorded.</p>
+    {% endif %}
+</section>
+
+<section style="margin-bottom:28px;">
+    <h2>Problem Summaries</h2>
+    {% if problem_summaries %}
+    <table border="1" cellpadding="8" style="border-collapse:collapse; width:100%; font-size:0.9em;">
+        <thead style="background:#f1f3f5;">
+            <tr>
+                <th style="text-align:left;">Problem</th>
+                <th style="text-align:left;">Context</th>
+                <th style="text-align:left;">Topic</th>
+                <th>Seen</th>
+                <th>Attempted</th>
+                <th>Solved</th>
+                <th>Attempts</th>
+                <th>Correct</th>
+                <th>Incorrect</th>
+                <th>Accuracy</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for item in problem_summaries %}
+        {% set row = item.row %}
+        <tr>
+            <td>#{{ row.problem_id }} {{ row.problem_title_snapshot or "Untitled" }}</td>
+            <td>{{ row.mode_context }}</td>
+            <td>{{ row.topic_name_snapshot or "n/a" }}</td>
+            <td style="text-align:right;">{{ item.players_seen }}</td>
+            <td style="text-align:right;">{{ item.players_attempted }}</td>
+            <td style="text-align:right;">{{ item.players_solved }}</td>
+            <td style="text-align:right;">{{ item.attempts }}</td>
+            <td style="text-align:right;">{{ item.correct }}</td>
+            <td style="text-align:right;">{{ item.incorrect }}</td>
+            <td style="text-align:right;">{{ pct(item.accuracy) }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:#666;">No problem snapshot rows recorded.</p>
+    {% endif %}
+</section>
+
+<section style="margin-bottom:28px;">
+    <h2>Player Problem Lifecycle</h2>
+    {% if player_problems %}
+    <table border="1" cellpadding="8" style="border-collapse:collapse; width:100%; font-size:0.88em;">
+        <thead style="background:#f1f3f5;">
+            <tr>
+                <th>Player ID</th>
+                <th>Problem</th>
+                <th>Context</th>
+                <th>Status</th>
+                <th>Attempts</th>
+                <th>First Attempt</th>
+                <th>Eventual Correct</th>
+                <th>First Seen</th>
+                <th>Completed</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for row in player_problems %}
+        <tr>
+            <td style="text-align:right;">{{ row.player_id }}</td>
+            <td>#{{ row.problem_id }} {{ row.problem_title_snapshot or "Untitled" }}</td>
+            <td>{{ row.mode_context }}</td>
+            <td>{{ row.status }}</td>
+            <td style="text-align:right;">{{ row.attempt_count }}</td>
+            <td>{{ row.first_attempt_correct if row.first_attempt_correct is not none else "n/a" }}</td>
+            <td>{{ row.eventual_correct if row.eventual_correct is not none else "n/a" }}</td>
+            <td>{{ dt(row.first_seen_at) }}</td>
+            <td>{{ dt(row.completed_at) }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:#666;">No player-problem rows recorded.</p>
+    {% endif %}
+</section>
+
+<section style="margin-bottom:28px;">
+    <h2>Answer Attempts</h2>
+    {% if answer_attempts %}
+    <table border="1" cellpadding="8" style="border-collapse:collapse; width:100%; font-size:0.86em;">
+        <thead style="background:#f1f3f5;">
+            <tr>
+                <th>Time</th>
+                <th>Player</th>
+                <th>Problem</th>
+                <th>Context</th>
+                <th>Action</th>
+                <th>#</th>
+                <th>Answer</th>
+                <th>Option</th>
+                <th>Correct</th>
+                <th>Extra</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for row in answer_attempts %}
+        <tr>
+            <td style="white-space:nowrap;">{{ dt(row.submitted_at) }}</td>
+            <td>#{{ row.player_id }}</td>
+            <td>#{{ row.problem_id }}</td>
+            <td>{{ row.mode_context }}</td>
+            <td>{{ row.action_context or "n/a" }}</td>
+            <td style="text-align:right;">{{ row.attempt_number }}</td>
+            <td>{{ row.submitted_answer_text or "" }}</td>
+            <td>{% if row.selected_option_id %}#{{ row.selected_option_id }} {{ row.selected_option_label_snapshot or "" }} {{ row.selected_option_text_snapshot or "" }}{% else %}n/a{% endif %}</td>
+            <td>{{ "yes" if row.is_correct else "no" }}</td>
+            <td>{{ json_block(row.extra_json) }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:#666;">No answer attempts recorded.</p>
+    {% endif %}
+</section>
+
+{% if analytics_round.mode == "classic" %}
+<section style="margin-bottom:28px;">
+    <h2>Classic Economy Events</h2>
+    {% if classic_events %}
+    <table border="1" cellpadding="8" style="border-collapse:collapse; width:100%; font-size:0.86em;">
+        <thead style="background:#f1f3f5;">
+            <tr>
+                <th>Time</th>
+                <th>Type</th>
+                <th>Actor</th>
+                <th>Target</th>
+                <th>Problem</th>
+                <th>Gold Actor</th>
+                <th>Gold Target</th>
+                <th>Gems Actor</th>
+                <th>Item/Bonus</th>
+                <th>Details</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for row in classic_events %}
+        <tr>
+            <td>{{ dt(row.occurred_at) }}</td>
+            <td>{{ row.event_type }}</td>
+            <td>#{{ row.actor_player_id }} {{ row.actor_name_snapshot or "" }}</td>
+            <td>{% if row.target_player_id %}#{{ row.target_player_id }} {{ row.target_name_snapshot or "" }}{% else %}n/a{% endif %}</td>
+            <td>{{ row.problem_id or row.linked_problem_id or "n/a" }}</td>
+            <td style="text-align:right;">{{ row.gold_delta_actor }}</td>
+            <td style="text-align:right;">{{ row.gold_delta_target }}</td>
+            <td style="text-align:right;">{{ row.gems_delta_actor }}</td>
+            <td>{{ row.item_key or row.bonus_key or "n/a" }}</td>
+            <td>{{ json_block(row.details_json) }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:#666;">No Classic economy events recorded.</p>
+    {% endif %}
+</section>
+{% endif %}
+
+{% if analytics_round.mode == "boss_rush" %}
+<section style="margin-bottom:28px;">
+    <h2>Boss Rush Battle Events</h2>
+    {% if boss_events %}
+    <table border="1" cellpadding="8" style="border-collapse:collapse; width:100%; font-size:0.84em;">
+        <thead style="background:#f1f3f5;">
+            <tr>
+                <th>Time</th>
+                <th>Type</th>
+                <th>Player</th>
+                <th>Boss HP</th>
+                <th>Player HP</th>
+                <th>Combo</th>
+                <th>Damage</th>
+                <th>Guard</th>
+                <th>Ability</th>
+                <th>Links</th>
+                <th>Details</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for row in boss_events %}
+        <tr>
+            <td>{{ dt(row.occurred_at) }}</td>
+            <td>{{ row.event_type }}</td>
+            <td>{% if row.player_id %}#{{ row.player_id }} {{ row.player_name_snapshot or "" }}{% else %}n/a{% endif %}</td>
+            <td>{{ row.boss_hp_before if row.boss_hp_before is not none else "n/a" }} -> {{ row.boss_hp_after if row.boss_hp_after is not none else "n/a" }}</td>
+            <td>{{ row.player_hp_before if row.player_hp_before is not none else "n/a" }} -> {{ row.player_hp_after if row.player_hp_after is not none else "n/a" }}</td>
+            <td>{{ row.combo_before if row.combo_before is not none else "n/a" }} -> {{ row.combo_after if row.combo_after is not none else "n/a" }}</td>
+            <td>{{ row.damage_intended }} / {{ row.damage_applied }}</td>
+            <td>{{ row.shield_or_guard_absorbed }}</td>
+            <td>{{ row.ability_key or "n/a" }}{% if row.ability_count %} #{{ row.ability_count }}{% endif %}</td>
+            <td>answer {{ row.linked_answer_attempt_id or "n/a" }}<br>boss attempt {{ row.linked_boss_rush_attempt_id or "n/a" }}</td>
+            <td>{{ json_block(row.details_json) }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:#666;">No Boss Rush battle events recorded.</p>
+    {% endif %}
+</section>
+{% endif %}
+
+{% endblock %}

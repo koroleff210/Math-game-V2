@@ -144,8 +144,48 @@ def run_tests():
         round(trace['x'][0], 5) == -1.0 and round(trace['x'][-1], 5) == 1.0,
     )
 
+    point_trace = payload['data'][1]
+    layout = payload['layout']
     check(
-        'GES1-12: incomplete or invalid equation x-range is rejected',
+        'GES1-12: plot payload rounds function and point hover values to one decimal',
+        '%{x:.1f}, %{y:.1f}' in trace['hovertemplate']
+        and '(%{x:.1f}, %{y:.1f})' in point_trace['hovertemplate'],
+    )
+
+    check(
+        'GES1-13: plot payload uses denser function sampling without changing range',
+        len(trace['x']) == 240
+        and len(trace['y']) == 240
+        and round(trace['x'][0], 5) == -1.0
+        and round(trace['x'][-1], 5) == 1.0,
+    )
+
+    check(
+        'GES1-14: plot payload includes shared graph theme defaults',
+        layout['hovermode'] == 'closest'
+        and layout['xaxis']['gridcolor'] == '#d7dde5'
+        and layout['xaxis']['minor']['gridcolor'] == '#f3f5f8'
+        and layout['yaxis']['zerolinecolor'] == '#1f2937'
+        and layout['font']['color'] == '#344054'
+        and layout['legend']['orientation'] == 'h',
+    )
+
+    check(
+        'GES1-15: plot payload uses equal unit scaling and dynamic sparse tick labels',
+        layout['yaxis']['scaleanchor'] == 'x'
+        and layout['yaxis']['scaleratio'] == 1
+        and layout['xaxis']['tickmode'] == 'auto'
+        and layout['yaxis']['tickmode'] == 'auto'
+        and layout['xaxis']['nticks'] == 11
+        and layout['yaxis']['nticks'] == 11
+        and 'dtick' not in layout['xaxis']
+        and 'dtick' not in layout['yaxis']
+        and layout['xaxis']['tickangle'] == 0
+        and layout['yaxis']['constrain'] == 'domain',
+    )
+
+    check(
+        'GES1-16: incomplete or invalid equation x-range is rejected',
         _raises_value_error(convert_equation_to_graph_element, 'y = x', x_min=0, x_max=None)
         and _raises_value_error(convert_equation_to_graph_element, 'y = x', x_min=2, x_max=1),
     )

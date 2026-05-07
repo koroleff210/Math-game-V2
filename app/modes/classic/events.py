@@ -52,6 +52,21 @@ from app.services.problem_content import (
 from app.modes.classic.admin_summary import render_admin_supervision_summary_payload
 from app.services.progression import get_session_player_modifiers
 from app.services.avatar import build_player_avatar_view
+from app.models.analytics import (
+    ANALYTICS_CONTEXT_CLASSIC,
+    ANALYTICS_STATUS_CLOSED,
+    ANALYTICS_STATUS_SEEN,
+    ANALYTICS_STATUS_SOLVED,
+)
+from app.services.analytics import (
+    classic_economy_event_key,
+    ensure_player_problem,
+    ensure_player_round,
+    finalize_player_problem,
+    latest_answer_attempt_for_action,
+    record_answer_attempt,
+    record_classic_economy_event,
+)
 
 
 def _manual_shield_base_duration(config) -> int:
@@ -416,6 +431,7 @@ def register_classic_handlers(socketio):
         problem_list = []
         if game_round and game_session.problem_set:
             config = game_round.classic_config
+            ensure_player_round(game_round, player, 'classic', wallet=wallet)
             problems = game_session.problem_set.problems.all()
 
             for prob in problems:
@@ -450,6 +466,13 @@ def register_classic_handlers(socketio):
 
                 if not pps:
                     continue  # skip if row still unavailable
+                ensure_player_problem(
+                    game_round,
+                    player,
+                    prob,
+                    ANALYTICS_CONTEXT_CLASSIC,
+                    mark_seen=True,
+                )
 
                 atp = config.attempts_per_problem if config else 1
                 if atp == -1:
@@ -570,7 +593,8 @@ def register_classic_handlers(socketio):
 
         session_id = int(data.get('session_id', 0))
         problem_id = int(data.get('problem_id', 0))
-        answer_text = str(data.get('answer_text', '')).strip()
+        raw_answer_text = str(data.get('answer_text', ''))
+        answer_text = raw_answer_text.strip()
         selected_option_id_raw = data.get('selected_option_id')
         try:
             selected_option_id = int(selected_option_id_raw) if selected_option_id_raw not in (None, '') else None
@@ -636,6 +660,31 @@ def register_classic_handlers(socketio):
         elif atp != -1 and pps.attempts_used >= atp:
             pps.is_closed = True
 
+        analytics_attempt = record_answer_attempt(
+            game_round,
+            player,
+            problem,
+            is_correct=is_correct,
+            submitted_answer_text=raw_answer_text,
+            selected_option_id=selected_option_id,
+            mode_context=ANALYTICS_CONTEXT_CLASSIC,
+            action_context=None,
+            extra_json={
+                'attempts_used_after_submission': pps.attempts_used,
+                'player_problem_closed': bool(pps.is_closed),
+                'player_problem_solved': bool(pps.is_solved),
+            },
+        )
+        finalize_player_problem(
+            game_round,
+            player,
+            problem,
+            ANALYTICS_CONTEXT_CLASSIC,
+            status=ANALYTICS_STATUS_SOLVED if pps.is_solved else (ANALYTICS_STATUS_CLOSED if pps.is_closed else ANALYTICS_STATUS_SEEN),
+            eventual_correct=bool(pps.is_solved),
+            completed_at=datetime.now(timezone.utc) if pps.is_closed or pps.is_solved else None,
+            extra_json={'classic_attempts_used': pps.attempts_used},
+        )
         db.session.commit()
 
         # ── Incorrect branch ──────────────────────────────────────────────────
@@ -655,11 +704,31 @@ def register_classic_handlers(socketio):
                 # Undo the attempt increment and re-open the problem
                 pps.attempts_used -= 1
                 pps.is_closed = False
+                analytics_attempt.extra_json = {
+                    **(analytics_attempt.extra_json or {}),
+                    'second_chance_used': True,
+                    'gameplay_attempt_preserved': True,
+                    'attempts_used_after_second_chance': pps.attempts_used,
+                }
+                finalize_player_problem(
+                    game_round,
+                    player,
+                    problem,
+                    ANALYTICS_CONTEXT_CLASSIC,
+                    status=ANALYTICS_STATUS_SEEN,
+                    eventual_correct=False,
+                    extra_json={'classic_attempts_used': pps.attempts_used},
+                )
                 db.session.commit()
             else:
                 # No Second Chance: apply penalty if configured
                 if wallet and config.wrong_answer_penalty > 0:
                     wallet.gold = engine.apply_penalty(wallet.gold, config.wrong_answer_penalty)
+                    analytics_attempt.extra_json = {
+                        **(analytics_attempt.extra_json or {}),
+                        'wrong_answer_penalty': config.wrong_answer_penalty,
+                        'gold_after_penalty': wallet.gold,
+                    }
                     db.session.commit()
 
             gold_now = wallet.gold if wallet else 0
@@ -834,6 +903,25 @@ def register_classic_handlers(socketio):
                     created_at=datetime.now(timezone.utc),
                 )
                 db.session.add(evt)
+                linked_attempt = latest_answer_attempt_for_action(game_round, player, problem_id)
+                record_classic_economy_event(
+                    game_round,
+                    event_type='steal_blocked',
+                    actor_player=player,
+                    linked_answer_attempt=linked_attempt,
+                    linked_problem_id=problem_id,
+                    action_context='steal',
+                    gold_delta_actor=config.steal_fallback_gold,
+                    actor_gold_after=wallet.gold,
+                    problem_id=problem_id,
+                    event_key=classic_economy_event_key(game_round, player.id, problem_id, 'steal_blocked', 'no_targets'),
+                    details_json={
+                        'reason': 'no_valid_targets',
+                        'steal_event_outcome': 'stranger_no_targets',
+                        'steal_token_spent': 1,
+                        'fallback_gold': config.steal_fallback_gold,
+                    },
+                )
                 db.session.commit()
 
                 log_entry = f'You gained {config.steal_fallback_gold} gold from a stranger steal (no valid targets).'
@@ -931,6 +1019,49 @@ def register_classic_handlers(socketio):
 
         new_balance = wallet.gold
         new_gems    = wallet.gems
+        linked_attempt = latest_answer_attempt_for_action(game_round, player, problem_id)
+        if action == 'mine':
+            record_classic_economy_event(
+                game_round,
+                event_type='mine_success',
+                actor_player=player,
+                linked_answer_attempt=linked_attempt,
+                linked_problem_id=problem_id,
+                action_context='mine',
+                gold_delta_actor=gold_gained,
+                gems_delta_actor=gems_gained,
+                actor_gold_after=new_balance,
+                problem_id=problem_id,
+                event_key=classic_economy_event_key(game_round, player.id, problem_id, 'mine_success'),
+                details_json={
+                    'breakdown': breakdown,
+                    'solver_rank': solver_rank,
+                    'timer_active': timer_active,
+                    'x2_mine_used': x2_active,
+                    'gem_reason': gem_reason,
+                },
+            )
+        else:
+            record_classic_economy_event(
+                game_round,
+                event_type='treasure_gold',
+                actor_player=player,
+                linked_answer_attempt=linked_attempt,
+                linked_problem_id=problem_id,
+                action_context='treasure',
+                gold_delta_actor=gold_gained,
+                gems_delta_actor=gems_gained,
+                actor_gold_after=new_balance,
+                problem_id=problem_id,
+                event_key=classic_economy_event_key(game_round, player.id, problem_id, 'treasure_gold'),
+                details_json={
+                    'breakdown': breakdown,
+                    'solver_rank': solver_rank,
+                    'timer_active': timer_active,
+                    'treasure_roll': treasure_roll,
+                    'gem_reason': gem_reason,
+                },
+            )
         db.session.commit()
 
         # Consume the pending action
@@ -1054,6 +1185,33 @@ def register_classic_handlers(socketio):
         wallet_post = PlayerWallet.query.filter_by(
             player_id=player.id, session_id=session_id
         ).first()
+        if ok:
+            game_round = GameRound.query.filter_by(
+                session_id=session_id, ended_at=None
+            ).order_by(GameRound.round_number.desc()).first()
+            item = db.session.get(StoreItem, item_id)
+            if game_round and item and wallet_post:
+                currency = getattr(item, 'currency', 'gold') or 'gold'
+                record_classic_economy_event(
+                    game_round,
+                    event_type='store_purchase',
+                    actor_player=player,
+                    action_context='store_purchase',
+                    gold_delta_actor=-(item.cost or 0) if currency == 'gold' else 0,
+                    gems_delta_actor=-(item.cost or 0) if currency == 'gems' else 0,
+                    actor_gold_after=wallet_post.gold,
+                    item_key=str(item.id),
+                    bonus_key=item.bonus_type,
+                    details_json={
+                        'item_id': item.id,
+                        'item_name': item.name,
+                        'bonus_type': item.bonus_type,
+                        'currency': currency,
+                        'cost': item.cost,
+                        'steal_tokens_after': wallet_post.steal_tokens,
+                    },
+                )
+                db.session.commit()
         emit('buy_result', {
             'ok':            ok,
             'msg':           msg,
@@ -1148,6 +1306,7 @@ def register_classic_handlers(socketio):
                 socketio, session_id, game_round.id,
                 player, actor_wallet,
                 config.steal_fallback_gold,
+                problem_id=problem_id,
                 target_player_id=target_player_id,
                 outcome='stranger_target_invalid',
                 log_entry=(
@@ -1182,6 +1341,7 @@ def register_classic_handlers(socketio):
                 target_player_id, target_wallet, target_pcs,
                 steal_amount, config,
                 mini_game_pick=None,
+                problem_id=problem_id,
                 shield_duration_s=_eff_shield_s,
             )
         else:
@@ -1201,6 +1361,7 @@ def register_classic_handlers(socketio):
                 chest_count=config.steal_chest_count,
                 winning_chest_count=config.steal_winning_chest_count,
                 containers=containers,
+                problem_id=problem_id,
                 phase='selecting',
                 selected_chest=None,
                 reveal_result=None,
@@ -1412,6 +1573,7 @@ def register_classic_handlers(socketio):
                 target_player_id, target_wallet, target_pcs,
                 steal_amount, config,
                 mini_game_pick=chest_index,
+                problem_id=minigame.get('problem_id'),
                 shield_duration_s=_eff_shield_s,
             )
         else:
@@ -1430,6 +1592,7 @@ def register_classic_handlers(socketio):
                 socketio, session_id, game_round.id,
                 player, actor_wallet,
                 config.steal_fallback_gold,
+                problem_id=minigame.get('problem_id'),
                 target_player_id=target_player_id,
                 mini_game_pick=chest_index,
                 outcome=outcome_str,
@@ -1478,6 +1641,45 @@ def register_classic_handlers(socketio):
                 steal_token_cap=pending['steal_token_cap'],
             )
 
+        game_round = db.session.get(GameRound, pending.get('round_id'))
+        if game_round:
+            problem_id = pending.get('problem_id')
+            linked_attempt = latest_answer_attempt_for_action(game_round, player, problem_id)
+            reward_type = selected['reward_type'] if selected['filled'] else None
+            record_classic_economy_event(
+                game_round,
+                event_type='treasure_pick',
+                actor_player=player,
+                linked_answer_attempt=linked_attempt,
+                linked_problem_id=problem_id,
+                action_context='treasure',
+                actor_gold_after=wallet.gold,
+                bonus_key=reward_type,
+                problem_id=problem_id,
+                event_key=classic_economy_event_key(game_round, player.id, problem_id, 'treasure_pick', chest_index),
+                details_json={
+                    'selected_chest': chest_index,
+                    'filled': bool(selected['filled']),
+                    'reward_type': reward_type,
+                    'base_gold': pending.get('base_gold'),
+                    'treasure_roll': pending.get('treasure_roll'),
+                },
+            )
+            if reward_details and reward_details.get('granted'):
+                record_classic_economy_event(
+                    game_round,
+                    event_type='treasure_bonus',
+                    actor_player=player,
+                    linked_answer_attempt=linked_attempt,
+                    linked_problem_id=problem_id,
+                    action_context='treasure',
+                    gems_delta_actor=reward_details.get('gems_gained', 0) or 0,
+                    actor_gold_after=wallet.gold,
+                    bonus_key=reward_details.get('reward_type'),
+                    problem_id=problem_id,
+                    event_key=classic_economy_event_key(game_round, player.id, problem_id, 'treasure_bonus', chest_index),
+                    details_json=reward_details,
+                )
         db.session.commit()
         active_bonuses = classic_store.get_active_counts(player.id, session_id)
         reveal_payload = _serialize_treasure_chests(pending['chests'], revealed=True)
@@ -1641,6 +1843,18 @@ def register_classic_handlers(socketio):
                 _actor_mods.effective_gear_shield_duration_delta,
             )
             new_expiry       = engine.grant_steal_shield(pcs, effective_shield_s)
+            record_classic_economy_event(
+                game_round,
+                event_type='shield_activated',
+                actor_player=player,
+                action_context='shield',
+                bonus_key='steal_shield',
+                details_json={
+                    'inventory_id': inv.id,
+                    'effective_shield_seconds': effective_shield_s,
+                    'shield_expires_at': new_expiry.isoformat() if new_expiry else None,
+                },
+            )
             db.session.commit()
 
         log_entry      = f'Shield Token activated ({effective_shield_s}s)'
@@ -1710,6 +1924,7 @@ def _resolve_stranger_steal(
     actor_player, actor_wallet,
     gold_amount: int,
     *,
+    problem_id=None,
     target_player_id=None,
     mini_game_pick=None,
     outcome='stranger_chest',
@@ -1728,6 +1943,31 @@ def _resolve_stranger_steal(
         created_at=datetime.now(timezone.utc),
     )
     db.session.add(evt)
+    game_round = db.session.get(GameRound, round_id)
+    target_player = db.session.get(Player, target_player_id) if target_player_id else None
+    event_type = 'steal_failed' if outcome == 'stranger_chest' else 'steal_blocked'
+    if game_round:
+        linked_attempt = latest_answer_attempt_for_action(game_round, actor_player, problem_id)
+        record_classic_economy_event(
+            game_round,
+            event_type=event_type,
+            actor_player=actor_player,
+            target_player=target_player,
+            linked_answer_attempt=linked_attempt,
+            linked_problem_id=problem_id,
+            action_context='steal',
+            gold_delta_actor=gold_amount,
+            actor_gold_after=actor_wallet.gold,
+            problem_id=problem_id,
+            event_key=classic_economy_event_key(game_round, actor_player.id, problem_id, event_type, mini_game_pick if mini_game_pick is not None else outcome),
+            details_json={
+                'steal_event_outcome': outcome,
+                'fallback_gold': gold_amount,
+                'mini_game_pick': mini_game_pick,
+                'winning_chests': sorted(winning_chests or []),
+                'target_player_id': target_player_id,
+            },
+        )
     db.session.commit()
     if not log_entry:
         log_entry = f'You gained {gold_amount} gold from a stranger steal.'
@@ -1760,6 +2000,7 @@ def _resolve_steal_success(
     steal_amount, config,
     mini_game_pick,
     *,
+    problem_id=None,
     shield_duration_s=None,  # effective reactive protection duration (including modifiers)
 ):
     """
@@ -1800,6 +2041,33 @@ def _resolve_steal_success(
         created_at=datetime.now(timezone.utc),
     )
     db.session.add(evt)
+    game_round = db.session.get(GameRound, round_id)
+    if game_round:
+        linked_attempt = latest_answer_attempt_for_action(game_round, actor_player, problem_id)
+        record_classic_economy_event(
+            game_round,
+            event_type='steal_success',
+            actor_player=actor_player,
+            target_player=target_wallet.player,
+            linked_answer_attempt=linked_attempt,
+            linked_problem_id=problem_id,
+            action_context='steal',
+            gold_delta_actor=actual_stolen,
+            gold_delta_target=-actual_stolen,
+            actor_gold_after=actor_wallet.gold,
+            target_gold_after=target_wallet.gold,
+            problem_id=problem_id,
+            event_key=classic_economy_event_key(game_round, actor_player.id, problem_id, 'steal_success', target_player_id),
+            details_json={
+                'steal_amount_requested': steal_amount,
+                'actual_stolen': actual_stolen,
+                'steal_percent': config.steal_percent,
+                'steal_min_cap': config.steal_min_cap,
+                'steal_max_cap': config.steal_max_cap,
+                'mini_game_pick': mini_game_pick,
+                'reactive_shield_seconds': _shield_s,
+            },
+        )
     db.session.commit()
 
     # Action log entries

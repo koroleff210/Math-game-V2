@@ -39,6 +39,10 @@ def create_app(config_class=Config):
     flask_app.register_blueprint(classic_admin_bp)
     flask_app.register_blueprint(classic_player_bp)
 
+    from app.modes.boss_rush.routes import boss_rush_admin_bp, boss_rush_player_bp
+    flask_app.register_blueprint(boss_rush_admin_bp)
+    flask_app.register_blueprint(boss_rush_player_bp)
+
     # ── Register Socket.IO event handlers ─────────────────────────────────────
     from app.socketio_handlers import register_all_handlers
     register_all_handlers(socketio)

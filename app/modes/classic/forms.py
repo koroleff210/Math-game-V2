@@ -75,7 +75,7 @@ class ClassicConfigFieldsForm(FlaskForm):
     )
     gem_treasure_chance = FloatField(
         'Gem Chest Fill Chance (0-1)',
-        default=0.10,
+        default=0.5,
         validators=[NumberRange(min=0.0, max=1.0, message='Must be between 0 and 1.')],
     )
 
@@ -102,12 +102,12 @@ class ClassicConfigFieldsForm(FlaskForm):
     )
     steal_chest_count = IntegerField(
         'Mini-game Chest Count (0 = disabled)',
-        default=2,
+        default=6,
         validators=[NumberRange(min=0, message='Must be 0 or more.')],
     )
     steal_winning_chest_count = IntegerField(
         'Mini-game Winning Chests',
-        default=1,
+        default=4,
         validators=[NumberRange(min=1, message='Must be at least 1.')],
     )
     active_shield_duration = IntegerField(
@@ -117,22 +117,22 @@ class ClassicConfigFieldsForm(FlaskForm):
     )
     reactive_shield_duration = IntegerField(
         'Reactive Protection Duration (seconds)',
-        default=60,
+        default=20,
         validators=[NumberRange(min=0, message='Must be 0 or more.')],
     )
     treasure_steal_token_chance = FloatField(
         'Steal Token Chest Fill Chance (0-1)',
-        default=0.0,
+        default=0.6,
         validators=[NumberRange(min=0.0, max=1.0, message='Must be between 0 and 1.')],
     )
     treasure_active_shield_chance = FloatField(
         'Shield Token Chest Fill Chance (0-1)',
-        default=0.0,
+        default=0.6,
         validators=[NumberRange(min=0.0, max=1.0, message='Must be between 0 and 1.')],
     )
     treasure_second_chance_chance = FloatField(
         'Second Chance Chest Fill Chance (0-1)',
-        default=0.0,
+        default=0.5,
         validators=[NumberRange(min=0.0, max=1.0, message='Must be between 0 and 1.')],
     )
 

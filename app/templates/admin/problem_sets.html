@@ -35,6 +35,12 @@
                     <span class="admin-field-error">{{ form.description.errors[0] }}</span>
                 {% endif %}
             </p>
+            <div class="admin-form-grid">
+                <label class="admin-checkbox-row">{{ form.usable_in_classic() }} <span>{{ form.usable_in_classic.label.text }}</span></label>
+                <label class="admin-checkbox-row">{{ form.usable_in_boss_rush() }} <span>{{ form.usable_in_boss_rush.label.text }}</span></label>
+                <label class="admin-checkbox-row">{{ form.usable_as_recovery() }} <span>{{ form.usable_as_recovery.label.text }}</span></label>
+                <label class="admin-checkbox-row">{{ form.usable_in_team() }} <span>{{ form.usable_in_team.label.text }}</span></label>
+            </div>
             <div>
                 {{ form.submit(class_='admin-btn admin-btn-primary') }}
             </div>
@@ -57,6 +63,7 @@
                 <tr>
                     <th>ID</th>
                     <th>Name</th>
+                    <th>Modes</th>
                     <th>Problems</th>
                     <th>Actions</th>
                 </tr>
@@ -66,6 +73,12 @@
                 <tr>
                     <td>{{ s.id }}</td>
                     <td>{{ s.name }}</td>
+                    <td>
+                        {% if s.usable_in_classic %}<span class="admin-badge">Classic</span>{% endif %}
+                        {% if s.usable_in_boss_rush %}<span class="admin-badge">Boss Rush</span>{% endif %}
+                        {% if s.usable_as_recovery %}<span class="admin-badge">Recovery</span>{% endif %}
+                        {% if s.usable_in_team %}<span class="admin-badge">Team</span>{% endif %}
+                    </td>
                     <td>{{ s.problems.count() }}</td>
                     <td>
                         <div class="admin-row-actions">

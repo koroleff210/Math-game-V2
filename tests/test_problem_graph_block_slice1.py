@@ -241,6 +241,13 @@ def run_tests():
             'PGB-03: admin content save persists graph block settings and preview markup',
             r.status_code == 200 and 'data-problem-graph-block' in html and 'problem_graph_renderer.js' in html,
         )
+        check(
+            'PGB-03b: admin graph color authoring uses curated swatches',
+            'graph-color-palette' in html
+            and 'graph-color-swatch' in html
+            and 'value="#2563eb"' in html
+            and 'placeholder="#1f77b4"' not in html,
+        )
 
         with flask_app.app_context():
             problem = db.session.get(Problem, ids['problem_id'])
@@ -253,6 +260,33 @@ def run_tests():
                 and graph_body['graph_config']['elements'][0]['x_min'] == -2.0
                 and graph_body['graph_config']['elements'][0]['x_max'] == 4.0
                 and len(graph_body['graph_payload']['data']) == 2,
+            )
+            graph_payload = graph_body['graph_payload']
+            function_trace = graph_payload['data'][0]
+            point_trace = graph_payload['data'][1]
+            check(
+                'PGB-04b: graph payload keeps authored colors and one-decimal hover templates',
+                function_trace['line']['color'] == '#3366cc'
+                and point_trace['marker']['color'] == '#cc3333'
+                and '%{x:.1f}, %{y:.1f}' in function_trace['hovertemplate']
+                and '(%{x:.1f}, %{y:.1f})' in point_trace['hovertemplate'],
+            )
+            check(
+                'PGB-04c: graph payload carries shared polished layout defaults',
+                graph_payload['layout']['hovermode'] == 'closest'
+                and graph_payload['layout']['xaxis']['gridcolor'] == '#d7dde5'
+                and graph_payload['layout']['hoverlabel']['bgcolor'] == '#111827',
+            )
+            check(
+                'PGB-04d: graph payload uses equal unit scale and minor grid hierarchy',
+                graph_payload['layout']['yaxis']['scaleanchor'] == 'x'
+                and graph_payload['layout']['yaxis']['scaleratio'] == 1
+                and graph_payload['layout']['xaxis']['minor']['gridcolor'] == '#f3f5f8'
+                and graph_payload['layout']['xaxis']['tickmode'] == 'auto'
+                and graph_payload['layout']['xaxis']['nticks'] == 11
+                and 'dtick' not in graph_payload['layout']['xaxis']
+                and graph_payload['layout']['xaxis']['tickangle'] == 0
+                and graph_payload['layout']['yaxis']['zerolinecolor'] == '#1f2937',
             )
             check(
                 'PGB-05: existing text and image blocks remain in the structured body view',

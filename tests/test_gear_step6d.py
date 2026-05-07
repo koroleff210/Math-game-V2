@@ -13,6 +13,7 @@ Run:
 
 import os
 import sys
+from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -52,7 +53,11 @@ def check(label, condition, detail=''):
 
 
 def _make_player(username, password='pass1234'):
-    player = Player(username=username, is_admin=False)
+    player = Player(
+        username=username,
+        is_admin=False,
+        character_locked_at=datetime.now(timezone.utc),
+    )
     player.set_password(password)
     db.session.add(player)
     db.session.flush()

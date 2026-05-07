@@ -19,6 +19,7 @@ from app.extensions import db
 from app.models.gear import GearItemDefinition, PlayerGearLoadout, PlayerGearOwnership
 from app.models.player import Player
 from app.services.avatar import build_player_avatar_view
+from datetime import datetime, timezone
 
 
 class _TestConfig:
@@ -135,9 +136,10 @@ def test_avatar_service_layer_order():
         labels = [layer['label'] for layer in avatar['layers']]
         paths = [layer['static_path'] for layer in avatar['layers']]
         check(
-            'AV-01: avatar layer stack order matches locked order when boots are not equipped',
+            'AV-01: avatar layer stack order matches current paper-doll order when boots are not equipped',
             labels == [
                 'head-back',
+                'chest-underlay',
                 'body-upper',
                 'body-lower',
                 'main-hand',
@@ -149,14 +151,15 @@ def test_avatar_service_layer_order():
             detail=str(labels),
         )
         check(
-            'AV-02: avatar uses resolved filenames for equipped gear and default face',
-            paths[0].endswith('/avatars/head/head_003b.png')
-            and paths[2].endswith('/avatars/boots/body_lower.png')
-            and paths[3].endswith('/avatars/main_hand/main_hand_005.png')
-            and paths[4].endswith('/avatars/chest/chest_002.png')
-            and paths[5].endswith('/avatars/face/face_001.png')
-            and paths[6].endswith('/avatars/head/head_003a.png')
-            and paths[7].endswith('/avatars/off_hand/off_hand_006.png'),
+            'AV-02: avatar uses resolved static/gear filenames for equipped gear and default face',
+            paths[0].endswith('/gear/head/head_003b.png')
+            and paths[1].endswith('/gear/chest/chest_002a.png')
+            and paths[3].endswith('/gear/boots/body_lower.png')
+            and paths[4].endswith('/gear/main_hand/main_hand_005.png')
+            and paths[5].endswith('/gear/chest/chest_002.png')
+            and paths[6].endswith('/gear/face/face_001.png')
+            and paths[7].endswith('/gear/head/head_003a.png')
+            and paths[8].endswith('/gear/off_hand/off_hand_006.png'),
         )
 
         loadout.boots_item_id = 'ranger_boots'
@@ -166,7 +169,7 @@ def test_avatar_service_layer_order():
         paths = [layer['static_path'] for layer in avatar['layers']]
         check(
             'AV-03: body lower hides when boots gear is equipped',
-            'body-lower' not in labels and 'boots' in labels and any(path.endswith('/avatars/boots/boots_004.png') for path in paths),
+            'body-lower' not in labels and 'boots' in labels and any(path.endswith('/gear/boots/boots_004.png') for path in paths),
         )
 
         loadout.off_hand_item_id = None
@@ -175,7 +178,7 @@ def test_avatar_service_layer_order():
         paths = [layer['static_path'] for layer in avatar['layers']]
         check(
             'AV-04: off-hand base renders when no off-hand gear is equipped',
-            paths[-1].endswith('/avatars/off_hand/off_hand_base.png'),
+            paths[-1].endswith('/gear/off_hand/off_hand_base.png'),
         )
 
 
@@ -209,12 +212,11 @@ def test_hub_shell_avatar_and_face_actions():
                 player.selected_face_key == '002',
             )
         check(
-            'AV-07: JS-enhanced face change updates the shell in place',
+            'AV-07: JS-enhanced face change updates the character-selection shell in place',
             r.status_code == 200
             and 'data-avatar-face-key="002"' in html
-            and '/avatars/face/face_002.png' in html
+            and '/gear/face/face_002.png' in html
             and 'data-avatar-layer-region="face"' in html
-            and 'Face 002 selected.' not in html,
         )
 
         r = client.post(
@@ -238,9 +240,39 @@ def test_hub_shell_avatar_and_face_actions():
             'AV-07C: repeated async next response updates face-only markers',
             r.status_code == 200
             and 'data-avatar-face-key="003"' in html
-            and '/avatars/face/face_003.png' in html
+            and '/gear/face/face_003.png' in html
             and 'data-avatar-layer-region="face"' in html,
         )
+
+        with flask_app.app_context():
+            player = db.session.get(Player, _IDS['player_id'])
+            player.character_locked_at = datetime.now(timezone.utc)
+            loadout = PlayerGearLoadout.query.filter_by(player_id=player.id).first()
+            loadout.boots_item_id = None
+            loadout.off_hand_item_id = 'tower_guard'
+            db.session.commit()
+
+        r = client.post(
+            '/player/avatar/face',
+            data={
+                'direction': 'next',
+                'gear_filter': 'all',
+                'selected_item': 'steel_blade',
+            },
+            headers=js_headers,
+            follow_redirects=False,
+        )
+        html = r.get_data(as_text=True)
+        with flask_app.app_context():
+            player = db.session.get(Player, _IDS['player_id'])
+            check(
+                'AV-07D: locked players cannot cycle face but still render the face layer',
+                player.selected_face_key == '003'
+                and r.status_code == 200
+                and 'Your character face is locked' in html
+                and 'data-avatar-layer-region="face"' in html
+                and 'data-avatar-face-key="003"' in html,
+            )
 
         r = client.post(
             '/player/gear/equip',
@@ -256,7 +288,7 @@ def test_hub_shell_avatar_and_face_actions():
         html = r.get_data(as_text=True)
         check(
             'AV-08: equipping an item updates the avatar preview visually',
-            r.status_code == 200 and '/avatars/boots/boots_004.png' in html and '/avatars/boots/body_lower.png' not in html,
+            r.status_code == 200 and '/gear/boots/boots_004.png' in html and '/gear/boots/body_lower.png' not in html,
         )
         check(
             'AV-09: selected-item panel still works after equip',
@@ -276,7 +308,7 @@ def test_hub_shell_avatar_and_face_actions():
         html = r.get_data(as_text=True)
         check(
             'AV-10: unequipping updates the avatar preview visually',
-            r.status_code == 200 and '/avatars/off_hand/off_hand_base.png' in html and '/avatars/off_hand/off_hand_006.png' not in html,
+            r.status_code == 200 and '/gear/off_hand/off_hand_base.png' in html and '/gear/off_hand/off_hand_006.png' not in html,
         )
         check(
             'AV-11: equipped inventory markers remain coherent after avatar-driven shell updates',
@@ -320,8 +352,8 @@ def test_admin_avatar_asset_key_support():
     with open(events_path, 'r', encoding='utf-8') as fh:
         src = fh.read()
     check(
-        'AV-13: gameplay/runtime code paths remain unchanged',
-        'services.avatar' not in src and 'selected_face_key' not in src and 'avatar_asset_key' not in src,
+        'AV-13: Classic runtime only consumes avatar service payloads, not editable cosmetic fields directly',
+        'selected_face_key' not in src and 'avatar_asset_key' not in src and 'build_player_avatar_view' in src,
     )
 
 

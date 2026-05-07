@@ -1,0 +1,296 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}Class Analytics{% endblock %}
+
+{% macro pct(value) -%}
+    {%- if value is not none -%}{{ (value * 100) | round(1) }}%{%- else -%}<span style="color:#999;">n/a</span>{%- endif -%}
+{%- endmacro %}
+
+{% macro round_links(rounds) -%}
+    {% if rounds %}
+        {% for row in rounds[:4] %}
+        <a href="{{ url_for('admin.analytics_round_detail', analytics_round_id=row.id) }}">#{{ row.round_number or row.id }}</a>{% if not loop.last %}, {% endif %}
+        {% endfor %}
+        {% if rounds|length > 4 %}<span style="color:#777;">+{{ rounds|length - 4 }}</span>{% endif %}
+    {% else %}
+        <span style="color:#999;">n/a</span>
+    {% endif %}
+{%- endmacro %}
+
+{% block admin_content %}
+{% set title = "Class Analytics" %}
+{% set eyebrow = "Teacher Dashboard" %}
+{% set description = "Topic, player, and missed-problem summaries built from raw analytics attempts." %}
+{% set secondary_href = url_for('admin.analytics_rounds') %}
+{% set secondary_label = "Round Analytics" %}
+{% include "admin/_page_header.html" %}
+
+<form method="get" action="{{ url_for('admin.analytics_class_dashboard') }}" style="margin-bottom:20px; display:flex; flex-wrap:wrap; gap:10px; align-items:end;">
+    <label>
+        <span style="display:block; font-weight:bold; margin-bottom:4px;">Class</span>
+        <select id="group_id" name="group_id">
+        <option value="">Choose a class</option>
+        {% for group in groups %}
+        <option value="{{ group.id }}" {% if selected_group and selected_group.id == group.id %}selected{% endif %}>{{ group.name }}</option>
+        {% endfor %}
+        </select>
+    </label>
+    <label>
+        <span style="display:block; font-weight:bold; margin-bottom:4px;">Subject</span>
+        <select name="subject_id">
+            <option value="">All subjects</option>
+            {% for subject in subjects %}
+            <option value="{{ subject.id }}" {% if selected_subject_id == subject.id %}selected{% endif %}>{{ subject.name }}</option>
+            {% endfor %}
+        </select>
+    </label>
+    <label>
+        <span style="display:block; font-weight:bold; margin-bottom:4px;">Mode</span>
+        <select name="mode">
+            <option value="" {% if not selected_mode %}selected{% endif %}>All modes</option>
+            <option value="classic" {% if selected_mode == "classic" %}selected{% endif %}>Classic</option>
+            <option value="boss_rush" {% if selected_mode == "boss_rush" %}selected{% endif %}>Boss Rush</option>
+        </select>
+    </label>
+    <label>
+        <span style="display:block; font-weight:bold; margin-bottom:4px;">From</span>
+        <input type="date" name="date_from" value="{{ date_from_text }}">
+    </label>
+    <label>
+        <span style="display:block; font-weight:bold; margin-bottom:4px;">To</span>
+        <input type="date" name="date_to" value="{{ date_to_text }}">
+    </label>
+    <button type="submit">View</button>
+</form>
+
+{% if not selected_group %}
+<div style="background:#fff3cd; border:1px solid #ffc107; border-radius:6px; padding:14px 18px; color:#856404;">
+    Select a class to view analytics.
+</div>
+{% if recent_groups %}
+<section style="margin-top:22px; margin-bottom:28px;">
+    <h2>Recent Classes With Data</h2>
+    <table border="1" cellpadding="8" style="border-collapse:collapse; width:100%; font-size:0.9em;">
+        <thead style="background:#f1f3f5;">
+            <tr>
+                <th style="text-align:left;">Class</th>
+                <th style="text-align:left;">Latest Round</th>
+                <th style="text-align:center;">Open</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for row in recent_groups %}
+        <tr>
+            <td>{{ row.group_name }}</td>
+            <td>#{{ row.latest_round.round_number or row.latest_round.id }} {{ row.latest_round.mode }}</td>
+            <td style="text-align:center;"><a href="{{ url_for('admin.analytics_class_dashboard', group_id=row.group_id) }}">View</a></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% endif %}
+{% else %}
+<section style="margin-bottom:28px;">
+    <h2>{{ selected_group.name }}</h2>
+    <p style="color:#555;">
+        {{ dashboard.rounds|length }} analytics round(s) included.
+        <a href="{{ url_for('admin.analytics_class_dashboard_export_csv', **export_args) }}" style="margin-left:12px;">Export CSV</a>
+    </p>
+</section>
+
+<section style="margin-bottom:28px;">
+    <h2>Overview</h2>
+    <table border="1" cellpadding="8" style="border-collapse:collapse; width:100%; font-size:0.92em;">
+        <tbody>
+            <tr>
+                <th style="text-align:left;">Rounds</th>
+                <td>{{ dashboard.overview.round_count }}</td>
+                <th style="text-align:left;">Players</th>
+                <td>{{ dashboard.overview.player_count }}</td>
+            </tr>
+            <tr>
+                <th style="text-align:left;">Answer Attempts</th>
+                <td>{{ dashboard.overview.attempts }}</td>
+                <th style="text-align:left;">Correct / Incorrect</th>
+                <td>{{ dashboard.overview.correct }} / {{ dashboard.overview.incorrect }}</td>
+            </tr>
+            <tr>
+                <th style="text-align:left;">Overall Accuracy</th>
+                <td>{{ pct(dashboard.overview.accuracy) }}</td>
+                <th style="text-align:left;">First-Try Correct</th>
+                <td>{{ pct(dashboard.overview.first_try_accuracy) }}</td>
+            </tr>
+        </tbody>
+    </table>
+</section>
+
+<section style="margin-bottom:28px;">
+    <h2>Topic Summary</h2>
+    {% if dashboard.topic_rows %}
+    <table border="1" cellpadding="8" style="border-collapse:collapse; width:100%; font-size:0.9em;">
+        <thead style="background:#f1f3f5;">
+            <tr>
+                <th style="text-align:left;">Subject</th>
+                <th style="text-align:left;">Topic</th>
+                <th>Players</th>
+                <th>Problems</th>
+                <th>Attempts</th>
+                <th>Correct Attempts</th>
+                <th>Incorrect Attempts</th>
+                <th>Accuracy %</th>
+                <th>First-Try Correct %</th>
+                <th>Eventual Correct %</th>
+                <th>Linked Rounds</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for row in dashboard.topic_rows %}
+        <tr>
+            <td>{{ row.subject_name }}</td>
+            <td>{{ row.topic_name }}</td>
+            <td style="text-align:right;">{{ row.players }}</td>
+            <td style="text-align:right;">{{ row.problems }}</td>
+            <td style="text-align:right;">{{ row.attempts }}</td>
+            <td style="text-align:right;">{{ row.correct }}</td>
+            <td style="text-align:right;">{{ row.incorrect }}</td>
+            <td style="text-align:right;">{{ pct(row.accuracy) }}</td>
+            <td style="text-align:right;">{{ pct(row.first_try_accuracy) }}</td>
+            <td style="text-align:right;">{{ pct(row.eventual_correct_pct) }}</td>
+            <td>{{ row.round_count }} ({{ round_links(row.rounds) }})</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:#666;">No topic attempts recorded for this class yet.</p>
+    {% endif %}
+</section>
+
+<section style="margin-bottom:28px;">
+    <h2>Per-Player Performance</h2>
+    {% if dashboard.player_rows %}
+    <table border="1" cellpadding="8" style="border-collapse:collapse; width:100%; font-size:0.9em;">
+        <thead style="background:#f1f3f5;">
+            <tr>
+                <th style="text-align:left;">Player</th>
+                <th>Rounds Played</th>
+                <th>Problems Seen</th>
+                <th>Problems Attempted</th>
+                <th>Problems Solved</th>
+                <th>Attempts</th>
+                <th>Correct</th>
+                <th>Incorrect</th>
+                <th>Accuracy %</th>
+                <th>First-Try Correct %</th>
+                <th>Classic Gold Net</th>
+                <th>Boss Damage</th>
+                <th>Boss Max Combo</th>
+                <th>Rounds</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for row in dashboard.player_rows %}
+        <tr>
+            <td>{{ row.player_name }}</td>
+            <td style="text-align:right;">{{ row.rounds_played }}</td>
+            <td style="text-align:right;">{{ row.problems_seen }}</td>
+            <td style="text-align:right;">{{ row.problems_attempted }}</td>
+            <td style="text-align:right;">{{ row.problems_solved }}</td>
+            <td style="text-align:right;">{{ row.attempts }}</td>
+            <td style="text-align:right;">{{ row.correct }}</td>
+            <td style="text-align:right;">{{ row.incorrect }}</td>
+            <td style="text-align:right;">{{ pct(row.accuracy) }}</td>
+            <td style="text-align:right;">{{ pct(row.first_try_accuracy) }}</td>
+            <td style="text-align:right;">{{ row.classic_gold_net }}</td>
+            <td style="text-align:right;">{{ row.boss_rush_damage }}</td>
+            <td style="text-align:right;">{{ row.boss_rush_max_combo }}</td>
+            <td>{{ round_links(row.rounds) }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:#666;">No player attempts recorded for this class yet.</p>
+    {% endif %}
+</section>
+
+<section style="margin-bottom:28px;">
+    <h2>Problems Most Often Missed</h2>
+    {% if dashboard.missed_problem_rows %}
+    <table border="1" cellpadding="8" style="border-collapse:collapse; width:100%; font-size:0.9em;">
+        <thead style="background:#f1f3f5;">
+            <tr>
+                <th style="text-align:left;">Problem</th>
+                <th style="text-align:left;">Topic</th>
+                <th style="text-align:left;">Context</th>
+                <th>Players Seen</th>
+                <th>Attempts</th>
+                <th>Correct</th>
+                <th>Incorrect</th>
+                <th>Accuracy %</th>
+                <th>Most Common Wrong MCQ Option</th>
+                <th>Rounds</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for row in dashboard.missed_problem_rows %}
+        <tr>
+            <td>#{{ row.problem_id }} {{ row.problem_title }}</td>
+            <td>{{ row.topic_name }}</td>
+            <td>{{ row.mode_context }}</td>
+            <td style="text-align:right;">{{ row.players_seen }}</td>
+            <td style="text-align:right;">{{ row.attempts }}</td>
+            <td style="text-align:right;">{{ row.correct }}</td>
+            <td style="text-align:right;">{{ row.incorrect }}</td>
+            <td style="text-align:right;">{{ pct(row.accuracy) }}</td>
+            <td>
+                {% if row.most_common_wrong_option %}
+                {{ row.most_common_wrong_option.label }}: {{ row.most_common_wrong_option.text }} ({{ row.most_common_wrong_option.count }})
+                {% else %}
+                <span style="color:#999;">n/a</span>
+                {% endif %}
+            </td>
+            <td>{{ round_links(row.rounds) }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:#666;">No missed problems recorded for this class yet.</p>
+    {% endif %}
+</section>
+
+<section style="margin-bottom:28px;">
+    <h2>Recent Rounds</h2>
+    {% if dashboard.recent_rounds %}
+    <table border="1" cellpadding="8" style="border-collapse:collapse; width:100%; font-size:0.9em;">
+        <thead style="background:#f1f3f5;">
+            <tr>
+                <th style="text-align:left;">Date</th>
+                <th style="text-align:left;">Mode</th>
+                <th style="text-align:left;">Problem Set</th>
+                <th>Attempts</th>
+                <th>Accuracy %</th>
+                <th>Detail</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for item in dashboard.recent_rounds %}
+        <tr>
+            <td>{{ (item.round.ended_at or item.round.started_at).strftime("%Y-%m-%d %H:%M") if item.round.ended_at or item.round.started_at else "n/a" }}</td>
+            <td>{{ item.round.mode }}</td>
+            <td>{{ item.round.problem_set_name_snapshot or "n/a" }}</td>
+            <td style="text-align:right;">{{ item.attempts }}</td>
+            <td style="text-align:right;">{{ pct(item.accuracy) }}</td>
+            <td><a href="{{ url_for('admin.analytics_round_detail', analytics_round_id=item.round.id) }}">Open round</a></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:#666;">No matching rounds recorded.</p>
+    {% endif %}
+</section>
+{% endif %}
+{% endblock %}
