@@ -226,8 +226,15 @@
         background: #fff8e1;
         border: 1px solid #e65100;
         border-radius: 8px;
+        overflow: hidden;
     }
     #steal-targets-panel h3 { margin-top: 0; color: #e65100; }
+    #steal-targets-list {
+        max-height: 180px;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding-right: 4px;
+    }
     .steal-target-row {
         display: flex; justify-content: space-between; align-items: center;
         padding: 8px 12px; margin: 4px 0;
@@ -2928,7 +2935,7 @@
                 <div id="player-identity">
                     <div id="player-avatar-shell" aria-hidden="true">
                         <div id="player-avatar-stage">
-                            {% for layer_key in ['head-back', 'body-upper', 'body-lower', 'boots', 'main-hand', 'chest', 'face', 'head-front', 'off-hand', 'off-hand-base'] %}
+                            {% for layer_key in ['head-back', 'chest-underlay', 'body-upper', 'body-lower', 'boots', 'main-hand', 'chest', 'face', 'head-front', 'off-hand', 'off-hand-base'] %}
                                 {% set layer = gear_avatar.layer_map.get(layer_key) %}
                                 {% if layer %}
                                     <img
@@ -3301,7 +3308,10 @@ const SESSION_ID = {{ game_session.id }};
     }
 
     function isMobileProblemPagingMode() {
-        return true;
+        // Keep compact chip paging for portrait-mobile layouts and while a
+        // specific problem is selected. In full-grid mode (no selection) on
+        // desktop, show all chips at once.
+        return isPortraitMobileMode() || selectedProblemId !== null;
     }
 
     function currentProblemPageSize() {
@@ -4548,11 +4558,38 @@ const SESSION_ID = {{ game_session.id }};
         pendingActionProblemId = previousPending;
     }
 
+    function clearSelectedProblemContext(options) {
+        const config = options || {};
+        const preserveInteractionShell = !!config.preserveInteractionShell;
+        if (selectedProblemId === null) return;
+        selectedProblemId = null;
+        document.querySelectorAll('.prob-btn').forEach(function (b) {
+            b.classList.remove('selected');
+        });
+        if (preserveInteractionShell) {
+            // During post-answer reward/steal flow we clear the selected
+            // problem while keeping the interaction shell visible/clickable.
+            document.getElementById('problem-empty-state').style.display = 'none';
+            document.getElementById('problem-detail').style.display = 'block';
+        } else {
+            document.getElementById('problem-detail').style.display = 'none';
+            document.getElementById('problem-empty-state').style.display = 'block';
+        }
+        // Intentional UX: once a correct submission enters reward/steal resolution,
+        // we clear selection so players return to the full chip grid afterwards.
+        syncMobileProblemPager({
+            selectedProblemId: null,
+        });
+    }
+
     function showChooseActionPrompt(data, options) {
         const config = options || {};
         if (config.restoreProblem !== false) {
             restorePendingProblemContext(data.problem_id);
         }
+        clearSelectedProblemContext({
+            preserveInteractionShell: true,
+        });
         pendingActionProblemId = data.problem_id;
 
         const fb = document.getElementById('feedback');

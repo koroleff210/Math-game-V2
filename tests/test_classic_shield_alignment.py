@@ -249,6 +249,12 @@ def run():
             and '.prob-btn.available' in html
             and '.prob-btn.solved' in html
             and '.prob-btn.closed' in html
+            and 'id="steal-targets-list"' in html
+            and 'max-height: 180px;' in html
+            and 'function clearSelectedProblemContext(options)' in html
+            and 'preserveInteractionShell' in html
+            and 'Intentional UX: once a correct submission enters reward/steal resolution' in html
+            and 'return isPortraitMobileMode() || selectedProblemId !== null;' in html
         )
         print('PASS player page exposes shield status UI' if ok else 'FAIL player page missing shield UI hooks')
         if not ok:
