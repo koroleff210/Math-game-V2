@@ -4683,11 +4683,14 @@ const SESSION_ID = {{ game_session.id }};
 
         const container = document.getElementById('problem-buttons');
         container.innerHTML = '';
-        data.problem_list.forEach(function (p) {
+        data.problem_list.forEach(function (p, index) {
             problems[p.problem_id] = p;
             const btn = document.createElement('button');
             btn.id = 'prob-btn-' + p.problem_id;
-            btn.textContent = p.title.length > 20 ? p.title.substring(0, 18) + '...' : p.title;
+            p.display_index = p.display_index || (index + 1);
+            p.display_label = p.display_label || String(p.display_index);
+            btn.dataset.problemNumber = p.display_label;
+            renderProblemButtonLabel(btn, p);
             btn.onclick = function () { selectProblem(p.problem_id); };
             applyProblemButtonState(btn, p, false);
             container.appendChild(btn);
@@ -4791,7 +4794,7 @@ const SESSION_ID = {{ game_session.id }};
         });
 
         document.getElementById('problem-detail').style.display = 'block';
-        document.getElementById('problem-title').textContent = p.title;
+        document.getElementById('problem-title').textContent = 'Problem ' + (p.display_label || p.display_index || '');
         renderProblemBody(p);
         renderProblemAnswerInput(p);
         document.getElementById('feedback').style.display = 'none';
@@ -4862,12 +4865,15 @@ const SESSION_ID = {{ game_session.id }};
     };
 
     socket.on('answer_result', function (data) {
+        const isFinalWrongAttempt = !data.correct && !!data.problem_closed;
         const fb = document.getElementById('feedback');
         const hintText = data.correct
             ? 'Correct answer confirmed. The reward step will appear next.'
-            : 'Adjust your answer and submit again.';
+            : (isFinalWrongAttempt
+                ? 'Wrong answer, select another problem.'
+                : 'Adjust your answer and submit again.');
         setInteractionState('solve', {
-            title: data.correct ? 'Answer checked' : 'Try again',
+            title: data.correct ? 'Answer checked' : (isFinalWrongAttempt ? 'Problem closed' : 'Try again'),
             hint: hintText,
         });
         fb.style.display = 'block';
@@ -4877,11 +4883,13 @@ const SESSION_ID = {{ game_session.id }};
             fb.textContent = 'Correct.';
         } else {
             fb.className = 'wrong';
-            let wrongMsg = 'Wrong answer. ' +
-                (data.attempts_left === -1
-                    ? 'Unlimited attempts remaining.'
-                    : data.attempts_left + ' attempt(s) left.');
-            if (data.second_chance_used) {
+            let wrongMsg = isFinalWrongAttempt
+                ? 'Wrong answer, select another problem.'
+                : ('Wrong answer. ' +
+                    (data.attempts_left === -1
+                        ? 'Unlimited attempts remaining.'
+                        : data.attempts_left + ' attempt(s) left.'));
+            if (data.second_chance_used && !isFinalWrongAttempt) {
                 wrongMsg += ' Second Chance used - no penalty, attempt preserved.';
             }
             fb.textContent = wrongMsg;
@@ -4909,6 +4917,12 @@ const SESSION_ID = {{ game_session.id }};
                 document.getElementById('submit-btn').disabled = true;
                 document.querySelectorAll('.mc-option-confirm').forEach(function (btn) {
                     btn.disabled = true;
+                });
+                // Final wrong attempt: close this problem and return player to
+                // full grid (same visibility behavior as post-correct flow),
+                // while keeping status messaging visible.
+                clearSelectedProblemContext({
+                    preserveInteractionShell: true,
                 });
             } else {
                 document.getElementById('submit-btn').disabled = false;
@@ -5048,6 +5062,20 @@ const SESSION_ID = {{ game_session.id }};
         if (isSelected) {
             btn.classList.add('selected');
         }
+        renderProblemButtonLabel(btn, problem);
+    }
+
+    function renderProblemButtonLabel(btn, problem) {
+        if (!btn || !problem) return;
+        const label = problem.display_label || problem.display_index || btn.dataset.problemNumber || '';
+        let status = '';
+        if (problem.is_solved) {
+            status = ' \u2713';
+        } else if (problem.is_closed) {
+            status = ' \u2717';
+        }
+        btn.textContent = String(label) + status;
+        btn.setAttribute('aria-label', 'Problem ' + label + (status ? status : ''));
     }
 
     function setInteractionState(state, options) {
