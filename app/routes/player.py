@@ -27,7 +27,13 @@ from app.services.gear import (
     purchase_blacksmith_gear,
     unequip_player_gear_slot,
 )
-from app.services.avatar import build_player_avatar_view, cycle_player_face_selection, get_valid_selected_face_key
+from app.services.avatar import (
+    build_player_avatar_view,
+    cycle_player_face_selection,
+    get_valid_selected_face_key,
+    normalize_avatar_body_variant,
+    set_player_body_variant,
+)
 from app.services.upgrade_catalog import UPGRADE_CATALOG, UPGRADE_ORDER
 from app.services.analytics_reports import build_player_dashboard
 
@@ -104,6 +110,7 @@ def _build_player_gear_shell_context(
         'hub_status': get_player_hub_status(current_user),
         'character_face_locked': current_user.is_character_locked,
         'character_selection_required': not current_user.is_character_locked,
+        'avatar_body_variant': normalize_avatar_body_variant(getattr(current_user, 'avatar_body_variant', None)),
         'gear_shell_message': gear_shell_message,
     }
 
@@ -368,6 +375,59 @@ def avatar_face():
     return _dashboard_redirect_for_gear_state(selected_filter, selected_item_id)
 
 
+@player_bp.route('/avatar/body', methods=['POST'])
+@login_required
+def avatar_body():
+    selected_filter = (request.form.get('gear_filter') or 'all').strip()
+    selected_item_id = (request.form.get('selected_item') or '').strip() or None
+
+    if _player_in_unfinished_session(current_user.id):
+        message = 'Avatar changes are unavailable after you join a session.'
+        _flash_if_full_page(message, 'error')
+        if _is_js_shell_request():
+            return _render_gear_shell_partial(
+                selected_filter=selected_filter,
+                selected_item_id=selected_item_id,
+                gear_shell_message={'category': 'error', 'text': message},
+            )
+        return _dashboard_redirect_for_gear_state(selected_filter, selected_item_id)
+
+    if current_user.is_character_locked:
+        message = 'Your character body is locked. Gear can still be changed normally.'
+        _flash_if_full_page(message, 'error')
+        if _is_js_shell_request():
+            return _render_gear_shell_partial(
+                selected_filter=selected_filter,
+                selected_item_id=selected_item_id,
+                gear_shell_message={'category': 'error', 'text': message},
+            )
+        return _dashboard_redirect_for_gear_state(selected_filter, selected_item_id)
+
+    variant = (request.form.get('variant') or '').strip().lower()
+    if variant not in {'m', 'f'}:
+        message = 'Invalid body selection.'
+        _flash_if_full_page(message, 'error')
+        if _is_js_shell_request():
+            return _render_gear_shell_partial(
+                selected_filter=selected_filter,
+                selected_item_id=selected_item_id,
+                gear_shell_message={'category': 'error', 'text': message},
+            )
+        return _dashboard_redirect_for_gear_state(selected_filter, selected_item_id)
+
+    set_player_body_variant(current_user, variant)
+    db.session.commit()
+    message = f'Body set to {"Male" if variant == "m" else "Female"}.'
+    _flash_if_full_page(message, 'success')
+    if _is_js_shell_request():
+        return _render_gear_shell_partial(
+            selected_filter=selected_filter,
+            selected_item_id=selected_item_id,
+            gear_shell_message={'category': 'success', 'text': message},
+        )
+    return _dashboard_redirect_for_gear_state(selected_filter, selected_item_id)
+
+
 @player_bp.route('/avatar/confirm', methods=['POST'])
 @login_required
 def avatar_confirm():
@@ -375,8 +435,12 @@ def avatar_confirm():
         flash('Your character is already locked. Gear can still be changed normally.', 'info')
         return redirect(url_for('player.dashboard'))
 
+    current_user.avatar_body_variant = normalize_avatar_body_variant(
+        getattr(current_user, 'avatar_body_variant', None)
+    )
     current_user.selected_face_key = get_valid_selected_face_key(
-        getattr(current_user, 'selected_face_key', None)
+        current_user.selected_face_key,
+        current_user.avatar_body_variant,
     )
     current_user.character_locked_at = datetime.now(timezone.utc)
     db.session.commit()

@@ -23,6 +23,7 @@ from app.models.analytics import (
     AnalyticsRoundProblem,
 )
 from app.models.game import GameRound, GameSession
+from app.models.history import RoundHistory
 from app.models.player import Player
 from app.models.problems import Problem, ProblemSet, Topic
 
@@ -188,6 +189,22 @@ def _seed_analytics():
         problem_id=classic_problem.id,
         details_json={'base_reward': 10},
     ))
+    db.session.add(RoundHistory(
+        round_id=classic_round.id,
+        session_id=classic_ar.session_id,
+        mode_type='classic',
+        round_number=1,
+        session_label_snapshot=classic_ar.session_label_snapshot,
+        problem_set_id=classic_ar.problem_set_id,
+        problem_set_name_snapshot=classic_ar.problem_set_name_snapshot,
+        started_at=classic_round.started_at,
+        ended_at=classic_round.ended_at,
+        player_count=1,
+        total_answers=1,
+        total_correct=1,
+        total_incorrect=0,
+        overall_accuracy=1.0,
+    ))
 
     boss_ar, boss_round, boss_problem = _make_round('__h4_boss', 'boss_rush')
     db.session.add_all([
@@ -258,6 +275,11 @@ def run_tests():
         r = client.get(f'/admin/analytics/rounds/{boss_id}')
         html = r.get_data(as_text=True)
         check('H4-05 Boss Rush detail shows battle ledger', r.status_code == 200 and 'Boss Rush Battle Events' in html and 'boss_damage' in html)
+
+        r = client.get('/admin/history/rounds')
+        html = r.get_data(as_text=True)
+        check('H4-06 old history links matching analytics round', r.status_code == 200 and f'/admin/analytics/rounds/{classic_id}' in html)
+        check('H4-07 old history uses archive visibility wording', 'Visibility' in html and 'Visible' in html and '>Active<' not in html)
 
 
 if __name__ == '__main__':

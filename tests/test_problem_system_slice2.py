@@ -78,7 +78,7 @@ def _setup_db():
 
         legacy_problem = Problem(
             topic_id=topic.id,
-            title='Legacy Problem Slice2',
+            title='B.5 MCQ - Paper1A-Q660',
             prompt_text='Legacy prompt with $x$',
             answer_text='legacy',
             difficulty=1,
@@ -89,7 +89,7 @@ def _setup_db():
 
         block_problem = Problem(
             topic_id=topic.id,
-            title='Block Problem Slice2',
+            title='A.1 MCQ - Paper1A-Q661',
             prompt_text='Old prompt should not display',
             answer_text='block',
             difficulty=1,
@@ -156,6 +156,19 @@ def run_tests():
             'PS2-01: classic game page contains body frame container',
             r.status_code == 200 and 'problem-body-frame' in html and 'problem-body' in html,
         )
+        check(
+            'PS2-01b: classic page renders numeric player labels instead of source titles',
+            "renderProblemButtonLabel(btn, p)" in html
+            and "btn.textContent = String(label) + status" in html
+            and "document.getElementById('problem-title').textContent = 'Problem ' +" in html
+            and "btn.textContent = p.title" not in html,
+        )
+        check(
+            'PS2-01c: after-answer problem grid reset path still reapplies button state',
+            html.count('pendingActionProblemId = null;') >= 2
+            and 'Object.keys(problems).forEach(function (problemId)' in html
+            and 'applyProblemButtonState(btn, problems[problemId], String(selectedProblemId) === String(problemId));' in html,
+        )
 
         socket_client = socketio.test_client(flask_app, flask_test_client=client)
         check('PS2-02: socket test client connected', socket_client.is_connected())
@@ -168,14 +181,24 @@ def run_tests():
         payload = join_ack['args'][0]
         problem_list = {row['title']: row for row in payload['problem_list']}
 
-        legacy_payload = problem_list['Legacy Problem Slice2']
+        legacy_payload = problem_list['B.5 MCQ - Paper1A-Q660']
         check(
             'PS2-04: legacy-only problem includes fallback body HTML',
             'Legacy prompt with $x$' in legacy_payload.get('problem_body_html', '')
             and 'legacy-slice2.png' in legacy_payload.get('problem_body_html', ''),
         )
+        check(
+            'PS2-04b: join payload keeps real title for analytics/admin and adds numeric player display label',
+            legacy_payload['title'] == 'B.5 MCQ - Paper1A-Q660'
+            and legacy_payload['display_index'] == 1
+            and legacy_payload['display_label'] == '1',
+        )
 
-        block_payload = problem_list['Block Problem Slice2']
+        block_payload = problem_list['A.1 MCQ - Paper1A-Q661']
+        check(
+            'PS2-04c: second problem gets Problem 2 display metadata',
+            block_payload['display_index'] == 2 and block_payload['display_label'] == '2',
+        )
         check(
             'PS2-05: block-based problem includes structured body HTML',
             '<strong>body</strong>' in block_payload.get('problem_body_html', '')

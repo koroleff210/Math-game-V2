@@ -1,4 +1,24 @@
 <div class="avatar-preview-shell" data-avatar-preview>
+  {% if not character_face_locked %}
+    <div class="avatar-face-controls" data-gear-body-controls-region>
+      <form method="POST" action="{{ url_for('player.avatar_body') }}" data-gear-shell-form>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="variant" value="m">
+        <input type="hidden" name="gear_filter" value="{{ gear_filter }}">
+        <input type="hidden" name="selected_item" value="{{ gear_selected_item.id if gear_selected_item else '' }}">
+        <button type="submit" class="btn btn-secondary btn-small {% if avatar_body_variant == 'm' %}is-active{% endif %}">Male</button>
+      </form>
+      <div class="avatar-face-label">Body: {{ 'Male' if avatar_body_variant == 'm' else 'Female' }}</div>
+      <form method="POST" action="{{ url_for('player.avatar_body') }}" data-gear-shell-form>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="variant" value="f">
+        <input type="hidden" name="gear_filter" value="{{ gear_filter }}">
+        <input type="hidden" name="selected_item" value="{{ gear_selected_item.id if gear_selected_item else '' }}">
+        <button type="submit" class="btn btn-secondary btn-small {% if avatar_body_variant == 'f' %}is-active{% endif %}">Female</button>
+      </form>
+    </div>
+  {% endif %}
+
   <div class="avatar-stage-wrap" data-gear-avatar-composite-region>
     <div class="avatar-stage">
       {% for layer_key in ['head-back', 'chest-underlay', 'body-upper', 'body-lower', 'boots', 'main-hand', 'chest', 'face', 'head-front', 'off-hand', 'off-hand-base'] %}
@@ -27,12 +47,10 @@
         <button type="submit" class="btn btn-secondary btn-small">Previous</button>
       </form>
     {% endif %}
-    <div class="avatar-face-label" data-avatar-face-key="{{ gear_avatar.selected_face_key }}" data-avatar-face-label-region>
+    <div class="avatar-face-label is-sr-only" data-avatar-face-key="{{ gear_avatar.selected_face_key }}" data-avatar-face-label-region aria-hidden="true">
       {{ gear_avatar.face_label }}
     </div>
-    {% if character_face_locked %}
-      <p class="character-lock-note">Face locked. Gear can still be changed.</p>
-    {% else %}
+    {% if not character_face_locked %}
       <form method="POST" action="{{ url_for('player.avatar_face') }}" data-gear-shell-form>
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="direction" value="next">

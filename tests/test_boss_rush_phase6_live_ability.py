@@ -150,6 +150,22 @@ def run_tests():
             check('BR6-06: no ability triggers when not due', battle.ability_count == 0)
             check('BR6-07: non-due check returns current timing to requester', bool(updates) and updates[-1]['ability']['seconds_remaining'] > 0)
 
+        session, game_round, config, battle, player = _setup_battle(due=True)
+        with flask_app.test_client() as client:
+            battle = db.session.get(BossRushBattleState, battle.id)
+            battle.ability_frozen = True
+            db.session.commit()
+            _login(client, player.username)
+            socket_client = socketio.test_client(flask_app, flask_test_client=client)
+            socket_client.emit('boss_rush_join', {'session_id': session.id})
+            socket_client.get_received()
+            socket_client.emit('boss_rush_check_ability', {'session_id': session.id})
+            updates = _state_updates(socket_client.get_received())
+            battle = db.session.get(BossRushBattleState, battle.id)
+            socket_client.disconnect()
+            check('BR6-08: frozen ability check does not trigger', battle.ability_count == 0)
+            check('BR6-09: frozen ability payload is exposed', bool(updates) and updates[-1]['ability']['frozen'] is True and updates[-1]['ability']['enabled'] is False)
+
 
 if __name__ == '__main__':
     print('\nBoss Rush Phase 6 Live Ability - Tests')

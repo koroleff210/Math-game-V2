@@ -15,8 +15,11 @@ from app.models.gear import (
 
 
 DEFAULT_FACE_KEY = '001'
+DEFAULT_BODY_VARIANT = 'm'
+SUPPORTED_BODY_VARIANTS = ('m', 'f')
 AVATAR_IMAGE_EXTENSION = '.png'
 AVATAR_ROOT = 'gear'
+BODY_ROOT = os.path.join('avatars', 'bodies')
 
 AVATAR_FOLDERS = {
     GEAR_SLOT_MAIN_HAND: 'main_hand',
@@ -27,7 +30,7 @@ AVATAR_FOLDERS = {
     'face': 'face',
 }
 
-_SINGLE_LAYER_FILENAMES = {
+_LEGACY_SINGLE_LAYER_FILENAMES = {
     GEAR_SLOT_MAIN_HAND: 'main_hand_{key}.png',
     GEAR_SLOT_OFF_HAND: 'off_hand_{key}.png',
     GEAR_SLOT_CHEST: 'chest_{key}.png',
@@ -35,12 +38,12 @@ _SINGLE_LAYER_FILENAMES = {
     'face': 'face_{key}.png',
 }
 
-_HEAD_BACK_FILENAME = 'head_{key}b.png'
-_HEAD_FRONT_FILENAME = 'head_{key}a.png'
-_CHEST_UNDERLAY_FILENAME = 'chest_{key}a.png'
-_BODY_UPPER_FILENAME = 'body_upper.png'
-_BODY_LOWER_FILENAME = 'body_lower.png'
-_OFF_HAND_BASE_FILENAME = 'off_hand_base.png'
+_LEGACY_HEAD_BACK_FILENAME = 'head_{key}b.png'
+_LEGACY_HEAD_FRONT_FILENAME = 'head_{key}a.png'
+_LEGACY_CHEST_UNDERLAY_FILENAME = 'chest_{key}a.png'
+_LEGACY_BODY_UPPER_FILENAME = 'body_upper.png'
+_LEGACY_BODY_LOWER_FILENAME = 'body_lower.png'
+_LEGACY_OFF_HAND_BASE_FILENAME = 'off_hand_base.png'
 
 _KEY_PATTERNS = {
     GEAR_SLOT_MAIN_HAND: re.compile(r'^main_hand_(?P<key>.+)\.png$', re.IGNORECASE),
@@ -50,6 +53,7 @@ _KEY_PATTERNS = {
     'face': re.compile(r'^face_(?P<key>.+)\.png$', re.IGNORECASE),
 }
 _HEAD_PATTERN = re.compile(r'^head_(?P<key>.+)(?P<part>[ab])\.png$', re.IGNORECASE)
+_FACE_PATTERN = re.compile(r'^face_(?:(?P<variant>[mf])_)?(?P<key>.+)\.png$', re.IGNORECASE)
 
 
 def _sort_asset_keys(keys):
@@ -59,12 +63,32 @@ def _sort_asset_keys(keys):
     return sorted(keys, key=_sort_value)
 
 
+def normalize_avatar_body_variant(value: str | None) -> str:
+    cleaned = (value or '').strip().lower()
+    if cleaned in SUPPORTED_BODY_VARIANTS:
+        return cleaned
+    return DEFAULT_BODY_VARIANT
+
+
 def _avatar_directory(folder_name: str) -> str:
     return os.path.join(current_app.static_folder, AVATAR_ROOT, folder_name)
 
 
 def _avatar_static_path(folder_name: str, filename: str) -> str:
     return f'{current_app.static_url_path}/{AVATAR_ROOT}/{folder_name}/{filename}'
+
+
+def _body_directory(variant: str) -> str:
+    return os.path.join(current_app.static_folder, BODY_ROOT, variant)
+
+
+def _body_static_path(variant: str, filename: str) -> str:
+    body_root = BODY_ROOT.replace('\\', '/')
+    return f'{current_app.static_url_path}/{body_root}/{variant}/{filename}'
+
+
+def _file_exists(path: str) -> bool:
+    return os.path.isfile(path)
 
 
 def _list_png_files(folder_name: str) -> list[str]:
@@ -82,16 +106,32 @@ def _list_png_files(folder_name: str) -> list[str]:
     )
 
 
-def _file_exists(folder_name: str, filename: str) -> bool:
-    return os.path.isfile(os.path.join(_avatar_directory(folder_name), filename))
+def _slot_file_exists(slot_type: str, filename: str) -> bool:
+    return _file_exists(os.path.join(_avatar_directory(AVATAR_FOLDERS[slot_type]), filename))
 
 
-def list_available_face_keys() -> list[str]:
+def _parse_face_filename(filename: str) -> tuple[str, str] | None:
+    match = _FACE_PATTERN.match(filename)
+    if not match:
+        return None
+    variant = (match.group('variant') or 'm').lower()
+    return variant, match.group('key')
+
+
+def list_available_face_keys(body_variant: str | None = None) -> list[str]:
+    target_variant = normalize_avatar_body_variant(body_variant)
     keys = []
     for name in _list_png_files(AVATAR_FOLDERS['face']):
-        match = _KEY_PATTERNS['face'].match(name)
-        if match:
-            keys.append(match.group('key'))
+        parsed = _parse_face_filename(name)
+        if not parsed:
+            continue
+        variant, key = parsed
+        if target_variant == 'f':
+            if variant == 'f':
+                keys.append(key)
+        else:
+            if variant == 'm':
+                keys.append(key)
     return _sort_asset_keys(keys)
 
 
@@ -113,7 +153,7 @@ def list_available_avatar_asset_keys(slot_type: str) -> list[str]:
         keys = []
         for name in _list_png_files(AVATAR_FOLDERS[GEAR_SLOT_CHEST]):
             lowered = name.lower()
-            if lowered == _BODY_UPPER_FILENAME:
+            if lowered == _LEGACY_BODY_UPPER_FILENAME:
                 continue
             if lowered.endswith('a.png'):
                 continue
@@ -129,7 +169,7 @@ def list_available_avatar_asset_keys(slot_type: str) -> list[str]:
 
     keys = []
     for name in _list_png_files(folder_name):
-        if name.lower() == _OFF_HAND_BASE_FILENAME:
+        if name.lower() == _LEGACY_OFF_HAND_BASE_FILENAME:
             continue
         match = pattern.match(name)
         if match:
@@ -137,8 +177,8 @@ def list_available_avatar_asset_keys(slot_type: str) -> list[str]:
     return _sort_asset_keys(keys)
 
 
-def get_valid_selected_face_key(face_key: str | None) -> str:
-    available = list_available_face_keys()
+def get_valid_selected_face_key(face_key: str | None, body_variant: str | None = None) -> str:
+    available = list_available_face_keys(body_variant)
     if face_key and face_key in available:
         return face_key
     if DEFAULT_FACE_KEY in available:
@@ -149,13 +189,14 @@ def get_valid_selected_face_key(face_key: str | None) -> str:
 
 
 def cycle_player_face_selection(player, direction: str) -> str:
-    available = list_available_face_keys()
+    body_variant = normalize_avatar_body_variant(getattr(player, 'avatar_body_variant', None))
+    available = list_available_face_keys(body_variant)
     if not available:
         player.selected_face_key = DEFAULT_FACE_KEY
         db.session.flush()
         return player.selected_face_key
 
-    current = get_valid_selected_face_key(getattr(player, 'selected_face_key', None))
+    current = get_valid_selected_face_key(getattr(player, 'selected_face_key', None), body_variant)
     if current not in available:
         current = available[0]
 
@@ -172,22 +213,15 @@ def cycle_player_face_selection(player, direction: str) -> str:
     return player.selected_face_key
 
 
-def _item_avatar_asset_key(item: GearItemDefinition | None, slot_type: str) -> str | None:
-    if item is None or not item.is_active or not item.avatar_asset_key:
-        return None
-    key = item.avatar_asset_key.strip()
-    if not key:
-        return None
-    return key if key in list_available_avatar_asset_keys(slot_type) else None
-
-
-def _item_avatar_asset_filename(item: GearItemDefinition | None, slot_type: str) -> str | None:
-    if item is None or not item.is_active:
-        return None
-    image_key = (getattr(item, 'image_key', None) or '').strip()
-    if image_key and _file_exists(AVATAR_FOLDERS[slot_type], image_key):
-        return image_key
-    return None
+def set_player_body_variant(player, variant: str) -> str:
+    normalized = normalize_avatar_body_variant(variant)
+    player.avatar_body_variant = normalized
+    player.selected_face_key = get_valid_selected_face_key(
+        getattr(player, 'selected_face_key', None),
+        normalized,
+    )
+    db.session.flush()
+    return normalized
 
 
 def _get_equipped_item(loadout, attr_name: str) -> GearItemDefinition | None:
@@ -197,23 +231,158 @@ def _get_equipped_item(loadout, attr_name: str) -> GearItemDefinition | None:
     return db.session.get(GearItemDefinition, item_id)
 
 
-def _build_layer(label: str, folder_name: str, filename: str) -> dict:
+def _build_layer(label: str, static_path: str) -> dict:
     return {
         'label': label,
-        'static_path': _avatar_static_path(folder_name, filename),
+        'static_path': static_path,
     }
 
 
-def build_player_avatar_view(player, loadout) -> dict:
-    """Build the Hub avatar preview from persistent cosmetic face + gear loadout.
+def _build_legacy_slot_path(slot_type: str, filename: str) -> str:
+    return _avatar_static_path(AVATAR_FOLDERS[slot_type], filename)
 
-    The selected face is cosmetic identity. The legacy gear slot key "head"
-    still refers to equipped headgear/helmet art for compatibility with the
-    current persistent gear schema. Wearable/base avatar layers now resolve
-    from static/gear so runtime no longer depends on the legacy static/avatars
-    tree.
-    """
-    selected_face_key = get_valid_selected_face_key(getattr(player, 'selected_face_key', None))
+
+def _new_package_layer_path(slot_type: str, package_key: str, variant: str, layer_filename: str) -> str | None:
+    path = os.path.join(
+        _avatar_directory(AVATAR_FOLDERS[slot_type]),
+        package_key,
+        variant,
+        layer_filename,
+    )
+    if _file_exists(path):
+        return f'{current_app.static_url_path}/{AVATAR_ROOT}/{AVATAR_FOLDERS[slot_type]}/{package_key}/{variant}/{layer_filename}'
+    return None
+
+
+def _package_key_candidates(item: GearItemDefinition | None) -> list[str]:
+    if item is None:
+        return []
+    candidates = []
+    raw_avatar_key = (getattr(item, 'avatar_asset_key', None) or '').strip()
+    raw_image_key = (getattr(item, 'image_key', None) or '').strip()
+    if raw_avatar_key:
+        candidates.append(raw_avatar_key)
+    if raw_image_key:
+        stem, _ext = os.path.splitext(raw_image_key)
+        if stem:
+            candidates.append(stem)
+        candidates.append(raw_image_key)
+    dedup = []
+    seen = set()
+    for candidate in candidates:
+        lowered = candidate.lower()
+        if lowered in seen:
+            continue
+        seen.add(lowered)
+        dedup.append(candidate)
+    return dedup
+
+
+def _resolve_package_layer(slot_type: str, item: GearItemDefinition | None, body_variant: str, layer_filename: str) -> str | None:
+    for package_key in _package_key_candidates(item):
+        variant_path = _new_package_layer_path(slot_type, package_key, body_variant, layer_filename)
+        if variant_path:
+            return variant_path
+        shared_path = _new_package_layer_path(slot_type, package_key, 'shared', layer_filename)
+        if shared_path:
+            return shared_path
+    return None
+
+
+def _resolve_body_layer(body_variant: str, filename: str, legacy_slot: str) -> str:
+    variant = normalize_avatar_body_variant(body_variant)
+    for candidate in (variant, DEFAULT_BODY_VARIANT):
+        body_path = os.path.join(_body_directory(candidate), filename)
+        if _file_exists(body_path):
+            return _body_static_path(candidate, filename)
+    return _build_legacy_slot_path(legacy_slot, filename)
+
+
+def _resolve_off_hand_base_layer(body_variant: str) -> str:
+    return _resolve_body_layer(body_variant, _LEGACY_OFF_HAND_BASE_FILENAME, GEAR_SLOT_OFF_HAND)
+
+
+def _legacy_visual_key_from_item(item: GearItemDefinition | None, slot_type: str) -> str | None:
+    if item is None or not item.is_active:
+        return None
+    image_key = (getattr(item, 'image_key', None) or '').strip()
+    if image_key:
+        if slot_type == GEAR_SLOT_HEAD:
+            match = _HEAD_PATTERN.match(image_key)
+            if match:
+                return match.group('key')
+        else:
+            pattern = _KEY_PATTERNS.get(slot_type)
+            if pattern:
+                match = pattern.match(image_key)
+                if match:
+                    return match.group('key')
+    asset_key = (getattr(item, 'avatar_asset_key', None) or '').strip()
+    return asset_key or None
+
+
+def _resolve_head_layers(item: GearItemDefinition | None, body_variant: str) -> tuple[str | None, str | None, str | None]:
+    back = _resolve_package_layer(GEAR_SLOT_HEAD, item, body_variant, 'back.png')
+    front = _resolve_package_layer(GEAR_SLOT_HEAD, item, body_variant, 'front.png')
+    if back and front:
+        return back, front, None
+    if normalize_avatar_body_variant(body_variant) == 'f':
+        return None, None, None
+
+    key = _legacy_visual_key_from_item(item, GEAR_SLOT_HEAD)
+    if not key:
+        return None, None, None
+    back_name = _LEGACY_HEAD_BACK_FILENAME.format(key=key)
+    front_name = _LEGACY_HEAD_FRONT_FILENAME.format(key=key)
+    if _slot_file_exists(GEAR_SLOT_HEAD, back_name) and _slot_file_exists(GEAR_SLOT_HEAD, front_name):
+        return (
+            _build_legacy_slot_path(GEAR_SLOT_HEAD, back_name),
+            _build_legacy_slot_path(GEAR_SLOT_HEAD, front_name),
+            key,
+        )
+    return None, None, None
+
+
+def _resolve_chest_layers(item: GearItemDefinition | None, body_variant: str) -> tuple[str | None, str | None, str | None]:
+    underlay = _resolve_package_layer(GEAR_SLOT_CHEST, item, body_variant, 'underlay.png')
+    front = _resolve_package_layer(GEAR_SLOT_CHEST, item, body_variant, 'front.png')
+    if front:
+        return underlay, front, None
+    if normalize_avatar_body_variant(body_variant) == 'f':
+        return None, None, None
+
+    key = _legacy_visual_key_from_item(item, GEAR_SLOT_CHEST)
+    if not key:
+        return None, None, None
+    front_name = _LEGACY_SINGLE_LAYER_FILENAMES[GEAR_SLOT_CHEST].format(key=key)
+    underlay_name = _LEGACY_CHEST_UNDERLAY_FILENAME.format(key=key)
+    if _slot_file_exists(GEAR_SLOT_CHEST, front_name):
+        underlay_path = (
+            _build_legacy_slot_path(GEAR_SLOT_CHEST, underlay_name)
+            if _slot_file_exists(GEAR_SLOT_CHEST, underlay_name) else None
+        )
+        return underlay_path, _build_legacy_slot_path(GEAR_SLOT_CHEST, front_name), key
+    return None, None, None
+
+
+def _resolve_single_layer(slot_type: str, item: GearItemDefinition | None, body_variant: str, layer_filename: str = 'front.png') -> tuple[str | None, str | None]:
+    package_path = _resolve_package_layer(slot_type, item, body_variant, layer_filename)
+    if package_path:
+        return package_path, None
+    if normalize_avatar_body_variant(body_variant) == 'f':
+        return None, None
+    key = _legacy_visual_key_from_item(item, slot_type)
+    if not key:
+        return None, None
+    legacy_name = _LEGACY_SINGLE_LAYER_FILENAMES[slot_type].format(key=key)
+    if _slot_file_exists(slot_type, legacy_name):
+        return _build_legacy_slot_path(slot_type, legacy_name), key
+    return None, None
+
+
+def build_player_avatar_view(player, loadout) -> dict:
+    body_variant = normalize_avatar_body_variant(getattr(player, 'avatar_body_variant', None))
+    selected_face_key = get_valid_selected_face_key(getattr(player, 'selected_face_key', None), body_variant)
 
     head_item = _get_equipped_item(loadout, 'head_item_id')
     chest_item = _get_equipped_item(loadout, 'chest_item_id')
@@ -221,145 +390,57 @@ def build_player_avatar_view(player, loadout) -> dict:
     main_hand_item = _get_equipped_item(loadout, 'main_hand_item_id')
     off_hand_item = _get_equipped_item(loadout, 'off_hand_item_id')
 
-    head_filename = _item_avatar_asset_filename(head_item, GEAR_SLOT_HEAD)
-    chest_filename = _item_avatar_asset_filename(chest_item, GEAR_SLOT_CHEST)
-    boots_filename = _item_avatar_asset_filename(boots_item, GEAR_SLOT_BOOTS)
-    main_hand_filename = _item_avatar_asset_filename(main_hand_item, GEAR_SLOT_MAIN_HAND)
-    off_hand_filename = _item_avatar_asset_filename(off_hand_item, GEAR_SLOT_OFF_HAND)
-
-    head_key = _item_avatar_asset_key(head_item, GEAR_SLOT_HEAD)
-    chest_key = _item_avatar_asset_key(chest_item, GEAR_SLOT_CHEST)
-    boots_key = _item_avatar_asset_key(boots_item, GEAR_SLOT_BOOTS)
-    main_hand_key = _item_avatar_asset_key(main_hand_item, GEAR_SLOT_MAIN_HAND)
-    off_hand_key = _item_avatar_asset_key(off_hand_item, GEAR_SLOT_OFF_HAND)
-
-    if head_filename:
-        head_match = _HEAD_PATTERN.match(head_filename)
-        if head_match:
-            head_key = head_match.group('key')
-    if chest_filename:
-        chest_match = _KEY_PATTERNS[GEAR_SLOT_CHEST].match(chest_filename)
-        if chest_match:
-            chest_key = chest_match.group('key')
-    if boots_filename:
-        boots_match = _KEY_PATTERNS[GEAR_SLOT_BOOTS].match(boots_filename)
-        if boots_match:
-            boots_key = boots_match.group('key')
-    if main_hand_filename:
-        main_hand_match = _KEY_PATTERNS[GEAR_SLOT_MAIN_HAND].match(main_hand_filename)
-        if main_hand_match:
-            main_hand_key = main_hand_match.group('key')
-    if off_hand_filename:
-        off_hand_match = _KEY_PATTERNS[GEAR_SLOT_OFF_HAND].match(off_hand_filename)
-        if off_hand_match:
-            off_hand_key = off_hand_match.group('key')
+    head_back, head_front, head_key = _resolve_head_layers(head_item, body_variant)
+    chest_underlay, chest_front, chest_key = _resolve_chest_layers(chest_item, body_variant)
+    boots_front, boots_key = _resolve_single_layer(GEAR_SLOT_BOOTS, boots_item, body_variant)
+    main_hand_front, main_hand_key = _resolve_single_layer(GEAR_SLOT_MAIN_HAND, main_hand_item, body_variant)
+    off_hand_front, off_hand_key = _resolve_single_layer(GEAR_SLOT_OFF_HAND, off_hand_item, body_variant)
 
     layers = []
-    if head_key:
-        layers.append(
-            _build_layer(
-                'head-back',
-                AVATAR_FOLDERS[GEAR_SLOT_HEAD],
-                _HEAD_BACK_FILENAME.format(key=head_key),
-            )
-        )
+    if head_back:
+        layers.append(_build_layer('head-back', head_back))
+    if chest_underlay:
+        layers.append(_build_layer('chest-underlay', chest_underlay))
 
-    if chest_key:
-        chest_underlay_filename = _CHEST_UNDERLAY_FILENAME.format(key=chest_key)
-        if _file_exists(AVATAR_FOLDERS[GEAR_SLOT_CHEST], chest_underlay_filename):
-            layers.append(
-                _build_layer(
-                    'chest-underlay',
-                    AVATAR_FOLDERS[GEAR_SLOT_CHEST],
-                    chest_underlay_filename,
-                )
-            )
+    layers.append(_build_layer('body-upper', _resolve_body_layer(body_variant, 'body_upper.png', GEAR_SLOT_CHEST)))
 
-    layers.append(
-        _build_layer(
-            'body-upper',
-            AVATAR_FOLDERS[GEAR_SLOT_CHEST],
-            _BODY_UPPER_FILENAME,
-        )
+    if boots_front:
+        layers.append(_build_layer('boots', boots_front))
+    else:
+        layers.append(_build_layer('body-lower', _resolve_body_layer(body_variant, 'body_lower.png', GEAR_SLOT_BOOTS)))
+
+    if main_hand_front:
+        layers.append(_build_layer('main-hand', main_hand_front))
+    if chest_front:
+        layers.append(_build_layer('chest', chest_front))
+
+    face_filenames = (
+        [f'face_f_{selected_face_key}.png']
+        if body_variant == 'f'
+        else [
+            _LEGACY_SINGLE_LAYER_FILENAMES['face'].format(key=selected_face_key),
+            f'face_m_{selected_face_key}.png',
+        ]
     )
+    for face_filename in face_filenames:
+        face_path = os.path.join(_avatar_directory(AVATAR_FOLDERS['face']), face_filename)
+        if _file_exists(face_path):
+            layers.append(_build_layer('face', _avatar_static_path(AVATAR_FOLDERS['face'], face_filename)))
+            break
 
-    if boots_key:
-        layers.append(
-            _build_layer(
-                'boots',
-                AVATAR_FOLDERS[GEAR_SLOT_BOOTS],
-                _SINGLE_LAYER_FILENAMES[GEAR_SLOT_BOOTS].format(key=boots_key),
-            )
-        )
+    if head_front:
+        layers.append(_build_layer('head-front', head_front))
+    if off_hand_front:
+        layers.append(_build_layer('off-hand', off_hand_front))
     else:
-        layers.append(
-            _build_layer(
-                'body-lower',
-                AVATAR_FOLDERS[GEAR_SLOT_BOOTS],
-                _BODY_LOWER_FILENAME,
-            )
-        )
-
-    if main_hand_key:
-        layers.append(
-            _build_layer(
-                'main-hand',
-                AVATAR_FOLDERS[GEAR_SLOT_MAIN_HAND],
-                _SINGLE_LAYER_FILENAMES[GEAR_SLOT_MAIN_HAND].format(key=main_hand_key),
-            )
-        )
-
-    if chest_key:
-        layers.append(
-            _build_layer(
-                'chest',
-                AVATAR_FOLDERS[GEAR_SLOT_CHEST],
-                _SINGLE_LAYER_FILENAMES[GEAR_SLOT_CHEST].format(key=chest_key),
-            )
-        )
-
-    face_filename = _SINGLE_LAYER_FILENAMES['face'].format(key=selected_face_key)
-    if _file_exists(AVATAR_FOLDERS['face'], face_filename):
-        layers.append(
-            _build_layer(
-                'face',
-                AVATAR_FOLDERS['face'],
-                face_filename,
-            )
-        )
-
-    if head_key:
-        layers.append(
-            _build_layer(
-                'head-front',
-                AVATAR_FOLDERS[GEAR_SLOT_HEAD],
-                _HEAD_FRONT_FILENAME.format(key=head_key),
-            )
-        )
-
-    if off_hand_key:
-        layers.append(
-            _build_layer(
-                'off-hand',
-                AVATAR_FOLDERS[GEAR_SLOT_OFF_HAND],
-                _SINGLE_LAYER_FILENAMES[GEAR_SLOT_OFF_HAND].format(key=off_hand_key),
-            )
-        )
-    else:
-        layers.append(
-            _build_layer(
-                'off-hand-base',
-                AVATAR_FOLDERS[GEAR_SLOT_OFF_HAND],
-                _OFF_HAND_BASE_FILENAME,
-            )
-        )
+        layers.append(_build_layer('off-hand-base', _resolve_off_hand_base_layer(body_variant)))
 
     layer_map = {layer['label']: layer for layer in layers}
-
     return {
         'selected_face_key': selected_face_key,
+        'avatar_body_variant': body_variant,
         'face_label': f'Face {selected_face_key}',
-        'available_face_keys': list_available_face_keys(),
+        'available_face_keys': list_available_face_keys(body_variant),
         'layers': layers,
         'layer_map': layer_map,
         'equipped_visual_keys': {

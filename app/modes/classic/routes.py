@@ -36,6 +36,7 @@ from app.models.game import GameSession, GameRound, RoundPlayer
 from app.models.classic import ClassicRoundConfig, PlayerWallet, PlayerClassicState, PlayerInventory, ProblemSolverCount, StoreItem, StealEvent
 from app.models.groups import PlayerGroup
 from app.models.history import RoundHistory, RoundPlayerResult, build_history_csv
+from app.models.analytics import AnalyticsRound
 from app.modes.classic.forms import ClassicSessionForm, StoreItemForm, NextRoundForm
 from app.modes.classic import state
 from app.modes.classic.history_snapshot import freeze_round_history
@@ -765,6 +766,15 @@ def history(session_id):
     if not include_archived:
         q = q.filter(RoundHistory.archived_at.is_(None))
     rounds = q.order_by(RoundHistory.round_number).all()
+    round_ids = [rh.round_id for rh in rounds]
+    analytics_by_round_id = {}
+    if round_ids:
+        analytics_by_round_id = {
+            row.round_id: row
+            for row in AnalyticsRound.query
+            .filter(AnalyticsRound.round_id.in_(round_ids))
+            .all()
+        }
 
     # Pre-load player results for each round, ordered by place then name snapshot
     # so the template can iterate without extra queries.
@@ -783,6 +793,7 @@ def history(session_id):
         rounds=rounds,
         results_by_round=results_by_round,
         include_archived=include_archived,
+        analytics_by_round_id=analytics_by_round_id,
     )
 
 

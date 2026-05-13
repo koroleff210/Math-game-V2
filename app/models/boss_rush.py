@@ -68,6 +68,7 @@ class BossRushBattleState(db.Model):
     next_ability_at = db.Column(db.DateTime, nullable=True)
     last_ability_at = db.Column(db.DateTime, nullable=True)
     ability_count = db.Column(db.Integer, nullable=False, default=0)
+    ability_frozen = db.Column(db.Boolean, nullable=False, default=False)
     stone_guard_active = db.Column(db.Boolean, nullable=False, default=False)
     last_ability_summary_json = db.Column(db.JSON, nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))

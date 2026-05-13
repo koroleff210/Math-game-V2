@@ -443,6 +443,55 @@ def end_round(session_id):
     return redirect(url_for('boss_rush_admin.manage', session_id=session_id))
 
 
+@boss_rush_admin_bp.route('/<int:session_id>/ability/<string:action>', methods=['POST'])
+@login_required
+@admin_required
+def toggle_ability_freeze(session_id, action):
+    game_session = db.session.get(GameSession, session_id)
+    if not game_session or game_session.mode != BOSS_RUSH_MODE:
+        abort(404)
+    game_round = _latest_round(session_id)
+    if not game_round or not game_round.boss_rush_config or not game_round.boss_rush_battle_state:
+        flash('Boss Rush round is missing ability state.', 'error')
+        return redirect(url_for('boss_rush_admin.manage', session_id=session_id))
+    battle_state = game_round.boss_rush_battle_state
+    config = game_round.boss_rush_config
+    if battle_state.status != BOSS_RUSH_STATUS_ACTIVE or game_session.status != 'active':
+        flash('Ability control is available only during an active Boss Rush round.', 'warning')
+        return redirect(url_for('boss_rush_admin.manage', session_id=session_id))
+    if action == 'freeze':
+        battle_state.ability_frozen = True
+        battle_state.next_ability_at = None
+        battle_state.last_ability_summary_json = {
+            'boss_type': config.boss_type,
+            'ability_name': BOSS_ABILITY_CATALOG.get(config.boss_type, {}).get('name', 'Boss Ability'),
+            'message': 'Ability frozen.',
+            'affected_count': 0,
+            'immune_count': 0,
+            'triggered_at': datetime.now(timezone.utc).isoformat(),
+            'problem_refresh_player_ids': [],
+        }
+        flash('Boss ability frozen.', 'success')
+    elif action == 'resume':
+        battle_state.ability_frozen = False
+        schedule_next_ability(battle_state, config, now=datetime.now(timezone.utc))
+        battle_state.last_ability_summary_json = {
+            'boss_type': config.boss_type,
+            'ability_name': BOSS_ABILITY_CATALOG.get(config.boss_type, {}).get('name', 'Boss Ability'),
+            'message': 'Ability resumed.',
+            'affected_count': 0,
+            'immune_count': 0,
+            'triggered_at': datetime.now(timezone.utc).isoformat(),
+            'problem_refresh_player_ids': [],
+        }
+        flash('Boss ability resumed.', 'success')
+    else:
+        abort(404)
+    db.session.commit()
+    _emit_live_state(session_id)
+    return redirect(url_for('boss_rush_admin.manage', session_id=session_id))
+
+
 @boss_rush_admin_bp.route('/<int:session_id>/next_round', methods=['GET', 'POST'])
 @login_required
 @admin_required

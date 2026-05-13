@@ -57,6 +57,8 @@
 
 import os
 import shutil
+import json
+import re
 from datetime import datetime, timezone
 
 import click
@@ -808,3 +810,343 @@ def fresh_start_command(mode: str) -> None:
     click.echo()
     click.echo('  Class: "Test Class" → player1, player2, player3')
     click.echo()
+
+def _copy_if_missing(src: str, dst: str) -> tuple[bool, str]:
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
+    if os.path.exists(dst):
+        return False, 'collision'
+    shutil.copy2(src, dst)
+    return True, 'copied'
+
+
+def _legacy_flat_files_for_slot(slot_dir: str) -> list[str]:
+    files = []
+    if not os.path.isdir(slot_dir):
+        return files
+    for name in sorted(os.listdir(slot_dir), key=str.lower):
+        full = os.path.join(slot_dir, name)
+        if not os.path.isfile(full):
+            continue
+        if os.path.splitext(name)[1].lower() not in {'.png', '.jpg', '.jpeg', '.webp'}:
+            continue
+        files.append(name)
+    return files
+
+
+@click.command('migrate-gear-assets')
+@click.option('--apply', is_flag=True, default=False, help='Actually copy files into package folders.')
+@click.option('--dry-run', is_flag=True, default=False, help='Alias for default behavior; report only and do not copy files.')
+@with_appcontext
+def migrate_gear_assets_command(apply: bool, dry_run: bool) -> None:
+    """Copy legacy flat gear assets into package folder structure (copy-only)."""
+    dry_mode = (not apply) or dry_run
+    static_root = current_app.static_folder
+    gear_root = os.path.join(static_root, 'gear')
+    report = {
+        'created_at': datetime.now(timezone.utc).isoformat(),
+        'dry_run': dry_mode,
+        'applied': not dry_mode,
+        'entries': [],
+        'collisions': [],
+        'skipped': [],
+    }
+
+    slot_variant_default = {
+        'chest': 'm',
+        'boots': 'm',
+        'head': 'm',
+        'main_hand': 'm',
+        'off_hand': 'm',
+        'pocket': 'm',
+    }
+
+    head_back = {}
+    head_front = {}
+    chest_front = {}
+    chest_underlay = {}
+
+    for slot in sorted(slot_variant_default.keys()):
+        slot_dir = os.path.join(gear_root, slot)
+        for filename in _legacy_flat_files_for_slot(slot_dir):
+            lowered = filename.lower()
+            src = os.path.join(slot_dir, filename)
+
+            if slot == 'head':
+                m = re.match(r'^head_(?P<key>.+)(?P<part>[ab])\.png$', lowered)
+                if not m:
+                    report['skipped'].append({'slot': slot, 'old_path': src, 'reason': 'not_head_pair_pattern'})
+                    continue
+                key = m.group('key')
+                if m.group('part') == 'a':
+                    head_front[key] = filename
+                else:
+                    head_back[key] = filename
+                continue
+
+            if slot == 'chest':
+                if lowered == 'body_upper.png':
+                    report['skipped'].append({'slot': slot, 'old_path': src, 'reason': 'base_body_file'})
+                    continue
+                m_under = re.match(r'^chest_(?P<key>.+)a\.png$', lowered)
+                if m_under:
+                    chest_underlay[m_under.group('key')] = filename
+                    continue
+                m_front = re.match(r'^chest_(?P<key>.+)\.png$', lowered)
+                if m_front:
+                    chest_front[m_front.group('key')] = filename
+                    continue
+                report['skipped'].append({'slot': slot, 'old_path': src, 'reason': 'not_chest_pattern'})
+                continue
+
+            if slot == 'boots':
+                if lowered == 'body_lower.png':
+                    report['skipped'].append({'slot': slot, 'old_path': src, 'reason': 'base_body_file'})
+                    continue
+                m = re.match(r'^boots_(?P<key>.+)\.png$', lowered)
+                if not m:
+                    report['skipped'].append({'slot': slot, 'old_path': src, 'reason': 'not_boots_pattern'})
+                    continue
+                key = m.group('key')
+                dst = os.path.join(slot_dir, key, 'm', 'front.png')
+                if dry_mode:
+                    status = 'would_copy'
+                else:
+                    copied, status = _copy_if_missing(src, dst)
+                    if not copied and status == 'collision':
+                        report['collisions'].append({'old_path': src, 'new_path': dst, 'slot': slot, 'package_key': key, 'variant': 'm', 'layer_role': 'front'})
+                report['entries'].append({'old_path': src, 'new_path': dst, 'slot': slot, 'package_key': key, 'variant': 'm', 'layer_role': 'front', 'status': status})
+                continue
+
+            if slot in {'main_hand', 'off_hand'}:
+                if slot == 'off_hand' and lowered == 'off_hand_base.png':
+                    report['skipped'].append({'slot': slot, 'old_path': src, 'reason': 'off_hand_base'})
+                    continue
+                prefix = f'{slot}_'
+                m = re.match(rf'^{re.escape(prefix)}(?P<key>.+)\.png$', lowered)
+                if not m:
+                    report['skipped'].append({'slot': slot, 'old_path': src, 'reason': 'not_slot_pattern'})
+                    continue
+                key = m.group('key')
+                dst = os.path.join(slot_dir, key, 'm', 'front.png')
+                if dry_mode:
+                    status = 'would_copy'
+                else:
+                    copied, status = _copy_if_missing(src, dst)
+                    if not copied and status == 'collision':
+                        report['collisions'].append({'old_path': src, 'new_path': dst, 'slot': slot, 'package_key': key, 'variant': 'm', 'layer_role': 'front'})
+                report['entries'].append({'old_path': src, 'new_path': dst, 'slot': slot, 'package_key': key, 'variant': 'm', 'layer_role': 'front', 'status': status})
+
+    for key in sorted(set(head_back.keys()) | set(head_front.keys())):
+        back_name = head_back.get(key)
+        front_name = head_front.get(key)
+        if not back_name or not front_name:
+            report['skipped'].append({'slot': 'head', 'package_key': key, 'reason': 'incomplete_head_pair'})
+            continue
+        for role, source_name in (('back', back_name), ('front', front_name)):
+            src = os.path.join(gear_root, 'head', source_name)
+            dst = os.path.join(gear_root, 'head', key, 'm', f'{role}.png')
+            if dry_mode:
+                status = 'would_copy'
+            else:
+                copied, status = _copy_if_missing(src, dst)
+                if not copied and status == 'collision':
+                    report['collisions'].append({'old_path': src, 'new_path': dst, 'slot': 'head', 'package_key': key, 'variant': 'm', 'layer_role': role})
+            report['entries'].append({'old_path': src, 'new_path': dst, 'slot': 'head', 'package_key': key, 'variant': 'm', 'layer_role': role, 'paired_assets_detected': True, 'status': status})
+
+    for key in sorted(chest_front.keys()):
+        src_front = os.path.join(gear_root, 'chest', chest_front[key])
+        dst_front = os.path.join(gear_root, 'chest', key, 'm', 'front.png')
+        if dry_mode:
+            status = 'would_copy'
+        else:
+            copied, status = _copy_if_missing(src_front, dst_front)
+            if not copied and status == 'collision':
+                report['collisions'].append({'old_path': src_front, 'new_path': dst_front, 'slot': 'chest', 'package_key': key, 'variant': 'm', 'layer_role': 'front'})
+        report['entries'].append({'old_path': src_front, 'new_path': dst_front, 'slot': 'chest', 'package_key': key, 'variant': 'm', 'layer_role': 'front', 'paired_assets_detected': key in chest_underlay, 'status': status})
+
+        under = chest_underlay.get(key)
+        if under:
+            src_under = os.path.join(gear_root, 'chest', under)
+            dst_under = os.path.join(gear_root, 'chest', key, 'm', 'underlay.png')
+            if dry_mode:
+                status_under = 'would_copy'
+            else:
+                copied, status_under = _copy_if_missing(src_under, dst_under)
+                if not copied and status_under == 'collision':
+                    report['collisions'].append({'old_path': src_under, 'new_path': dst_under, 'slot': 'chest', 'package_key': key, 'variant': 'm', 'layer_role': 'underlay'})
+            report['entries'].append({'old_path': src_under, 'new_path': dst_under, 'slot': 'chest', 'package_key': key, 'variant': 'm', 'layer_role': 'underlay', 'paired_assets_detected': True, 'status': status_under})
+
+    reports_dir = os.path.join(current_app.instance_path, 'reports')
+    os.makedirs(reports_dir, exist_ok=True)
+    report_path = os.path.join(
+        reports_dir,
+        f'gear_asset_migration_{datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")}.json',
+    )
+    with open(report_path, 'w', encoding='utf-8') as handle:
+        json.dump(report, handle, indent=2)
+        handle.write('\n')
+
+    click.echo('Gear asset migration scan complete.')
+    if dry_mode:
+        click.echo('  mode: dry-run (no files copied)')
+    else:
+        click.echo('  mode: apply (copy enabled)')
+    click.echo(f'  dry_run: {dry_mode}')
+    click.echo(f'  entries: {len(report["entries"])}')
+    click.echo(f'  collisions: {len(report["collisions"])}')
+    click.echo(f'  skipped: {len(report["skipped"])}')
+    click.echo(f'  report: {report_path}')
+
+
+@click.command('audit-legacy-gear-keys')
+@with_appcontext
+def audit_legacy_gear_keys_command() -> None:
+    """Report active gear definitions still pointing to legacy flat image_key values."""
+    static_root = current_app.static_folder
+    rows = (
+        GearItemDefinition.query
+        .filter(GearItemDefinition.is_active.is_(True))
+        .order_by(GearItemDefinition.slot_type, GearItemDefinition.id)
+        .all()
+    )
+
+    legacy = []
+    for item in rows:
+        image_key = (item.image_key or '').strip()
+        if not image_key:
+            continue
+        package_dir = os.path.join(static_root, 'gear', item.slot_type, image_key)
+        if os.path.isdir(package_dir):
+            continue
+        legacy.append({
+            'id': item.id,
+            'slot_type': item.slot_type,
+            'image_key': image_key,
+        })
+
+    click.echo('Legacy image_key audit complete.')
+    click.echo(f'  active_items: {len(rows)}')
+    click.echo(f'  legacy_image_key_items: {len(legacy)}')
+    if legacy:
+        click.echo('  items:')
+        for item in legacy:
+            click.echo(f"    - {item['id']} ({item['slot_type']}): {item['image_key']}")
+
+
+@click.command('migrate-gear-image-keys-to-packages')
+@click.option('--apply', is_flag=True, default=False, help='Apply DB updates. Default is report-only.')
+@with_appcontext
+def migrate_gear_image_keys_to_packages_command(apply: bool) -> None:
+    """Migrate specific active gear image_key values from legacy flat filenames to package keys."""
+    static_root = current_app.static_folder
+    dry_run = not apply
+    targets = [
+        {'id': 'boots', 'slot_type': 'boots', 'old_image_key': 'boots_008.png', 'new_image_key': '008', 'avatar_asset_key': '008'},
+        {'id': 'chest001', 'slot_type': 'chest', 'old_image_key': 'chest_007.png', 'new_image_key': '007', 'avatar_asset_key': '007'},
+        {'id': 'robe002', 'slot_type': 'chest', 'old_image_key': 'chest_004.png', 'new_image_key': '004', 'avatar_asset_key': '004'},
+        {'id': 'head1', 'slot_type': 'head', 'old_image_key': 'head_001a.png', 'new_image_key': '001', 'avatar_asset_key': '001'},
+        {'id': 'Main002', 'slot_type': 'main_hand', 'old_image_key': 'main_hand_006.png', 'new_image_key': '006', 'avatar_asset_key': '006'},
+        {'id': 'main hand', 'slot_type': 'main_hand', 'old_image_key': 'main_hand_001.png', 'new_image_key': '001', 'avatar_asset_key': '001'},
+        {'id': 'off002', 'slot_type': 'off_hand', 'old_image_key': 'off_hand_002.png', 'new_image_key': '002', 'avatar_asset_key': '002'},
+        {'id': 'off1', 'slot_type': 'off_hand', 'old_image_key': 'off_hand_005.png', 'new_image_key': '005', 'avatar_asset_key': '005'},
+    ]
+
+    report = {
+        'created_at': datetime.now(timezone.utc).isoformat(),
+        'dry_run': dry_run,
+        'rows': [],
+        'updated_count': 0,
+        'skipped_count': 0,
+        'error_count': 0,
+    }
+
+    for spec in targets:
+        row = {
+            'id': spec['id'],
+            'slot_type': spec['slot_type'],
+            'expected_old_image_key': spec['old_image_key'],
+            'new_image_key': spec['new_image_key'],
+            'status': None,
+            'notes': [],
+        }
+        item = db.session.get(GearItemDefinition, spec['id'])
+        if item is None:
+            row['status'] = 'missing_row'
+            row['notes'].append('GearItemDefinition row not found.')
+            report['error_count'] += 1
+            report['rows'].append(row)
+            continue
+
+        row['name'] = item.name
+        row['is_active'] = bool(item.is_active)
+        row['current_image_key'] = item.image_key
+        row['current_avatar_asset_key'] = item.avatar_asset_key
+
+        if item.slot_type != spec['slot_type']:
+            row['status'] = 'slot_mismatch'
+            row['notes'].append(f"Found slot_type={item.slot_type!r}, expected {spec['slot_type']!r}.")
+            report['error_count'] += 1
+            report['rows'].append(row)
+            continue
+
+        pkg_dir = os.path.join(static_root, 'gear', spec['slot_type'], spec['new_image_key'])
+        m_dir = os.path.join(pkg_dir, 'm')
+        f_dir = os.path.join(pkg_dir, 'f')
+        has_m = os.path.isdir(m_dir) and any(name.lower().endswith('.png') for name in os.listdir(m_dir))
+        has_f = os.path.isdir(f_dir) and any(name.lower().endswith('.png') for name in os.listdir(f_dir))
+        row['package_dir'] = pkg_dir
+        row['has_m_assets'] = has_m
+        row['has_f_assets'] = has_f
+
+        if not has_m or not has_f:
+            row['status'] = 'missing_package_assets'
+            if not has_m:
+                row['notes'].append('Missing m package assets.')
+            if not has_f:
+                row['notes'].append('Missing f package assets.')
+            report['skipped_count'] += 1
+            report['rows'].append(row)
+            continue
+
+        if item.image_key == spec['new_image_key']:
+            row['status'] = 'already_migrated'
+            report['skipped_count'] += 1
+            report['rows'].append(row)
+            continue
+
+        if item.image_key != spec['old_image_key']:
+            row['status'] = 'unexpected_current_image_key'
+            row['notes'].append(f"Current image_key is {item.image_key!r}, expected {spec['old_image_key']!r}.")
+            report['skipped_count'] += 1
+            report['rows'].append(row)
+            continue
+
+        if dry_run:
+            row['status'] = 'would_update'
+            report['rows'].append(row)
+            continue
+
+        item.image_key = spec['new_image_key']
+        row['status'] = 'updated'
+        report['updated_count'] += 1
+        report['rows'].append(row)
+
+    if not dry_run:
+        db.session.commit()
+
+    reports_dir = os.path.join(current_app.instance_path, 'reports')
+    os.makedirs(reports_dir, exist_ok=True)
+    report_path = os.path.join(
+        reports_dir,
+        f'gear_image_key_migration_{datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")}.json',
+    )
+    with open(report_path, 'w', encoding='utf-8') as handle:
+        json.dump(report, handle, indent=2)
+        handle.write('\n')
+
+    click.echo('Gear image_key migration report complete.')
+    click.echo(f'  dry_run: {dry_run}')
+    click.echo(f'  updated: {report["updated_count"]}')
+    click.echo(f'  skipped: {report["skipped_count"]}')
+    click.echo(f'  errors: {report["error_count"]}')
+    click.echo(f'  report: {report_path}')

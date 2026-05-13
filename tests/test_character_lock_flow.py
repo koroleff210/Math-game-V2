@@ -152,7 +152,7 @@ def test_first_login_selection_and_lock_flow():
             and 'Blacksmith' in html
             and 'Confirm Character' not in html
             and 'action="/player/avatar/face"' not in html
-            and 'Face locked. Gear can still be changed.' in html,
+            and 'Face locked. Gear can still be changed.' not in html,
         )
 
         r = client.post(
@@ -190,7 +190,7 @@ def test_first_login_selection_and_lock_flow():
             'CLF-09: gear remains editable after character face lock',
             r.status_code == 200
             and 'Equipped in Head' in html
-            and 'Face locked. Gear can still be changed.' in html,
+            and 'Face locked. Gear can still be changed.' not in html,
         )
 
 

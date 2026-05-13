@@ -69,7 +69,7 @@
             <p><strong>Player HP:</strong> {{ config.player_max_hp if config else '?' }}</p>
             <p><strong>Battle Status:</strong> <span data-boss-status>{{ battle_state.status if battle_state else 'Missing' }}</span></p>
             <p><strong>Ability:</strong> <span data-ability-name>{{ live_state_payload.ability.name if live_state_payload else 'Missing' }}</span></p>
-            <p><strong>Next Ability:</strong> <span data-ability-timer>{% if live_state_payload and live_state_payload.ability.enabled %}{{ live_state_payload.ability.seconds_remaining or 0 }}s{% else %}Inactive{% endif %}</span></p>
+            <p><strong>Next Ability:</strong> <span data-ability-timer>{% if live_state_payload and live_state_payload.ability.frozen %}Ability frozen{% elif live_state_payload and live_state_payload.ability.enabled %}{{ live_state_payload.ability.seconds_remaining or 0 }}s{% else %}Inactive{% endif %}</span></p>
             <div class="boss-rush-admin-timer-track" aria-hidden="true"><div class="boss-rush-admin-timer-fill" data-ability-timer-fill></div></div>
             <p><strong>Ability Count:</strong> <span data-ability-count>{{ battle_state.ability_count if battle_state else 0 }}</span></p>
             <p><strong>Recent Ability:</strong> <span data-ability-event>{% if battle_state and battle_state.last_ability_summary_json %}{{ battle_state.last_ability_summary_json.message }}{% else %}None{% endif %}</span></p>
@@ -101,6 +101,17 @@
     {% endif %}
 
     {% if game_session.status == 'active' and game_round and not game_round.ended_at %}
+    {% if battle_state and battle_state.ability_frozen %}
+    <form method="POST" action="{{ url_for('boss_rush_admin.toggle_ability_freeze', session_id=game_session.id, action='resume') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="admin-btn admin-btn-primary" type="submit">Resume ability</button>
+    </form>
+    {% else %}
+    <form method="POST" action="{{ url_for('boss_rush_admin.toggle_ability_freeze', session_id=game_session.id, action='freeze') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="admin-btn admin-btn-secondary" type="submit">Freeze ability</button>
+    </form>
+    {% endif %}
     <form method="POST" action="{{ url_for('boss_rush_admin.end_round', session_id=game_session.id) }}"
           onsubmit="return confirm('End this Boss Rush round and return players to the lobby?')">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -269,7 +280,17 @@ document.addEventListener('DOMContentLoaded', function () {
     function updateAbilityTimerDisplay() {
         const timer = document.querySelector('[data-ability-timer]');
         const fill = document.querySelector('[data-ability-timer-fill]');
-        if (!latestAbilityState || !latestAbilityState.enabled) {
+        if (!latestAbilityState) {
+            if (timer) timer.textContent = 'Inactive';
+            if (fill) fill.style.width = '0%';
+            return;
+        }
+        if (latestAbilityState.frozen) {
+            if (timer) timer.textContent = 'Ability frozen';
+            if (fill) fill.style.width = '0%';
+            return;
+        }
+        if (!latestAbilityState.enabled) {
             if (timer) timer.textContent = 'Inactive';
             if (fill) fill.style.width = '0%';
             return;
@@ -314,7 +335,13 @@ document.addEventListener('DOMContentLoaded', function () {
             const abilityEvent = document.querySelector('[data-ability-event]');
             const stoneGuard = document.querySelector('[data-stone-guard]');
             if (abilityName) abilityName.textContent = payload.ability.name || 'Ability';
-            if (abilityTimer) abilityTimer.textContent = payload.ability.enabled ? ((payload.ability.seconds_remaining || 0) + 's') : 'Inactive';
+            if (abilityTimer) {
+                if (payload.ability.frozen) {
+                    abilityTimer.textContent = 'Ability frozen';
+                } else {
+                    abilityTimer.textContent = payload.ability.enabled ? ((payload.ability.seconds_remaining || 0) + 's') : 'Inactive';
+                }
+            }
             if (abilityCount) abilityCount.textContent = payload.ability.ability_count || 0;
             if (abilityEvent) abilityEvent.textContent = payload.ability.recent_event && payload.ability.recent_event.message ? payload.ability.recent_event.message : 'None';
             if (stoneGuard) stoneGuard.textContent = payload.ability.stone_guard_active ? ('Active: x' + payload.ability.stone_guard_combo_required) : 'Off';

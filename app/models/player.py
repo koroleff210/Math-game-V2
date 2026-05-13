@@ -19,6 +19,7 @@ class Player(UserMixin, db.Model):
     password_hash = db.Column(db.String(256), nullable=False)
     is_admin   = db.Column(db.Boolean, default=False, nullable=False)
     yeargroup  = db.Column(db.String(32), nullable=True)
+    avatar_body_variant = db.Column(db.String(8), nullable=False, default='m')
     selected_face_key = db.Column(db.String(16), nullable=False, default='001')
     character_locked_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(

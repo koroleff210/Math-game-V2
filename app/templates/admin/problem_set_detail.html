@@ -15,6 +15,13 @@
 {% block title %}Problem Set Builder: {{ pset.name }}{% endblock %}
 
 {% block admin_content %}
+<script>
+  window.MathJax = {
+    tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
+    options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'] }
+  };
+</script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
 <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
 <script src="{{ url_for('static', filename='js/problem_graph_renderer.js') }}"></script>
 <style>
@@ -32,7 +39,19 @@
     display: grid;
     grid-template-columns: minmax(260px, 1fr) minmax(360px, 1.2fr) minmax(260px, 1fr);
     gap: 18px;
-    align-items: start;
+    align-items: stretch;
+    min-height: 640px;
+  }
+  .set-builder-scroll-pane {
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 260px);
+    min-height: 520px;
+    overflow: hidden;
+  }
+  .set-builder-scroll-pane .set-builder-list {
+    overflow-y: auto;
+    padding-right: 6px;
   }
   .set-builder-pane h3 {
     margin-top: 0;
@@ -71,13 +90,28 @@
   }
   .set-builder-row {
     display: grid;
-    grid-template-columns: 1fr auto;
+    grid-template-columns: minmax(0, 1fr);
     gap: 10px;
-    align-items: center;
+    align-items: start;
     padding: 10px 12px;
     border: 1px solid #e6e6e6;
     border-radius: 8px;
     background: #fafafa;
+    cursor: pointer;
+  }
+  .set-builder-row:focus {
+    outline: 2px solid rgba(37, 99, 235, 0.45);
+    outline-offset: 2px;
+  }
+  .set-builder-row.is-previewed {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.12);
+  }
+  .set-builder-row-title {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    font-weight: 700;
   }
   .set-builder-row a {
     color: inherit;
@@ -90,6 +124,20 @@
     font-size: 0.85rem;
     color: #666;
     margin-top: 4px;
+  }
+  .set-builder-row-excerpt {
+    color: #333;
+    font-size: 0.88rem;
+    line-height: 1.35;
+    margin-top: 6px;
+  }
+  .set-builder-card-actions {
+    display: flex;
+    justify-content: flex-end;
+  }
+  .set-builder-card-actions,
+  .set-builder-card-actions * {
+    cursor: default;
   }
   .set-builder-preview-meta {
     color: #555;
@@ -112,6 +160,30 @@
   }
   .set-builder-choice-list li + li {
     margin-top: 6px;
+  }
+  .set-builder-preview-metadata {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px 12px;
+    margin: 10px 0 14px;
+    color: #444;
+    font-size: 0.9rem;
+  }
+  .set-builder-preview-metadata div {
+    min-width: 0;
+  }
+  .set-builder-answer-reveal {
+    margin-top: 14px;
+    font-size: 0.9rem;
+  }
+  .admin-player-style-mc-options {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 5px;
+    margin-top: 14px;
+  }
+  .admin-preview-mc-option {
+    cursor: default;
   }
 </style>
 
@@ -207,23 +279,39 @@
 </div>
 
 <div class="set-builder-grid" id="builder-workspace">
-  <div class="set-builder-pane" id="available-problems">
+  <div class="set-builder-pane set-builder-scroll-pane" id="available-problems">
     <h3>Available Problems</h3>
     {% if available_problem_rows %}
     <div class="set-builder-list">
       {% for row in available_problem_rows %}
-      <div class="set-builder-row">
+      <div
+        class="set-builder-row {% if preview_problem and preview_problem.id == row.problem.id %}is-previewed{% endif %}"
+        data-preview-url="{{ row.preview_url }}"
+        data-preview-api-url="{{ url_for('admin.problem_set_preview', set_id=pset.id, problem_id=row.problem.id) }}"
+        data-problem-id="{{ row.problem.id }}"
+        role="link"
+        tabindex="0"
+      >
         <div>
-          <a href="{{ row.preview_url }}">{{ row.problem.title }}</a>
+          <a class="set-builder-row-title" href="{{ row.preview_url }}">
+            <span>{{ row.source_label }}</span>
+            <span>{% if row.image_count %}Image{% else %}No image{% endif %}</span>
+          </a>
+          <div class="set-builder-row-meta">{{ row.problem.title }}</div>
           <div class="set-builder-row-meta">
-            {% if row.problem.answer_type == 'multiple_choice' %}MC{% else %}Text{% endif %}
+            {{ row.topic_label }}
+            {% if row.level_label %} | {{ row.level_label }}{% endif %}
+            | Difficulty {{ row.problem.difficulty }}
+            | {% if row.problem.answer_type == 'multiple_choice' %}MC{% else %}Text{% endif %}
+            | {{ row.option_status }}
           </div>
+          {% if row.prompt_excerpt %}<div class="set-builder-row-excerpt">{{ row.prompt_excerpt }}</div>{% endif %}
         </div>
-        <form method="POST" action="{{ url_for('admin.problem_set_add', set_id=pset.id) }}">
+        <form class="set-builder-card-actions" method="POST" action="{{ url_for('admin.problem_set_add', set_id=pset.id) }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           {{ builder_hidden_filters(filter_state) }}
           <input type="hidden" name="problem_id" value="{{ row.problem.id }}">
-          <button type="submit" title="Add to set">&rarr;</button>
+          <button type="submit">Add to set</button>
         </form>
       </div>
       {% endfor %}
@@ -234,46 +322,41 @@
   </div>
 
   <div class="set-builder-pane" id="problem-preview">
-    <h3>Preview</h3>
-    {% if preview_problem %}
-    <h4 style="margin-bottom:8px;">{{ preview_problem.title }}</h4>
-    <div class="set-builder-preview-meta">
-      Topic: {{ preview_problem.topic.name }} |
-      Difficulty: {{ preview_problem.difficulty }} |
-      Type: {% if preview_problem.answer_type == 'multiple_choice' %}Multiple choice{% else %}Text input{% endif %}
-    </div>
-    <div class="set-builder-preview-frame">
-      {% set body_view = preview_body_view %}
-      {% include 'shared/_problem_body_blocks.html' %}
-      {% if preview_choice_view and preview_choice_view.answer_type == 'multiple_choice' and preview_choice_view.options %}
-      <ol class="set-builder-choice-list">
-        {% for option in preview_choice_view.options %}
-        <li>{{ option.rendered_html|safe }}</li>
-        {% endfor %}
-      </ol>
-      {% endif %}
-    </div>
-    {% else %}
-    <p class="set-builder-empty">Click a problem on either side to preview it here.</p>
-    {% endif %}
+    {% include 'admin/_problem_set_builder_preview.html' %}
   </div>
 
-  <div class="set-builder-pane" id="set-problems">
+  <div class="set-builder-pane set-builder-scroll-pane" id="set-problems">
     <h3>Problems in This Set ({{ set_problem_rows|length }})</h3>
     {% if set_problem_rows %}
     <div class="set-builder-list">
       {% for row in set_problem_rows %}
-      <div class="set-builder-row">
+      <div
+        class="set-builder-row {% if preview_problem and preview_problem.id == row.problem.id %}is-previewed{% endif %}"
+        data-preview-url="{{ row.preview_url }}"
+        data-preview-api-url="{{ url_for('admin.problem_set_preview', set_id=pset.id, problem_id=row.problem.id) }}"
+        data-problem-id="{{ row.problem.id }}"
+        role="link"
+        tabindex="0"
+      >
         <div>
-          <a href="{{ row.preview_url }}">{{ row.problem.title }}</a>
+          <a class="set-builder-row-title" href="{{ row.preview_url }}">
+            <span>{{ row.source_label }}</span>
+            <span>{% if row.image_count %}Image{% else %}No image{% endif %}</span>
+          </a>
+          <div class="set-builder-row-meta">{{ row.problem.title }}</div>
           <div class="set-builder-row-meta">
-            {% if row.problem.answer_type == 'multiple_choice' %}MC{% else %}Text{% endif %}
+            {{ row.topic_label }}
+            {% if row.level_label %} | {{ row.level_label }}{% endif %}
+            | Difficulty {{ row.problem.difficulty }}
+            | {% if row.problem.answer_type == 'multiple_choice' %}MC{% else %}Text{% endif %}
+            | {{ row.option_status }}
           </div>
+          {% if row.prompt_excerpt %}<div class="set-builder-row-excerpt">{{ row.prompt_excerpt }}</div>{% endif %}
         </div>
-        <form method="POST" action="{{ url_for('admin.problem_set_remove', set_id=pset.id, problem_id=row.problem.id) }}">
+        <form class="set-builder-card-actions" method="POST" action="{{ url_for('admin.problem_set_remove', set_id=pset.id, problem_id=row.problem.id) }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           {{ builder_hidden_filters(filter_state) }}
-          <button type="submit" title="Remove from set">&larr;</button>
+          <button type="submit">Remove from set</button>
         </form>
       </div>
       {% endfor %}
@@ -287,8 +370,69 @@
 <p style="margin-top:24px;"><a href="{{ url_for('admin.problem_sets') }}">&larr; Back to Problem Sets</a></p>
 
 <script>
-  if (window.renderProblemGraphs) {
-    window.renderProblemGraphs(document);
+  function renderBuilderPreviewEnhancements() {
+    const preview = document.getElementById('problem-preview');
+    if (!preview) return;
+    if (window.renderProblemGraphs) {
+      window.renderProblemGraphs(preview);
+    }
+    if (window.MathJax && window.MathJax.typesetPromise) {
+      if (window.MathJax.typesetClear) {
+        window.MathJax.typesetClear([preview]);
+      }
+      window.MathJax.typesetPromise([preview]).catch(function (err) {
+        console.error('MathJax typeset failed:', err);
+      });
+    }
   }
+
+  renderBuilderPreviewEnhancements();
+
+  document.querySelectorAll('.set-builder-row[data-preview-url]').forEach(function (row) {
+    function markPreviewed(problemId) {
+      document.querySelectorAll('.set-builder-row[data-preview-url]').forEach(function (candidate) {
+        candidate.classList.toggle('is-previewed', candidate.dataset.problemId === String(problemId));
+      });
+    }
+
+    function goToPreview(event) {
+      if (event.target.closest('button, input, select, textarea, form, summary, details')) {
+        return;
+      }
+      event.preventDefault();
+      const preview = document.getElementById('problem-preview');
+      const apiUrl = row.dataset.previewApiUrl;
+      if (!preview || !apiUrl || !window.fetch) {
+        window.location.href = row.dataset.previewUrl;
+        return;
+      }
+      preview.setAttribute('aria-busy', 'true');
+      fetch(apiUrl, { headers: { 'Accept': 'application/json' } })
+        .then(function (response) {
+          if (!response.ok) throw new Error('Preview request failed.');
+          return response.json();
+        })
+        .then(function (payload) {
+          preview.innerHTML = payload.html;
+          preview.removeAttribute('aria-busy');
+          markPreviewed(payload.problem_id);
+          if (window.history && window.history.replaceState) {
+            window.history.replaceState(null, '', row.dataset.previewUrl);
+          }
+          renderBuilderPreviewEnhancements();
+        })
+        .catch(function () {
+          window.location.href = row.dataset.previewUrl;
+        });
+    }
+    row.addEventListener('click', goToPreview);
+    row.addEventListener('keydown', function (event) {
+      if (event.key !== 'Enter' && event.key !== ' ') {
+        return;
+      }
+      event.preventDefault();
+      goToPreview(event);
+    });
+  });
 </script>
 {% endblock %}

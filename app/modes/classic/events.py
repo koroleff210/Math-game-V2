@@ -434,7 +434,7 @@ def register_classic_handlers(socketio):
             ensure_player_round(game_round, player, 'classic', wallet=wallet)
             problems = game_session.problem_set.problems.all()
 
-            for prob in problems:
+            for problem_index, prob in enumerate(problems, start=1):
                 # Get or create PlayerProblemState for this player+round+problem.
                 # Use merge-or-create pattern inside a savepoint to survive UNIQUE
                 # constraint races (lobby socket and game socket can both fire here).
@@ -484,6 +484,8 @@ def register_classic_handlers(socketio):
                 problem_list.append({
                     'problem_id':  prob.id,
                     'title':       prob.title,
+                    'display_index': problem_index,
+                    'display_label': str(problem_index),
                     'prompt_text': prob.prompt_text,
                     'problem_body_html': _render_problem_body_html(prob),
                     'answer_type': choice_payload['answer_type'],

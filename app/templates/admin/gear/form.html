@@ -63,7 +63,7 @@
         {{ form.image_key.label }}<br>
         {{ form.image_key() }}
         <span style="display:block; margin-top:4px; color:#666; font-size:0.9em;">
-            Shows files from <code>app/static/gear/&lt;selected slot&gt;/</code>. Avatar layers use this file, and hub icons resolve from the matching filename in <code>app/static/gear_icons/&lt;selected slot&gt;/</code>.
+            Supports package folders in <code>app/static/gear/&lt;selected slot&gt;/&lt;package&gt;/{m,f,shared}/</code> and legacy flat files in <code>app/static/gear/&lt;selected slot&gt;/</code>.
         </span>
         {% if form.image_key.errors %}
             <span style="color:red; font-size:0.9em;">{{ form.image_key.errors[0] }}</span>

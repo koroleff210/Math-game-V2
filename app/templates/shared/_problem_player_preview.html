@@ -1,0 +1,17 @@
+<div class="shared-player-problem-preview">
+  {% set body_view = preview_body_view %}
+  {% include 'shared/_problem_body_blocks.html' %}
+
+  {% if preview_choice_view and preview_choice_view.answer_type == 'multiple_choice' and preview_choice_view.options %}
+  <div class="mc-grid-compact {% if preview_choice_view.options|length > 4 %}mc-grid-compact-6{% else %}mc-grid-compact-4{% endif %} admin-player-style-mc-options">
+    {% for option in preview_choice_view.options %}
+    <div class="mc-option-row admin-preview-mc-option" data-option-id="{{ option.id }}">
+      <div class="mc-option-main">
+        <span class="mc-option-marker" aria-hidden="true"></span>
+        <span class="mc-option-label">{{ option.rendered_html|safe }}</span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>

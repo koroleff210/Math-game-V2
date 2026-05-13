@@ -24,6 +24,7 @@
 #   /admin/subjects/<id>/delete      — POST: delete subject (blocked if has topics)
 
 from datetime import datetime, timezone
+import re
 from urllib.parse import urlencode
 
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, abort, make_response
@@ -855,6 +856,92 @@ def _problem_set_builder_preview_url(set_id, filter_state, problem_id):
     return target
 
 
+def _problem_builder_source_label(problem):
+    metadata = getattr(problem, 'source_metadata', None)
+    if metadata:
+        return metadata.source_id or metadata.canonical_id or f'#{problem.id}'
+    return f'#{problem.id}'
+
+
+def _problem_builder_metadata_value(problem, key):
+    metadata = getattr(problem, 'source_metadata', None)
+    raw = getattr(metadata, 'raw_metadata_json', None) if metadata else None
+    if isinstance(raw, dict):
+        value = raw.get(key)
+        if value not in (None, ''):
+            if isinstance(value, list):
+                return ', '.join(str(item) for item in value if item not in (None, ''))
+            return str(value)
+    return ''
+
+
+def _problem_builder_prompt_excerpt(body_view, *, length=110):
+    parts = []
+    for block in (body_view or {}).get('blocks', []):
+        if block.get('type') == 'rich_text':
+            text = re.sub(r'<[^>]+>', ' ', block.get('rendered_html') or block.get('text_content') or '')
+            text = re.sub(r'\s+', ' ', text).strip()
+            if text:
+                parts.append(text)
+    excerpt = ' '.join(parts).strip()
+    if len(excerpt) > length:
+        return excerpt[:length].rstrip() + '...'
+    return excerpt
+
+
+def _problem_builder_option_status(problem):
+    if problem.answer_type != PROBLEM_ANSWER_TYPE_MULTIPLE_CHOICE:
+        return 'text input'
+    options = [option.option_text for option in sorted(problem.choice_options, key=lambda row: (row.position, row.id or 0))]
+    if [text.strip() for text in options] == ['A', 'B', 'C', 'D']:
+        return 'artificial A/B/C/D'
+    return 'explicit options' if options else 'no options'
+
+
+def _problem_builder_row(problem, filter_state, set_id):
+    body_view = build_problem_body_view(problem)
+    image_count = sum(1 for block in body_view['blocks'] if block['type'] == 'image')
+    return {
+        'problem': problem,
+        'preview_url': _problem_set_builder_preview_url(set_id, filter_state, problem.id),
+        'source_label': _problem_builder_source_label(problem),
+        'topic_label': problem.topic.name if problem.topic else '',
+        'subject_label': (problem.topic.subject_obj.name if problem.topic and getattr(problem.topic, 'subject_obj', None) else (problem.topic.subject if problem.topic else '')),
+        'level_label': _problem_builder_metadata_value(problem, 'level'),
+        'prompt_excerpt': _problem_builder_prompt_excerpt(body_view),
+        'image_count': image_count,
+        'option_status': _problem_builder_option_status(problem),
+    }
+
+
+def _build_problem_set_preview_context(preview_problem):
+    preview_body_view = build_problem_body_view(preview_problem) if preview_problem else None
+    preview_choice_view = build_problem_choice_view(preview_problem) if preview_problem else None
+    preview_metadata = None
+    if preview_problem:
+        preview_body_blocks = (preview_body_view or {}).get('blocks', [])
+        metadata = getattr(preview_problem, 'source_metadata', None)
+        preview_metadata = {
+            'source_system': metadata.source_system if metadata else '',
+            'source_id': metadata.source_id if metadata else '',
+            'canonical_id': metadata.canonical_id if metadata else '',
+            'subject': (preview_problem.topic.subject_obj.name if preview_problem.topic and getattr(preview_problem.topic, 'subject_obj', None) else (preview_problem.topic.subject if preview_problem.topic else '')),
+            'topic': preview_problem.topic.name if preview_problem.topic else '',
+            'subtopic': _problem_builder_metadata_value(preview_problem, 'subtopics'),
+            'difficulty': preview_problem.difficulty,
+            'level': _problem_builder_metadata_value(preview_problem, 'level'),
+            'answer_type': 'Multiple choice' if preview_problem.answer_type == PROBLEM_ANSWER_TYPE_MULTIPLE_CHOICE else 'Text input',
+            'image_count': sum(1 for block in preview_body_blocks if block.get('type') == 'image'),
+            'option_status': _problem_builder_option_status(preview_problem),
+        }
+    return {
+        'preview_problem': preview_problem,
+        'preview_body_view': preview_body_view,
+        'preview_choice_view': preview_choice_view,
+        'preview_metadata': preview_metadata,
+    }
+
+
 def _build_problem_set_detail_context(pset, filter_state):
     settings_form = ProblemSetForm(obj=pset)
     set_problems = pset.problems.order_by(Problem.id).all()
@@ -899,23 +986,8 @@ def _build_problem_set_detail_context(pset, filter_state):
     if preview_problem is None and set_problems:
         preview_problem = set_problems[0]
 
-    preview_body_view = build_problem_body_view(preview_problem) if preview_problem else None
-    preview_choice_view = build_problem_choice_view(preview_problem) if preview_problem else None
-
-    available_problem_rows = [
-        {
-            'problem': problem,
-            'preview_url': _problem_set_builder_preview_url(pset.id, filter_state, problem.id),
-        }
-        for problem in available_problems
-    ]
-    set_problem_rows = [
-        {
-            'problem': problem,
-            'preview_url': _problem_set_builder_preview_url(pset.id, filter_state, problem.id),
-        }
-        for problem in set_problems
-    ]
+    available_problem_rows = [_problem_builder_row(problem, filter_state, pset.id) for problem in available_problems]
+    set_problem_rows = [_problem_builder_row(problem, filter_state, pset.id) for problem in set_problems]
 
     return {
         'pset': pset,
@@ -931,9 +1003,7 @@ def _build_problem_set_detail_context(pset, filter_state):
         },
         'available_problem_rows': available_problem_rows,
         'set_problem_rows': set_problem_rows,
-        'preview_problem': preview_problem,
-        'preview_body_view': preview_body_view,
-        'preview_choice_view': preview_choice_view,
+        **_build_problem_set_preview_context(preview_problem),
         'settings_form': settings_form,
     }
 
@@ -973,6 +1043,27 @@ def problem_set_detail(set_id):
 
     filter_state = _parse_problem_set_builder_filters(request.args)
     return render_template('admin/problem_set_detail.html', **_build_problem_set_detail_context(pset, filter_state))
+
+
+@admin_bp.route('/sets/<int:set_id>/preview/<int:problem_id>')
+@login_required
+@admin_required
+def problem_set_preview(set_id, problem_id):
+    pset = db.session.get(ProblemSet, set_id)
+    if pset is None:
+        abort(404)
+    problem = db.session.get(Problem, problem_id)
+    if problem is None:
+        abort(404)
+    html = render_template(
+        'admin/_problem_set_builder_preview.html',
+        **_build_problem_set_preview_context(problem),
+    )
+    return jsonify({
+        'html': html,
+        'problem_id': problem.id,
+        'title': problem.title,
+    })
 
 
 @admin_bp.route('/sets/<int:set_id>/settings', methods=['POST'])
@@ -1716,10 +1807,20 @@ def history_rounds():
         q.order_by(RoundHistory.ended_at.desc(), RoundHistory.id.desc())
         .all()
     )
+    round_ids = [rh.round_id for rh in rounds]
+    analytics_by_round_id = {}
+    if round_ids:
+        analytics_by_round_id = {
+            row.round_id: row
+            for row in AnalyticsRound.query
+            .filter(AnalyticsRound.round_id.in_(round_ids))
+            .all()
+        }
     return render_template(
         'admin/history/index.html',
         rounds=rounds,
         include_archived=include_archived,
+        analytics_by_round_id=analytics_by_round_id,
     )
 
 

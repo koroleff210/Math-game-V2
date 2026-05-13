@@ -159,6 +159,16 @@ def run_tests():
         _login(client, '__br_lifecycle_admin__')
         r = client.post(f'/admin/boss-rush/{session_id}/start', follow_redirects=False)
         check('BRLIFE-02: admin starts Boss Rush round', r.status_code == 302)
+        r = client.post(f'/admin/boss-rush/{session_id}/ability/freeze', follow_redirects=False)
+        check('BRLIFE-02b: admin can freeze ability during active round', r.status_code == 302)
+        with flask_app.app_context():
+            game_round = GameRound.query.filter_by(session_id=session_id).order_by(GameRound.round_number.desc()).first()
+            check('BRLIFE-02c: freeze sets persisted ability_frozen and clears timer', game_round.boss_rush_battle_state.ability_frozen and game_round.boss_rush_battle_state.next_ability_at is None)
+        r = client.post(f'/admin/boss-rush/{session_id}/ability/resume', follow_redirects=False)
+        check('BRLIFE-02d: admin can resume ability during active round', r.status_code == 302)
+        with flask_app.app_context():
+            game_round = GameRound.query.filter_by(session_id=session_id).order_by(GameRound.round_number.desc()).first()
+            check('BRLIFE-02e: resume clears frozen flag and restores timer', (not game_round.boss_rush_battle_state.ability_frozen) and game_round.boss_rush_battle_state.next_ability_at is not None)
         with flask_app.app_context():
             session = db.session.get(GameSession, session_id)
             game_round = GameRound.query.filter_by(session_id=session_id).order_by(GameRound.round_number.desc()).first()

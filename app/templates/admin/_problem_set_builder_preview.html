@@ -1,0 +1,32 @@
+<h3>Preview</h3>
+{% if preview_problem %}
+<h4 style="margin-bottom:8px;">{{ preview_problem.title }}</h4>
+<div class="set-builder-preview-metadata">
+  <div><strong>Internal title:</strong> {{ preview_problem.title }}</div>
+  <div><strong>Source:</strong> {{ preview_metadata.source_system or 'Local' }}</div>
+  <div><strong>Source ID:</strong> {{ preview_metadata.source_id or 'n/a' }}</div>
+  <div><strong>Canonical ID:</strong> {{ preview_metadata.canonical_id or 'n/a' }}</div>
+  <div><strong>Subject:</strong> {{ preview_metadata.subject or 'n/a' }}</div>
+  <div><strong>Topic:</strong> {{ preview_metadata.topic or 'n/a' }}</div>
+  <div><strong>Subtopic:</strong> {{ preview_metadata.subtopic or 'n/a' }}</div>
+  <div><strong>Difficulty:</strong> {{ preview_metadata.difficulty }}</div>
+  <div><strong>Level:</strong> {{ preview_metadata.level or 'n/a' }}</div>
+  <div><strong>Answer type:</strong> {{ preview_metadata.answer_type }}</div>
+  <div><strong>Images:</strong> {{ preview_metadata.image_count }}</div>
+  <div><strong>Options:</strong> {{ preview_metadata.option_status }}</div>
+</div>
+<div class="set-builder-preview-frame">
+  {% include 'shared/_problem_player_preview.html' %}
+</div>
+<details class="set-builder-answer-reveal">
+  <summary>Show correct answer</summary>
+  {% if preview_choice_view and preview_choice_view.answer_type == 'multiple_choice' %}
+    {% set correct_options = preview_problem.choice_options|selectattr('is_correct')|list %}
+    <p>{{ correct_options[0].option_text if correct_options else 'No correct option set.' }}</p>
+  {% else %}
+    <p>{{ preview_problem.answer_text or 'No answer saved.' }}</p>
+  {% endif %}
+</details>
+{% else %}
+<p class="set-builder-empty">Click a problem on either side to preview it here.</p>
+{% endif %}

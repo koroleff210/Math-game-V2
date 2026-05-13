@@ -12,7 +12,7 @@
 <!-- Archive visibility toggle -->
 <p style="margin-bottom:18px;">
 {% if include_archived %}
-    <strong>Showing active and archived rounds.</strong>
+    <strong>Showing visible and archived history records.</strong>
     <a href="{{ url_for('admin.history_rounds') }}"
        style="margin-left:12px;">Hide archived</a>
 {% else %}
@@ -43,7 +43,7 @@
             <th style="text-align:right;">Correct</th>
             <th style="text-align:right;">Incorrect</th>
             <th style="text-align:right;">Accuracy</th>
-            <th style="text-align:center;">Status</th>
+            <th style="text-align:center;">Visibility</th>
             <th style="text-align:center;">Actions</th>
         </tr>
     </thead>
@@ -75,10 +75,16 @@
             {% if rh.archived_at %}
             <span style="color:#6c757d; font-size:0.85em; font-weight:bold;">Archived</span>
             {% else %}
-            <span style="color:#198754; font-size:0.85em;">Active</span>
+            <span style="color:#198754; font-size:0.85em;">Visible</span>
             {% endif %}
         </td>
         <td style="text-align:center; white-space:nowrap;">
+            {% set analytics_round = analytics_by_round_id.get(rh.round_id) if analytics_by_round_id else none %}
+            {% if analytics_round %}
+            <a href="{{ url_for('admin.analytics_round_detail', analytics_round_id=analytics_round.id) }}"
+               style="font-size:0.82em;">Analytics</a>
+            &nbsp;
+            {% endif %}
             {% if rh.archived_at %}
             <form method="post"
                   action="{{ url_for('admin.history_round_unarchive', rh_id=rh.id) }}"

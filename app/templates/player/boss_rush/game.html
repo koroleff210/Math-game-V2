@@ -1426,7 +1426,7 @@
             <section class="boss-panel ability-panel">
                 <div class="ability-chip">
                     <span data-ability-name>{{ player_state_payload.ability.name }}</span>
-                    <strong class="ability-time" data-ability-timer>{% if player_state_payload.ability.enabled %}{{ player_state_payload.ability.seconds_remaining or 0 }}s{% else %}Inactive{% endif %}</strong>
+                    <strong class="ability-time" data-ability-timer>{% if player_state_payload.ability.frozen %}Ability frozen{% elif player_state_payload.ability.enabled %}{{ player_state_payload.ability.seconds_remaining or 0 }}s{% else %}Inactive{% endif %}</strong>
                     <small data-ability-summary>{{ player_state_payload.ability.hint }}</small>
                     <div class="ability-timer-track" aria-hidden="true">
                         <div class="ability-timer-fill" data-ability-timer-fill></div>
@@ -1702,7 +1702,17 @@
   function updateAbilityTimerDisplay() {
     const timerNodes = document.querySelectorAll('[data-ability-timer]');
     const fill = document.querySelector('[data-ability-timer-fill]');
-    if (!latestAbilityState || !latestAbilityState.enabled) {
+    if (!latestAbilityState) {
+      timerNodes.forEach(function (node) { node.textContent = 'Inactive'; });
+      if (fill) fill.style.width = '0%';
+      return;
+    }
+    if (latestAbilityState.frozen) {
+      timerNodes.forEach(function (node) { node.textContent = 'Ability frozen'; });
+      if (fill) fill.style.width = '0%';
+      return;
+    }
+    if (!latestAbilityState.enabled) {
       timerNodes.forEach(function (node) { node.textContent = 'Inactive'; });
       if (fill) fill.style.width = '0%';
       return;
@@ -1835,7 +1845,7 @@
       }
       if (fromSocket && current.active_bonuses && current.active_bonuses.personal_message) {
         const msg = current.active_bonuses.personal_message;
-        if (msg.indexOf('Wind Shuffle') !== -1 || msg.indexOf('Reflection') !== -1 || current.status === 'recovery') {
+        if (current.problem_refresh_required) {
           const reloadKey = 'boss-rush-reload-' + SESSION_ID + '-' + (payload.ability ? payload.ability.ability_count : 'state') + '-' + msg;
           if (sessionStorage.getItem(reloadKey) !== '1') {
             sessionStorage.setItem(reloadKey, '1');
@@ -1859,7 +1869,13 @@
       const abilityCount = document.querySelector('[data-ability-count]');
       const stoneGuard = document.querySelector('[data-stone-guard]');
       abilityName.forEach(function (node) { node.textContent = payload.ability.name || 'Ability'; });
-      if (abilityTimer) abilityTimer.textContent = payload.ability.enabled ? ((payload.ability.seconds_remaining || 0) + 's') : 'Inactive';
+      if (abilityTimer) {
+        if (payload.ability.frozen) {
+          abilityTimer.textContent = 'Ability frozen';
+        } else {
+          abilityTimer.textContent = payload.ability.enabled ? ((payload.ability.seconds_remaining || 0) + 's') : 'Inactive';
+        }
+      }
       if (abilitySummary) abilitySummary.textContent = payload.ability.hint || payload.ability.summary || '';
       if (abilityFullRule) abilityFullRule.textContent = payload.ability.summary || '';
       if (abilityStrategy) abilityStrategy.textContent = payload.ability.hint || '';

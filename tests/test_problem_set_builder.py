@@ -23,11 +23,13 @@ from app.models.problems import (
     ProblemAcceptedAnswer,
     ProblemBlock,
     ProblemChoiceOption,
+    ProblemSourceMetadata,
     ProblemSet,
     Topic,
     PROBLEM_ANSWER_TYPE_MULTIPLE_CHOICE,
     PROBLEM_ANSWER_TYPE_TEXT_INPUT,
     PROBLEM_BLOCK_TYPE_GRAPH,
+    PROBLEM_BLOCK_TYPE_IMAGE,
     PROBLEM_BLOCK_TYPE_RICH_TEXT,
 )
 
@@ -73,7 +75,7 @@ def _login(client, username, password='pass1234'):
     return client.post('/login', data={'username': username, 'password': password}, follow_redirects=True)
 
 
-def _make_problem(topic, title, *, answer_type, difficulty, prompt, answers=None, options=None, graph=False):
+def _make_problem(topic, title, *, answer_type, difficulty, prompt, answers=None, options=None, graph=False, image_path=None, source_meta=None):
     problem = Problem(
         topic_id=topic.id,
         title=title,
@@ -109,6 +111,14 @@ def _make_problem(topic, title, *, answer_type, difficulty, prompt, answers=None
                 ],
             }),
         ))
+    if image_path:
+        db.session.add(ProblemBlock(
+            problem_id=problem.id,
+            position=3 if graph else 2,
+            block_type=PROBLEM_BLOCK_TYPE_IMAGE,
+            image_path=image_path,
+            image_width_pct=75,
+        ))
     if answer_type == PROBLEM_ANSWER_TYPE_TEXT_INPUT:
         for idx, answer in enumerate(answers or [], start=1):
             db.session.add(ProblemAcceptedAnswer(problem_id=problem.id, position=idx, answer_text=answer))
@@ -120,6 +130,15 @@ def _make_problem(topic, title, *, answer_type, difficulty, prompt, answers=None
                 option_text=text,
                 is_correct=is_correct,
             ))
+    if source_meta:
+        db.session.add(ProblemSourceMetadata(
+            problem_id=problem.id,
+            source_system=source_meta.get('source_system', 'ib_physics'),
+            source_id=source_meta.get('source_id'),
+            canonical_id=source_meta.get('canonical_id', f'canon-{problem.id}'),
+            import_batch_id=source_meta.get('import_batch_id', 'test-batch'),
+            raw_metadata_json=source_meta.get('raw_metadata_json') or {},
+        ))
     db.session.flush()
     return problem
 
@@ -155,6 +174,12 @@ def _setup_db():
             difficulty=2,
             prompt='Pick the even number.',
             options=[('3', False), ('5', False), ('8', True), ('9', False)],
+            image_path='images/math-mc.png',
+            source_meta={
+                'source_id': 'Paper1A-Q660',
+                'canonical_id': 'canon-math-mc',
+                'raw_metadata_json': {'level': 'SL', 'subtopics': ['A.1'], 'uses_artificial_options': False},
+            },
         )
         graph_text = _make_problem(
             geometry,
@@ -210,8 +235,20 @@ def run_tests():
             and 'id="set-problems"' in html,
         )
         check(
+            'PSB-01c: left and right builder lists are internally scrollable',
+            html.count('set-builder-scroll-pane') >= 2
+            and '.set-builder-scroll-pane .set-builder-list' in html
+            and 'overflow-y: auto' in html,
+        )
+        check(
             'PSB-01b: builder anchor exists on initial load',
             'id="builder-workspace"' in html,
+        )
+        check(
+            'PSB-01d: builder loads player-compatible math renderer for preview formulae',
+            'window.MathJax' in html
+            and "inlineMath: [['$', '$'], ['\\\\(', '\\\\)']]" in html
+            and 'cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js' in html,
         )
 
         r = client.get(
@@ -244,7 +281,48 @@ def run_tests():
         html = r.get_data(as_text=True)
         check(
             'PSB-04: clicking a right-column problem can drive preview selection',
-            r.status_code == 200 and 'Pick the even number.' in html and '<ol class="set-builder-choice-list">' in html,
+            r.status_code == 200
+            and 'Pick the even number.' in html
+            and 'Paper1A-Q660' in html
+            and 'canon-math-mc' in html,
+        )
+        check(
+            'PSB-04b: admin preview uses shared player-style body preview partial',
+            'shared-player-problem-preview' in html
+            and 'admin-player-style-mc-options' in html
+            and 'mc-option-row admin-preview-mc-option' in html,
+        )
+        check(
+            'PSB-04bb: whole problem cards can select preview, not title only',
+            'data-preview-url=' in html
+            and 'data-preview-api-url=' in html
+            and 'role="link"' in html
+            and "document.querySelectorAll('.set-builder-row[data-preview-url]')" in html
+            and "fetch(apiUrl, { headers: { 'Accept': 'application/json' } })" in html
+            and "preview.innerHTML = payload.html" in html,
+        )
+        r = client.get(f'/admin/sets/{ids["set_id"]}/preview/{ids["math_mc_id"]}')
+        payload = r.get_json()
+        check(
+            'PSB-04bbb: preview API returns only center preview HTML',
+            r.status_code == 200
+            and payload
+            and payload['problem_id'] == ids['math_mc_id']
+            and 'Pick the even number.' in payload['html']
+            and 'available-problems' not in payload['html']
+            and 'set-problems' not in payload['html'],
+        )
+        check(
+            'PSB-04c: MCQ options appear in admin preview with player option markup',
+            '3' in html and '5' in html and '8' in html and '9' in html and 'mc-option-label' in html,
+        )
+        check(
+            'PSB-04d: image problem preview includes shared image block',
+            'problem-body-image' in html and 'images/math-mc.png' in html,
+        )
+        check(
+            'PSB-04e: correct answer is hidden by default behind admin reveal control',
+            '<details class="set-builder-answer-reveal">' in html and '<summary>Show correct answer</summary>' in html,
         )
 
         r = client.post(

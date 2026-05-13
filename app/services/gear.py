@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 import os
+import re
 
 from flask import current_app
 
@@ -16,6 +17,7 @@ from app.models.gear import (
     PlayerGearLoadout,
     PlayerGearOwnership,
 )
+from app.services.avatar import normalize_avatar_body_variant
 
 
 SLOT_KEY_TO_ATTR = {
@@ -198,6 +200,9 @@ _AVATAR_ASSET_KEY_PATTERNS = {
     GEAR_SLOT_HEAD: 'head_',
 }
 
+BODY_SPECIFIC_SLOTS = {GEAR_SLOT_CHEST, GEAR_SLOT_BOOTS}
+DEFAULT_SHARED_SLOTS = {GEAR_SLOT_HEAD, GEAR_SLOT_MAIN_HAND, GEAR_SLOT_OFF_HAND, GEAR_SLOT_POCKET}
+
 
 def get_or_create_player_gear_loadout(player_id: int):
     """Return the persistent loadout row for a player, creating it if absent."""
@@ -347,6 +352,55 @@ def get_gear_image_slot_directory(slot_type: str) -> str:
     return os.path.join(get_gear_image_directory(), slot_type)
 
 
+def _slot_directory(slot_type: str) -> str:
+    return get_gear_image_slot_directory(slot_type)
+
+
+def _is_package_directory(slot_type: str, package_key: str) -> bool:
+    return os.path.isdir(os.path.join(_slot_directory(slot_type), package_key))
+
+
+def _package_variant_directory(slot_type: str, package_key: str, variant: str) -> str:
+    return os.path.join(_slot_directory(slot_type), package_key, variant)
+
+
+def package_variant_has_layer(slot_type: str, package_key: str, variant: str, layer_filename: str) -> bool:
+    return os.path.isfile(os.path.join(_package_variant_directory(slot_type, package_key, variant), layer_filename))
+
+
+def package_has_variant(slot_type: str, package_key: str, variant: str) -> bool:
+    variant_dir = _package_variant_directory(slot_type, package_key, variant)
+    if not os.path.isdir(variant_dir):
+        return False
+    for name in os.listdir(variant_dir):
+        if os.path.splitext(name)[1].lower() in GEAR_IMAGE_EXTENSIONS:
+            return True
+    return False
+
+
+def list_available_gear_packages(slot_type: str) -> list[dict]:
+    folder = _slot_directory(slot_type)
+    if not os.path.isdir(folder):
+        return []
+    packages = []
+    for name in sorted(os.listdir(folder), key=str.lower):
+        full_path = os.path.join(folder, name)
+        if not os.path.isdir(full_path):
+            continue
+        has_m = package_has_variant(slot_type, name, 'm')
+        has_f = package_has_variant(slot_type, name, 'f')
+        has_shared = package_has_variant(slot_type, name, 'shared')
+        if not (has_m or has_f or has_shared):
+            continue
+        packages.append({
+            'key': name,
+            'has_m': has_m,
+            'has_f': has_f,
+            'has_shared': has_shared,
+        })
+    return packages
+
+
 def get_gear_icon_directory(slot_type: str) -> str:
     """Return the fixed static directory used for small hub gear icons."""
     folder_name = GEAR_ICON_FOLDERS.get(slot_type, slot_type)
@@ -373,7 +427,7 @@ def _derive_avatar_asset_key_from_image(*, slot_type: str, image_key: str | None
 
 
 def list_available_gear_image_keys(slot_type: str | None = None) -> list[str]:
-    """Return sorted image filenames from the slot folder, or the legacy root folder."""
+    """Return sorted legacy image filenames from the slot folder, or root folder."""
     folder = get_gear_image_slot_directory(slot_type) if slot_type else get_gear_image_directory()
     if not os.path.isdir(folder):
         return []
@@ -398,13 +452,29 @@ def list_available_gear_image_keys(slot_type: str | None = None) -> list[str]:
         elif slot_type == GEAR_SLOT_OFF_HAND:
             if lowered == 'off_hand_base.png':
                 continue
+        if os.path.isdir(full_path):
+            continue
         filenames.append(name)
     return sorted(filenames, key=str.lower)
 
 
 def build_gear_image_select_choices(slot_type: str | None = None) -> list[tuple[str, str]]:
-    """Return SelectField choices for gear image selection."""
-    return [('', '-- None --')] + [(name, name) for name in list_available_gear_image_keys(slot_type)]
+    """Return SelectField choices for gear package/image selection."""
+    choices = [('', '-- None --')]
+    if slot_type:
+        for package in list_available_gear_packages(slot_type):
+            badges = []
+            if package['has_m']:
+                badges.append('m')
+            if package['has_f']:
+                badges.append('f')
+            if package['has_shared']:
+                badges.append('shared')
+            badge_text = ', '.join(badges)
+            choices.append((package['key'], f'{package["key"]} [package: {badge_text}]'))
+    for name in list_available_gear_image_keys(slot_type):
+        choices.append((name, f'{name} [legacy flat]'))
+    return choices
 
 
 def build_gear_image_select_choices_by_slot() -> dict[str, list[tuple[str, str]]]:
@@ -426,14 +496,47 @@ def _build_static_gear_path(filename: str, slot_type: str | None = None) -> str:
     return f'{current_app.static_url_path}/gear/{filename}'
 
 
+def _build_static_gear_package_path(slot_type: str, package_key: str, variant: str, filename: str) -> str:
+    return f'{current_app.static_url_path}/gear/{slot_type}/{package_key}/{variant}/{filename}'
+
+
 def _build_static_gear_icon_path(slot_type: str, filename: str) -> str:
     folder_name = GEAR_ICON_FOLDERS.get(slot_type, slot_type)
     return f'{current_app.static_url_path}/gear_icons/{folder_name}/{filename}'
 
 
-def resolve_gear_image_static_path(*, slot_type: str, image_key: str | None = None) -> str:
-    """Return selected gear image path, or the slot placeholder path."""
+def _icon_package_variant_path_exists(slot_type: str, package_key: str, filename: str) -> bool:
+    folder_name = GEAR_ICON_FOLDERS.get(slot_type, slot_type)
+    icon_path = os.path.join(current_app.static_folder, 'gear_icons', folder_name, package_key, filename)
+    return os.path.isfile(icon_path)
+
+
+def _build_static_gear_icon_package_path(slot_type: str, package_key: str, filename: str) -> str:
+    folder_name = GEAR_ICON_FOLDERS.get(slot_type, slot_type)
+    return f'{current_app.static_url_path}/gear_icons/{folder_name}/{package_key}/{filename}'
+
+
+def resolve_gear_image_static_path(
+    *,
+    slot_type: str,
+    image_key: str | None = None,
+    avatar_body_variant: str | None = None,
+) -> str:
+    """Return selected gear image path, or the slot placeholder path.
+
+    Supports package folders (new) and legacy flat filenames (old).
+    """
+    variant = normalize_avatar_body_variant(avatar_body_variant)
     if image_key:
+        if _is_package_directory(slot_type, image_key):
+            variant_order = [variant, 'shared']
+            if variant == 'f':
+                variant_order.append('m')
+            for package_variant in variant_order:
+                for filename in ('front.png', 'preview.png'):
+                    if package_variant_has_layer(slot_type, image_key, package_variant, filename):
+                        return _build_static_gear_package_path(slot_type, image_key, package_variant, filename)
+
         slot_image_path = os.path.join(get_gear_image_slot_directory(slot_type), image_key)
         if os.path.isfile(slot_image_path):
             return _build_static_gear_path(image_key, slot_type)
@@ -445,13 +548,85 @@ def resolve_gear_image_static_path(*, slot_type: str, image_key: str | None = No
     return _build_static_gear_path(get_gear_placeholder_key(slot_type))
 
 
-def resolve_gear_icon_static_path(*, slot_type: str, image_key: str | None = None) -> str:
-    """Return the slot-scoped hub icon path matching the selected asset filename."""
+def resolve_gear_icon_static_path(
+    *,
+    slot_type: str,
+    image_key: str | None = None,
+    avatar_asset_key: str | None = None,
+    avatar_body_variant: str | None = None,
+) -> str:
+    """Return slot-scoped icon path with variant-aware icon fallbacks."""
+    variant = normalize_avatar_body_variant(avatar_body_variant)
+    icon_candidates: list[str] = []
+
+    def _push_icon_candidate(filename: str | None) -> None:
+        cleaned = (filename or '').strip()
+        if not cleaned:
+            return
+        lowered = cleaned.lower()
+        if any(existing.lower() == lowered for existing in icon_candidates):
+            return
+        icon_candidates.append(cleaned)
+
+    image_key_clean = (image_key or '').strip()
+    avatar_asset_key_clean = (avatar_asset_key or '').strip()
+    for key in (image_key_clean, avatar_asset_key_clean):
+        if not key:
+            continue
+        _push_icon_candidate(key)
+        stem, ext = os.path.splitext(key)
+        if ext:
+            _push_icon_candidate(stem)
+        asset_key = stem if stem else key
+        if slot_type == GEAR_SLOT_HEAD:
+            _push_icon_candidate(f'head_{asset_key}a.png')
+            _push_icon_candidate(f'head_{asset_key}.png')
+        elif slot_type == GEAR_SLOT_MAIN_HAND:
+            _push_icon_candidate(f'main_hand_{asset_key}.png')
+        elif slot_type == GEAR_SLOT_OFF_HAND:
+            _push_icon_candidate(f'off_hand_{asset_key}.png')
+        elif slot_type == GEAR_SLOT_CHEST:
+            _push_icon_candidate(f'chest_{asset_key}.png')
+        elif slot_type == GEAR_SLOT_BOOTS:
+            _push_icon_candidate(f'boots_{asset_key}.png')
+        elif slot_type == GEAR_SLOT_POCKET:
+            _push_icon_candidate(f'pocket_{asset_key}.png')
     if image_key:
-        icon_path = os.path.join(get_gear_icon_directory(slot_type), image_key)
+        if _is_package_directory(slot_type, image_key):
+            if variant == 'f':
+                if _icon_package_variant_path_exists(slot_type, image_key, 'f.png'):
+                    return _build_static_gear_icon_package_path(slot_type, image_key, 'f.png')
+                if _icon_package_variant_path_exists(slot_type, image_key, 'm.png'):
+                    return _build_static_gear_icon_package_path(slot_type, image_key, 'm.png')
+            else:
+                if _icon_package_variant_path_exists(slot_type, image_key, 'm.png'):
+                    return _build_static_gear_icon_package_path(slot_type, image_key, 'm.png')
+
+    for icon_name in icon_candidates:
+        icon_path = os.path.join(get_gear_icon_directory(slot_type), icon_name)
         if os.path.isfile(icon_path):
-            return _build_static_gear_icon_path(slot_type, image_key)
-    return resolve_gear_image_static_path(slot_type=slot_type, image_key=image_key)
+            return _build_static_gear_icon_path(slot_type, icon_name)
+
+    if image_key and _is_package_directory(slot_type, image_key):
+        for filename in ('icon.png', 'front.png', 'preview.png'):
+            if package_variant_has_layer(slot_type, image_key, variant, filename):
+                return _build_static_gear_package_path(slot_type, image_key, variant, filename)
+        if package_variant_has_layer(slot_type, image_key, 'shared', 'icon.png'):
+            return _build_static_gear_package_path(slot_type, image_key, 'shared', 'icon.png')
+        if variant == 'f':
+            for fallback_variant in ('m', 'shared'):
+                for filename in ('front.png', 'preview.png'):
+                    if package_variant_has_layer(slot_type, image_key, fallback_variant, filename):
+                        return _build_static_gear_package_path(slot_type, image_key, fallback_variant, filename)
+        else:
+            for filename in ('front.png', 'preview.png'):
+                if package_variant_has_layer(slot_type, image_key, 'm', filename):
+                    return _build_static_gear_package_path(slot_type, image_key, 'm', filename)
+    return resolve_gear_image_static_path(
+        slot_type=slot_type,
+        image_key=image_key,
+        avatar_body_variant=avatar_body_variant,
+    )
 
 
 def list_admin_gear_catalog() -> list:
@@ -466,6 +641,11 @@ def list_admin_gear_catalog() -> list:
 
 def build_admin_gear_item_view(item: GearItemDefinition) -> dict:
     """Return one admin-facing dict for a catalog item."""
+    has_icon_m = False
+    has_icon_f = False
+    if item.image_key and _is_package_directory(item.slot_type, item.image_key):
+        has_icon_m = _icon_package_variant_path_exists(item.slot_type, item.image_key, 'm.png')
+        has_icon_f = _icon_package_variant_path_exists(item.slot_type, item.image_key, 'f.png')
     return {
         'id': item.id,
         'slot_type': item.slot_type,
@@ -476,11 +656,16 @@ def build_admin_gear_item_view(item: GearItemDefinition) -> dict:
         'icon_static_path': resolve_gear_icon_static_path(
             slot_type=item.slot_type,
             image_key=item.image_key,
+            avatar_asset_key=item.avatar_asset_key,
+            avatar_body_variant='m',
         ),
         'image_static_path': resolve_gear_image_static_path(
             slot_type=item.slot_type,
             image_key=item.image_key,
+            avatar_body_variant='m',
         ),
+        'has_icon_m': has_icon_m,
+        'has_icon_f': has_icon_f,
         'diamond_cost': item.diamond_cost,
         'mine_gold_delta': item.mine_gold_delta,
         'steal_gold_delta': item.steal_gold_delta,
@@ -534,8 +719,16 @@ def _validate_gear_catalog_payload(cleaned: dict, *, existing_item_id: str | Non
         raise ValueError('Description is required.')
     if cleaned['slot_type'] not in GEAR_SLOT_TYPES:
         raise ValueError('Invalid gear slot type.')
-    if cleaned['image_key'] is not None and cleaned['image_key'] not in list_available_gear_image_keys(cleaned['slot_type']):
-        raise ValueError('Invalid gear image selection.')
+    if cleaned['image_key'] is not None:
+        allowed_values = {value for value, _label in build_gear_image_select_choices(cleaned['slot_type']) if value}
+        if cleaned['image_key'] not in allowed_values:
+            raise ValueError('Invalid gear image selection.')
+        if not _is_package_directory(cleaned['slot_type'], cleaned['image_key']):
+            raise ValueError('Legacy flat image selections are blocked. Choose a package folder with m and f variants.')
+        if not package_has_variant(cleaned['slot_type'], cleaned['image_key'], 'm'):
+            raise ValueError('Selected package is missing required male (m) assets.')
+        if not package_has_variant(cleaned['slot_type'], cleaned['image_key'], 'f'):
+            raise ValueError('Selected package is missing required female (f) assets.')
     if cleaned['avatar_asset_key'] is not None:
         if len(cleaned['avatar_asset_key']) > 16:
             raise ValueError('Avatar asset key must be 16 characters or fewer.')
@@ -653,6 +846,10 @@ def delete_admin_gear_item(item_id: str) -> dict:
 
 def list_blacksmith_gear_for_player(player_id: int) -> list:
     """Return active, visible, not-owned gear stock for the player."""
+    from app.models.player import Player
+
+    player = db.session.get(Player, player_id)
+    player_variant = getattr(player, 'avatar_body_variant', 'm') if player else 'm'
     owned_item_ids = _owned_item_ids(player_id)
     query = (
         GearItemDefinition.query
@@ -676,16 +873,19 @@ def list_blacksmith_gear_for_player(player_id: int) -> list:
         'icon_static_path': resolve_gear_icon_static_path(
             slot_type=item.slot_type,
             image_key=item.image_key,
+            avatar_asset_key=item.avatar_asset_key,
+            avatar_body_variant=player_variant,
         ),
         'image_static_path': resolve_gear_image_static_path(
             slot_type=item.slot_type,
             image_key=item.image_key,
+            avatar_body_variant=player_variant,
         ),
         'diamond_cost': item.diamond_cost,
         'mine_gold_delta': item.mine_gold_delta,
         'steal_gold_delta': item.steal_gold_delta,
         'shield_duration_delta': item.shield_duration_delta,
-    } for item in items]
+    } for item in items if is_item_variant_compatible_for_player(item, player_variant)]
 
 
 def purchase_blacksmith_gear(*, player_id: int, item_id: str) -> dict:
@@ -753,6 +953,95 @@ def _validate_slot_key(slot_key: str) -> dict:
     return _loadout_slot_map()[attr_name]
 
 
+_LEGACY_KEY_PATTERNS = {
+    GEAR_SLOT_MAIN_HAND: re.compile(r'^main_hand_(?P<key>.+)\.png$', re.IGNORECASE),
+    GEAR_SLOT_OFF_HAND: re.compile(r'^off_hand_(?P<key>.+)\.png$', re.IGNORECASE),
+    GEAR_SLOT_CHEST: re.compile(r'^chest_(?P<key>.+)\.png$', re.IGNORECASE),
+    GEAR_SLOT_BOOTS: re.compile(r'^boots_(?P<key>.+)\.png$', re.IGNORECASE),
+}
+_LEGACY_HEAD_PATTERN = re.compile(r'^head_(?P<key>.+)(?P<part>[ab])\.png$', re.IGNORECASE)
+
+
+def _legacy_visual_key_from_item(item: GearItemDefinition) -> str | None:
+    image_key = (item.image_key or '').strip()
+    if image_key:
+        if item.slot_type == GEAR_SLOT_HEAD:
+            match = _LEGACY_HEAD_PATTERN.match(image_key)
+            if match:
+                return match.group('key')
+        else:
+            pattern = _LEGACY_KEY_PATTERNS.get(item.slot_type)
+            if pattern:
+                match = pattern.match(image_key)
+                if match:
+                    return match.group('key')
+    asset_key = (item.avatar_asset_key or '').strip()
+    return asset_key or None
+
+
+def _legacy_slot_filename_candidates(item: GearItemDefinition) -> list[str]:
+    key = _legacy_visual_key_from_item(item)
+    if not key:
+        return []
+    if item.slot_type == GEAR_SLOT_HEAD:
+        return [f'head_{key}a.png', f'head_{key}b.png']
+    if item.slot_type == GEAR_SLOT_CHEST:
+        return [f'chest_{key}.png', f'chest_{key}a.png']
+    if item.slot_type == GEAR_SLOT_BOOTS:
+        return [f'boots_{key}.png']
+    if item.slot_type == GEAR_SLOT_MAIN_HAND:
+        return [f'main_hand_{key}.png']
+    if item.slot_type == GEAR_SLOT_OFF_HAND:
+        return [f'off_hand_{key}.png']
+    return []
+
+
+def _legacy_asset_exists_for_item(item: GearItemDefinition) -> bool:
+    image_key = (item.image_key or '').strip()
+    if image_key:
+        slot_image_path = os.path.join(get_gear_image_slot_directory(item.slot_type), image_key)
+        if os.path.isfile(slot_image_path):
+            return True
+        legacy_image_path = os.path.join(get_gear_image_directory(), image_key)
+        if os.path.isfile(legacy_image_path):
+            return True
+
+    candidates = _legacy_slot_filename_candidates(item)
+    if not candidates:
+        return False
+
+    if item.slot_type == GEAR_SLOT_HEAD:
+        slot_dir = get_gear_image_slot_directory(item.slot_type)
+        return all(os.path.isfile(os.path.join(slot_dir, name)) for name in candidates)
+
+    slot_dir = get_gear_image_slot_directory(item.slot_type)
+    return any(os.path.isfile(os.path.join(slot_dir, name)) for name in candidates)
+
+
+def is_item_variant_compatible_for_player(item: GearItemDefinition, avatar_body_variant: str | None) -> bool:
+    variant = normalize_avatar_body_variant(avatar_body_variant)
+    if not item.is_active:
+        return False
+
+    image_key = (item.image_key or '').strip()
+    avatar_asset_key = (item.avatar_asset_key or '').strip()
+    if image_key and _is_package_directory(item.slot_type, image_key):
+        if package_has_variant(item.slot_type, image_key, variant):
+            return True
+        if package_has_variant(item.slot_type, image_key, 'shared'):
+            return True
+        return False
+
+    # Keep gameplay compatibility for catalog items that intentionally have no
+    # bound avatar art yet; UI will render placeholders.
+    if not image_key and not avatar_asset_key:
+        return True
+
+    if variant == 'm':
+        return _legacy_asset_exists_for_item(item)
+    return False
+
+
 def equip_player_gear_item(*, player_id: int, item_id: str, slot_key: str) -> dict:
     """Equip one owned active item into a validated loadout slot."""
     slot_meta = _validate_slot_key(slot_key)
@@ -764,6 +1053,11 @@ def equip_player_gear_item(*, player_id: int, item_id: str, slot_key: str) -> di
         raise ValueError('Gear item not found.')
     if not item.is_active:
         raise ValueError('That gear item is not currently available.')
+    from app.models.player import Player
+    player = db.session.get(Player, player_id)
+    player_variant = getattr(player, 'avatar_body_variant', 'm') if player else 'm'
+    if not is_item_variant_compatible_for_player(item, player_variant):
+        raise ValueError('That gear item has no compatible assets for your character body.')
     if item_id not in _owned_item_ids(player_id):
         raise ValueError('You do not own that gear item.')
     if item.slot_type != slot_meta['expected_slot']:
@@ -824,6 +1118,10 @@ def build_player_gear_hub_view(
     and frozen runtime snapshot data are separate concepts and are not exposed
     through this helper.
     """
+    from app.models.player import Player
+
+    player = db.session.get(Player, player_id)
+    player_variant = getattr(player, 'avatar_body_variant', 'm') if player else 'm'
     state = normalize_player_gear_loadout(player_id)
     loadout = state['loadout']
     slot_map = _loadout_slot_map()
@@ -843,6 +1141,8 @@ def build_player_gear_hub_view(
 
     owned_by_slot = {slot: [] for slot in GEAR_SLOT_ORDER}
     for item in owned_rows:
+        if not is_item_variant_compatible_for_player(item, player_variant):
+            continue
         equipped_meta = equipped_lookup.get(item.id)
         item_view = {
             'id': item.id,
@@ -855,10 +1155,13 @@ def build_player_gear_hub_view(
             'icon_static_path': resolve_gear_icon_static_path(
                 slot_type=item.slot_type,
                 image_key=item.image_key,
+                avatar_asset_key=item.avatar_asset_key,
+                avatar_body_variant=player_variant,
             ),
             'image_static_path': resolve_gear_image_static_path(
                 slot_type=item.slot_type,
                 image_key=item.image_key,
+                avatar_body_variant=player_variant,
             ),
             'mine_gold_delta': item.mine_gold_delta,
             'steal_gold_delta': item.steal_gold_delta,
@@ -940,7 +1243,7 @@ def build_player_gear_hub_view(
     for attr_name, label, expected_slot in LOADOUT_SLOTS:
         item_id = getattr(loadout, attr_name)
         item = db.session.get(GearItemDefinition, item_id) if item_id else None
-        item_view = None if item is None else {
+        item_view = None if (item is None or not is_item_variant_compatible_for_player(item, player_variant)) else {
             'id': item.id,
             'slot_type': item.slot_type,
             'name': item.name,
@@ -950,10 +1253,13 @@ def build_player_gear_hub_view(
             'icon_static_path': resolve_gear_icon_static_path(
                 slot_type=item.slot_type,
                 image_key=item.image_key,
+                avatar_asset_key=item.avatar_asset_key,
+                avatar_body_variant=player_variant,
             ),
             'image_static_path': resolve_gear_image_static_path(
                 slot_type=item.slot_type,
                 image_key=item.image_key,
+                avatar_body_variant=player_variant,
             ),
             'mine_gold_delta': item.mine_gold_delta,
             'steal_gold_delta': item.steal_gold_delta,

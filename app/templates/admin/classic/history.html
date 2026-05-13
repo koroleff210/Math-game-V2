@@ -9,7 +9,7 @@
 <!-- Archive visibility toggle -->
 <p style="margin-bottom:16px;">
 {% if include_archived %}
-    <strong>Showing active and archived rounds.</strong>
+    <strong>Showing visible and archived history records.</strong>
     <a href="{{ url_for('classic_admin.history', session_id=game_session.id) }}"
        style="margin-left:12px;">Hide archived</a>
 {% else %}
@@ -181,6 +181,14 @@
     <!-- Admin controls: Archive / Unarchive / Delete -->
     <div style="margin-top:18px; padding-top:14px; border-top:1px solid #dee2e6;
                 display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+        {% set analytics_round = analytics_by_round_id.get(rh.round_id) if analytics_by_round_id else none %}
+        {% if analytics_round %}
+        <a href="{{ url_for('admin.analytics_round_detail', analytics_round_id=analytics_round.id) }}"
+           style="font-size:0.88em;">
+            View analytics detail
+        </a>
+        {% endif %}
+
         {% if rh.archived_at %}
         <form method="post"
               action="{{ url_for('admin.history_round_unarchive', rh_id=rh.id) }}"

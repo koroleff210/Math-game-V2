@@ -90,6 +90,9 @@ def _setup_db():
     with flask_app.app_context():
         db.create_all()
         player = _make_player('__gear6c_player__')
+        # Step 6C assertions target the normal Hub gear shell, not first-time
+        # character setup; lock character to bypass setup gating.
+        player.character_locked_at = player.created_at
 
         _make_item(
             'iron_pick',
@@ -149,7 +152,7 @@ def test_partial_shell_endpoint_and_hub_markup():
         check('G6C-07: selected item details still show correct image/description/effects/actions',
               'Shield duration: +2s' in html and 'action="/player/gear/equip"' in html and 'src="/static/gear/' in html)
         check('G6C-06: filter context remains stable while using partial selection',
-              'class="filter-tab active"' in html and 'Head (1)' in html)
+              'class="filter-tab active"' in html and 'Headgear (1)' in html)
 
         r = client.get('/player/gear/shell?gear_filter=head&selected_item=storm_shield')
         html = r.get_data(as_text=True)
@@ -172,7 +175,7 @@ def test_partial_shell_endpoint_and_hub_markup():
         check('G6C-08: equipped markers remain correct after partial selection changes',
               'data-gear-loadout-slot="main_hand"' in hub_html
               and 'data-gear-loadout-slot="off_hand"' in hub_html
-              and 'class="status-badge">Equipped in' in hub_html)
+              and 'Equipped in' in hub_html)
 
 
 def test_routes_and_runtime_guard():

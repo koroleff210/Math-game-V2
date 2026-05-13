@@ -479,6 +479,7 @@
     justify-content: center;
     gap: 8px;
     width: 100%;
+    min-height: 40px;
     padding: 6px 8px;
     border-radius: 12px;
     background: rgba(244, 236, 223, 0.62);
@@ -493,6 +494,17 @@
     font-size: 0.88rem;
     line-height: 1.2;
     letter-spacing: 0.01em;
+  }
+  .avatar-face-label.is-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    border: 0;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
   }
   .avatar-face-controls form {
     flex: 0 0 auto;
@@ -1841,6 +1853,16 @@
         '[data-avatar-layer-region="face"]',
         '[data-avatar-face-label-region]',
         '[data-gear-face-controls-region]'
+      ];
+    }
+
+    if (action.indexOf('/player/avatar/body') !== -1) {
+      return [
+        '[data-gear-shell-message-region]',
+        '[data-gear-avatar-composite-region]',
+        '[data-gear-body-controls-region]',
+        '[data-gear-face-controls-region]',
+        '[data-gear-character-confirm-region]'
       ];
     }
 

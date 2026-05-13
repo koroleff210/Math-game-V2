@@ -48,9 +48,18 @@ def create_app(config_class=Config):
     register_all_handlers(socketio)
 
     # ── Register maintenance CLI commands ─────────────────────────────────────
-    from app.cli.maintenance import pilot_reset_command, fresh_start_command
+    from app.cli.maintenance import (
+        pilot_reset_command,
+        fresh_start_command,
+        migrate_gear_assets_command,
+        audit_legacy_gear_keys_command,
+        migrate_gear_image_keys_to_packages_command,
+    )
     flask_app.cli.add_command(pilot_reset_command)
     flask_app.cli.add_command(fresh_start_command)
+    flask_app.cli.add_command(migrate_gear_assets_command)
+    flask_app.cli.add_command(audit_legacy_gear_keys_command)
+    flask_app.cli.add_command(migrate_gear_image_keys_to_packages_command)
 
     return flask_app
 

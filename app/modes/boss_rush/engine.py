@@ -144,8 +144,12 @@ def ability_interval_enabled(config):
     return bool(getattr(config, 'ability_enabled', True)) and int(getattr(config, 'ability_interval_seconds', 60) or 0) > 0
 
 
+def is_ability_frozen(battle_state):
+    return bool(getattr(battle_state, 'ability_frozen', False))
+
+
 def schedule_next_ability(battle_state, config, *, now=None):
-    if not ability_interval_enabled(config):
+    if not ability_interval_enabled(config) or is_ability_frozen(battle_state):
         battle_state.next_ability_at = None
         return None
     now = now or _utcnow()
@@ -524,6 +528,10 @@ def trigger_boss_ability(game_round, config, battle_state):
         battle_state.last_ability_summary_json = _ability_summary(config, 'Boss abilities are inactive.')
         battle_state.next_ability_at = None
         return {'triggered': False, 'summary': battle_state.last_ability_summary_json}
+    if is_ability_frozen(battle_state):
+        battle_state.last_ability_summary_json = _ability_summary(config, 'Ability frozen.')
+        battle_state.next_ability_at = None
+        return {'triggered': False, 'summary': battle_state.last_ability_summary_json}
     if battle_state.is_defeated or battle_state.status in (BOSS_RUSH_STATUS_DEFEATED, BOSS_RUSH_STATUS_ENDED):
         return {'triggered': False, 'summary': battle_state.last_ability_summary_json}
 
@@ -547,6 +555,18 @@ def trigger_boss_ability(game_round, config, battle_state):
         summary = _apply_time_wraith_ability(config, battle_state, states)
     else:
         summary = _ability_summary(config, 'This boss has no tactical ability yet.')
+
+    problem_refresh_player_ids = []
+    if config.boss_type in ('air_elemental', 'mirror_phantom'):
+        for state in states:
+            before = state_snapshots_before.get(state.player_id) or {}
+            if (
+                before.get('current_problem_kind') == BOSS_RUSH_ATTEMPT_ATTACK
+                and before.get('current_problem_id') != _state_effect_snapshot(state).get('current_problem_id')
+            ):
+                problem_refresh_player_ids.append(int(state.player_id))
+    if isinstance(summary, dict):
+        summary['problem_refresh_player_ids'] = sorted(set(problem_refresh_player_ids))
 
     now = _utcnow()
     battle_state.last_ability_at = now
@@ -634,6 +654,9 @@ def process_due_ability(game_round, config, battle_state, *, now=None):
     """Opportunistic persisted timer hook. No background worker is required."""
     now = now or _utcnow()
     if not ability_interval_enabled(config):
+        battle_state.next_ability_at = None
+        return {'triggered': False, 'summary': battle_state.last_ability_summary_json}
+    if is_ability_frozen(battle_state):
         battle_state.next_ability_at = None
         return {'triggered': False, 'summary': battle_state.last_ability_summary_json}
     if battle_state.status != BOSS_RUSH_STATUS_ACTIVE or battle_state.is_defeated:
@@ -1032,9 +1055,14 @@ def _ability_state_payload(config, battle_state):
     seconds_remaining = None
     if enabled and next_at:
         seconds_remaining = max(0, int((next_at - now).total_seconds()))
+    frozen = is_ability_frozen(battle_state)
+    if frozen:
+        next_at = None
+        seconds_remaining = None
     entry = boss_ability_entry(config.boss_type)
     return {
-        'enabled': enabled,
+        'enabled': bool(enabled and not frozen),
+        'frozen': frozen,
         'name': entry['name'],
         'hint': entry['hint'],
         'summary': entry['summary'],
@@ -1051,6 +1079,8 @@ def _ability_state_payload(config, battle_state):
 
 
 def _serialize_player_state_for_live(state, config, battle_state, rank):
+    recent_event = battle_state.last_ability_summary_json or {}
+    refresh_ids = set(recent_event.get('problem_refresh_player_ids') or [])
     return {
         'rank': rank,
         'player_id': state.player_id,
@@ -1070,6 +1100,7 @@ def _serialize_player_state_for_live(state, config, battle_state, rank):
         'active_bonuses': _active_bonuses_for_state(state, config),
         'submitted_since_last_ability': bool(state.submitted_since_last_ability),
         'fire_shield_stacks': int(state.fire_shield_stacks or 0),
+        'problem_refresh_required': int(state.player_id) in refresh_ids,
     }
 
 

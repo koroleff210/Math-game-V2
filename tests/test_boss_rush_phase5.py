@@ -17,8 +17,10 @@ from app.models.problems import Problem, ProblemSet, Topic
 from app.modes.boss_rush.engine import (
     build_live_state_payload,
     get_current_problem,
+    is_ability_frozen,
     initialize_player_state,
     process_due_ability,
+    schedule_next_ability,
     submit_current_answer,
     trigger_boss_ability,
 )
@@ -146,6 +148,16 @@ def run_tests():
         check('BR5-01: ability schedule triggers when due', result['triggered'] and ctx['battle'].ability_count == 1 and ctx['battle'].next_ability_at is not None)
 
         ctx = _setup_battle()
+        ctx['battle'].ability_frozen = True
+        ctx['battle'].next_ability_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+        result = process_due_ability(ctx['round'], ctx['config'], ctx['battle'])
+        check('BR5-01b: frozen ability prevents due trigger', not result['triggered'] and ctx['battle'].ability_count == 0 and ctx['battle'].next_ability_at is None and is_ability_frozen(ctx['battle']))
+
+        ctx['battle'].ability_frozen = False
+        schedule_next_ability(ctx['battle'], ctx['config'], now=datetime.now(timezone.utc))
+        check('BR5-01c: resume ability resets next timer from now', ctx['battle'].next_ability_at is not None and ctx['battle'].next_ability_at > datetime.now(timezone.utc))
+
+        ctx = _setup_battle()
         ctx['config'].ability_enabled = False
         ctx['battle'].next_ability_at = datetime.now(timezone.utc) - timedelta(seconds=1)
         result = process_due_ability(ctx['round'], ctx['config'], ctx['battle'])
@@ -197,6 +209,9 @@ def run_tests():
         recovery_problem_id = recovery_state.current_problem_id
         trigger_boss_ability(ctx['round'], ctx['config'], ctx['battle'])
         check('BR5-11: Air shuffle skips recovery players', recovery_state.current_problem_id == recovery_problem_id)
+        payload = build_live_state_payload(ctx['session'], ctx['round'], ctx['config'], ctx['battle'])
+        rows = {row['player_id']: row for row in payload['leaderboard']}
+        check('BR5-11b: Wind Shuffle marks only affected attack players for refresh', rows[state.player_id]['problem_refresh_required'] and not rows[recovery_state.player_id]['problem_refresh_required'])
 
         ctx = _setup_battle(boss_type='mirror_phantom')
         state = ctx['states'][0]
@@ -233,6 +248,7 @@ def run_tests():
 
         payload = build_live_state_payload(ctx['session'], ctx['round'], ctx['config'], ctx['battle'])
         check('BR5-17: ability state and active bonuses appear in payload', 'ability' in payload and 'active_bonuses' in payload['leaderboard'][0])
+        check('BR5-18: ability payload exposes frozen status', 'frozen' in payload['ability'])
 
 
 if __name__ == '__main__':

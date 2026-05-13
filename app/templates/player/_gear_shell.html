@@ -24,8 +24,9 @@
         {% include 'player/_avatar_preview.html' %}
       </div>
 
-      <form method="POST" action="{{ url_for('player.avatar_confirm') }}" class="character-confirm-form">
+      <form method="POST" action="{{ url_for('player.avatar_confirm') }}" class="character-confirm-form" data-gear-character-confirm-region>
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="avatar_body_variant" value="{{ avatar_body_variant }}">
         <button type="submit" class="btn btn-success">Confirm Character</button>
       </form>
     </div>

@@ -152,14 +152,14 @@ def test_avatar_service_layer_order():
         )
         check(
             'AV-02: avatar uses resolved static/gear filenames for equipped gear and default face',
-            paths[0].endswith('/gear/head/head_003b.png')
-            and paths[1].endswith('/gear/chest/chest_002a.png')
-            and paths[3].endswith('/gear/boots/body_lower.png')
-            and paths[4].endswith('/gear/main_hand/main_hand_005.png')
-            and paths[5].endswith('/gear/chest/chest_002.png')
+            paths[0].endswith('/gear/head/003/m/back.png')
+            and paths[1].endswith('/gear/chest/002/m/underlay.png')
+            and paths[3].endswith('/avatars/bodies/m/body_lower.png')
+            and paths[4].endswith('/gear/main_hand/005/m/front.png')
+            and paths[5].endswith('/gear/chest/002/m/front.png')
             and paths[6].endswith('/gear/face/face_001.png')
-            and paths[7].endswith('/gear/head/head_003a.png')
-            and paths[8].endswith('/gear/off_hand/off_hand_006.png'),
+            and paths[7].endswith('/gear/head/003/m/front.png')
+            and paths[8].endswith('/gear/off_hand/006/m/front.png'),
         )
 
         loadout.boots_item_id = 'ranger_boots'
@@ -169,7 +169,7 @@ def test_avatar_service_layer_order():
         paths = [layer['static_path'] for layer in avatar['layers']]
         check(
             'AV-03: body lower hides when boots gear is equipped',
-            'body-lower' not in labels and 'boots' in labels and any(path.endswith('/gear/boots/boots_004.png') for path in paths),
+            'body-lower' not in labels and 'boots' in labels and any(path.endswith('/gear/boots/004/m/front.png') for path in paths),
         )
 
         loadout.off_hand_item_id = None
@@ -178,7 +178,7 @@ def test_avatar_service_layer_order():
         paths = [layer['static_path'] for layer in avatar['layers']]
         check(
             'AV-04: off-hand base renders when no off-hand gear is equipped',
-            paths[-1].endswith('/gear/off_hand/off_hand_base.png'),
+            paths[-1].endswith('/avatars/bodies/m/off_hand_base.png'),
         )
 
 
@@ -288,7 +288,7 @@ def test_hub_shell_avatar_and_face_actions():
         html = r.get_data(as_text=True)
         check(
             'AV-08: equipping an item updates the avatar preview visually',
-            r.status_code == 200 and '/gear/boots/boots_004.png' in html and '/gear/boots/body_lower.png' not in html,
+            r.status_code == 200 and '/gear/boots/004/m/front.png' in html and '/avatars/bodies/m/body_lower.png' not in html,
         )
         check(
             'AV-09: selected-item panel still works after equip',
@@ -308,7 +308,7 @@ def test_hub_shell_avatar_and_face_actions():
         html = r.get_data(as_text=True)
         check(
             'AV-10: unequipping updates the avatar preview visually',
-            r.status_code == 200 and '/gear/off_hand/off_hand_base.png' in html and '/gear/off_hand/off_hand_006.png' not in html,
+            r.status_code == 200 and '/avatars/bodies/m/off_hand_base.png' in html and '/gear/off_hand/006/m/front.png' not in html,
         )
         check(
             'AV-11: equipped inventory markers remain coherent after avatar-driven shell updates',
