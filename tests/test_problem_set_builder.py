@@ -28,6 +28,8 @@ from app.models.problems import (
     Topic,
     PROBLEM_ANSWER_TYPE_MULTIPLE_CHOICE,
     PROBLEM_ANSWER_TYPE_TEXT_INPUT,
+    PROBLEM_CONTENT_KIND_DEFINITION,
+    PROBLEM_CONTENT_KIND_PROBLEM,
     PROBLEM_BLOCK_TYPE_GRAPH,
     PROBLEM_BLOCK_TYPE_IMAGE,
     PROBLEM_BLOCK_TYPE_RICH_TEXT,
@@ -75,13 +77,14 @@ def _login(client, username, password='pass1234'):
     return client.post('/login', data={'username': username, 'password': password}, follow_redirects=True)
 
 
-def _make_problem(topic, title, *, answer_type, difficulty, prompt, answers=None, options=None, graph=False, image_path=None, source_meta=None):
+def _make_problem(topic, title, *, answer_type, difficulty, prompt, answers=None, options=None, graph=False, image_path=None, source_meta=None, content_kind=PROBLEM_CONTENT_KIND_PROBLEM):
     problem = Problem(
         topic_id=topic.id,
         title=title,
         prompt_text=prompt,
         answer_text=(answers or [''])[0],
         answer_type=answer_type,
+        content_kind=content_kind,
         difficulty=difficulty,
     )
     db.session.add(problem)
@@ -198,6 +201,15 @@ def _setup_db():
             prompt='What unit measures speed?',
             answers=['meters per second'],
         )
+        math_definition = _make_problem(
+            algebra,
+            'Math Definition D',
+            answer_type=PROBLEM_ANSWER_TYPE_TEXT_INPUT,
+            difficulty=2,
+            prompt='Definition of a variable.',
+            answers=['A symbol representing a quantity'],
+            content_kind=PROBLEM_CONTENT_KIND_DEFINITION,
+        )
 
         pset = ProblemSet(name='Builder Set', description='Builder test set')
         db.session.add(pset)
@@ -215,6 +227,7 @@ def _setup_db():
             'math_mc_id': math_mc.id,
             'graph_text_id': graph_text.id,
             'science_text_id': science_text.id,
+            'math_definition_id': math_definition.id,
         }
 
 
@@ -250,6 +263,15 @@ def run_tests():
             and "inlineMath: [['$', '$'], ['\\\\(', '\\\\)']]" in html
             and 'cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js' in html,
         )
+        with flask_app.app_context():
+            kinds = {row.id: row.content_kind for row in Problem.query.order_by(Problem.id).all()}
+            check(
+                'PSB-01e: new test problems default to content_kind=problem unless explicitly definition',
+                kinds[ids['math_text_id']] == PROBLEM_CONTENT_KIND_PROBLEM
+                and kinds[ids['graph_text_id']] == PROBLEM_CONTENT_KIND_PROBLEM
+                and kinds[ids['science_text_id']] == PROBLEM_CONTENT_KIND_PROBLEM
+                and kinds[ids['math_definition_id']] == PROBLEM_CONTENT_KIND_DEFINITION,
+            )
 
         r = client.get(
             f'/admin/sets/{ids["set_id"]}?subject_id={ids["subject_math_id"]}&topic_id={ids["topic_algebra_id"]}&difficulty=2&answer_type=text_input'
@@ -258,10 +280,27 @@ def run_tests():
         check(
             'PSB-02: filtering by subject/topic/difficulty/type narrows available problems',
             'Math Text A' in html
+            and 'Math Definition D' in html
             and 'Math MC A' in html  # right column member
             and 'Science Text C' not in html
             and 'Graph Text B' not in html
             and 'class="set-builder-topic-list"' in html,
+        )
+        r = client.get(
+            f'/admin/sets/{ids["set_id"]}?subject_id={ids["subject_math_id"]}&topic_id={ids["topic_algebra_id"]}&difficulty=2&answer_type=text_input&content_kind=problem'
+        )
+        html = r.get_data(as_text=True)
+        check(
+            'PSB-02b: Problems content-kind filter excludes definitions',
+            'Math Text A' in html and 'Math Definition D' not in html,
+        )
+        r = client.get(
+            f'/admin/sets/{ids["set_id"]}?subject_id={ids["subject_math_id"]}&topic_id={ids["topic_algebra_id"]}&difficulty=2&answer_type=text_input&content_kind=definition'
+        )
+        html = r.get_data(as_text=True)
+        check(
+            'PSB-02c: Definitions content-kind filter excludes normal problems',
+            'Math Definition D' in html and 'Math Text A' not in html and 'Math MC A' in html,
         )
 
         r = client.get(
@@ -333,6 +372,7 @@ def run_tests():
                 'topic_id': ids['topic_algebra_id'],
                 'difficulty': 2,
                 'answer_type': 'text_input',
+                'content_kind': 'problem',
                 'preview_problem_id': ids['math_text_id'],
             },
             follow_redirects=False,
@@ -350,7 +390,7 @@ def run_tests():
             check('PSB-06: add action updates actual set membership immediately', ids['math_text_id'] in member_ids)
 
         r = client.get(
-            f'/admin/sets/{ids["set_id"]}?subject_id={ids["subject_math_id"]}&topic_id={ids["topic_algebra_id"]}&difficulty=2&answer_type=text_input'
+            f'/admin/sets/{ids["set_id"]}?subject_id={ids["subject_math_id"]}&topic_id={ids["topic_algebra_id"]}&difficulty=2&answer_type=text_input&content_kind=problem'
         )
         html = r.get_data(as_text=True)
         check(
@@ -365,6 +405,7 @@ def run_tests():
                 'topic_id': ids['topic_algebra_id'],
                 'difficulty': 2,
                 'answer_type': 'text_input',
+                'content_kind': 'problem',
             },
             follow_redirects=False,
         )
@@ -380,7 +421,7 @@ def run_tests():
             check('PSB-09: remove action updates actual set membership immediately', ids['math_text_id'] not in member_ids)
 
         r = client.get(
-            f'/admin/sets/{ids["set_id"]}?subject_id={ids["subject_math_id"]}&topic_id={ids["topic_algebra_id"]}&difficulty=2&answer_type=text_input'
+            f'/admin/sets/{ids["set_id"]}?subject_id={ids["subject_math_id"]}&topic_id={ids["topic_algebra_id"]}&difficulty=2&answer_type=text_input&content_kind=problem'
         )
         html = r.get_data(as_text=True)
         check(

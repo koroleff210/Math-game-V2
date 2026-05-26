@@ -12,6 +12,9 @@ from app.extensions import db
 PROBLEM_ANSWER_TYPE_TEXT_INPUT = 'text_input'
 PROBLEM_ANSWER_TYPE_MULTIPLE_CHOICE = 'multiple_choice'
 
+PROBLEM_CONTENT_KIND_PROBLEM = 'problem'
+PROBLEM_CONTENT_KIND_DEFINITION = 'definition'
+
 PROBLEM_BLOCK_TYPE_RICH_TEXT = 'rich_text'
 PROBLEM_BLOCK_TYPE_IMAGE = 'image'
 PROBLEM_BLOCK_TYPE_GRAPH = 'graph'
@@ -77,6 +80,11 @@ class Problem(db.Model):
         db.String(32),
         nullable=False,
         default=PROBLEM_ANSWER_TYPE_TEXT_INPUT,
+    )
+    content_kind = db.Column(
+        db.String(32),
+        nullable=False,
+        default=PROBLEM_CONTENT_KIND_PROBLEM,
     )
 
     # difficulty: integer 1 (easy) to 5 (hard) — used later for scoring rules.

@@ -41,6 +41,8 @@ from app.models.problems import (
     ProblemSet,
     PROBLEM_ANSWER_TYPE_MULTIPLE_CHOICE,
     PROBLEM_ANSWER_TYPE_TEXT_INPUT,
+    PROBLEM_CONTENT_KIND_DEFINITION,
+    PROBLEM_CONTENT_KIND_PROBLEM,
 )
 from app.models.game import GameSession
 from app.models.groups import PlayerGroup
@@ -110,6 +112,17 @@ from app.models.progression import PlayerProgression, DiamondTransaction
 
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
+
+CONTENT_KIND_CHOICES = [
+    (PROBLEM_CONTENT_KIND_PROBLEM, 'Problem'),
+    (PROBLEM_CONTENT_KIND_DEFINITION, 'Definition'),
+]
+
+BUILDER_CONTENT_KIND_CHOICES = [
+    ('all', 'All'),
+    (PROBLEM_CONTENT_KIND_PROBLEM, 'Problems'),
+    (PROBLEM_CONTENT_KIND_DEFINITION, 'Definitions'),
+]
 
 # Shorthand: both decorators are always used together on every admin route.
 # Applied bottom-up: login_required runs first, then admin_required.
@@ -352,7 +365,9 @@ def _build_problem_editor_create_context(*, subject_helper_value: int):
         'title_value': request.form.get('title', ''),
         'difficulty_value': request.form.get('difficulty', type=int) or 1,
         'answer_type_value': request.form.get('answer_type', 'text_input'),
+        'content_kind_value': request.form.get('content_kind', PROBLEM_CONTENT_KIND_PROBLEM),
         'answer_type_choices': ANSWER_TYPE_CHOICES,
+        'content_kind_choices': CONTENT_KIND_CHOICES,
         'block_type_choices': EDITOR_BLOCK_TYPE_CHOICES,
         'graph_color_palette': GRAPH_COLOR_PALETTE,
         'graph_color_palette_values': {row['value'] for row in GRAPH_COLOR_PALETTE},
@@ -385,6 +400,7 @@ def problem_new():
         err = _validate_topic_subject(subject_helper, topic)
         title = (request.form.get('title') or '').strip()
         answer_type = (request.form.get('answer_type') or 'text_input').strip()
+        content_kind = (request.form.get('content_kind') or PROBLEM_CONTENT_KIND_PROBLEM).strip()
         difficulty = request.form.get('difficulty', type=int) or 1
         if err:
             flash(err, 'error')
@@ -394,6 +410,8 @@ def problem_new():
             flash('Topic is required.', 'error')
         elif answer_type not in {PROBLEM_ANSWER_TYPE_TEXT_INPUT, PROBLEM_ANSWER_TYPE_MULTIPLE_CHOICE}:
             flash('Unsupported answer type.', 'error')
+        elif content_kind not in {PROBLEM_CONTENT_KIND_PROBLEM, PROBLEM_CONTENT_KIND_DEFINITION}:
+            flash('Unsupported content kind.', 'error')
         else:
             problem = Problem(
                 topic_id=topic_id,
@@ -401,6 +419,7 @@ def problem_new():
                 prompt_text='',
                 answer_text='',
                 answer_type=answer_type,
+                content_kind=content_kind,
                 difficulty=difficulty,
                 image_path=None,
             )
@@ -471,6 +490,7 @@ def _build_problem_content_context(problem):
         'body_view': body_view,
         'choice_view': choice_view,
         'answer_type_choices': ANSWER_TYPE_CHOICES,
+        'content_kind_choices': CONTENT_KIND_CHOICES,
         'block_type_choices': EDITOR_BLOCK_TYPE_CHOICES,
         'subjects': _subject_choices_for_problem(),
         'topic_choices': _problem_editor_topic_choices(),
@@ -479,6 +499,7 @@ def _build_problem_content_context(problem):
         'title_value': problem.title,
         'difficulty_value': problem.difficulty,
         'answer_type_value': problem.answer_type,
+        'content_kind_value': problem.content_kind,
         'accepted_answers_text': accepted_answers_text,
         'graph_editor_views': graph_editor_views,
         'graph_color_palette': GRAPH_COLOR_PALETTE,
@@ -523,11 +544,15 @@ def problem_content(problem_id):
             selected_answer_type = (request.form.get('answer_type') or '').strip() or 'text_input'
             if selected_answer_type not in {'text_input', 'multiple_choice'}:
                 raise ValueError('Unsupported answer type.')
+            selected_content_kind = (request.form.get('content_kind') or '').strip() or PROBLEM_CONTENT_KIND_PROBLEM
+            if selected_content_kind not in {PROBLEM_CONTENT_KIND_PROBLEM, PROBLEM_CONTENT_KIND_DEFINITION}:
+                raise ValueError('Unsupported content kind.')
 
             if selected_answer_type == 'multiple_choice' and not problem.choice_options:
                 ensure_problem_default_choice_options(problem, count=4)
 
             problem.answer_type = selected_answer_type
+            problem.content_kind = selected_content_kind
             if selected_answer_type == 'text_input':
                 answer_lines = (request.form.get('accepted_answers_text') or '').splitlines()
                 replace_problem_accepted_answers(problem, answer_lines)
@@ -803,6 +828,9 @@ def _parse_problem_set_builder_filters(source):
         PROBLEM_ANSWER_TYPE_MULTIPLE_CHOICE,
     }:
         raw_answer_type = PROBLEM_ANSWER_TYPE_TEXT_INPUT
+    raw_content_kind = (source.get('content_kind') or 'all').strip()
+    if raw_content_kind not in {'all', PROBLEM_CONTENT_KIND_PROBLEM, PROBLEM_CONTENT_KIND_DEFINITION}:
+        raw_content_kind = 'all'
     preview_problem_id = source.get('preview_problem_id', type=int)
     topic_ids = [
         topic_id
@@ -815,6 +843,7 @@ def _parse_problem_set_builder_filters(source):
         'topic_ids': unique_topic_ids,
         'difficulty': difficulty,
         'answer_type': raw_answer_type,
+        'content_kind': raw_content_kind,
         'preview_problem_id': preview_problem_id,
     }
 
@@ -825,6 +854,7 @@ def _problem_set_builder_query_items(filter_state, *, preview_problem_id=None):
     subject_id = filter_state.get('subject_id') or 0
     difficulty = filter_state.get('difficulty') or 0
     answer_type = filter_state.get('answer_type') or PROBLEM_ANSWER_TYPE_TEXT_INPUT
+    content_kind = filter_state.get('content_kind') or 'all'
     if subject_id:
         items.append(('subject_id', subject_id))
     for topic_id in filter_state.get('topic_ids', []):
@@ -833,6 +863,8 @@ def _problem_set_builder_query_items(filter_state, *, preview_problem_id=None):
         items.append(('difficulty', difficulty))
     if answer_type:
         items.append(('answer_type', answer_type))
+    if content_kind and content_kind != 'all':
+        items.append(('content_kind', content_kind))
     if preview_id:
         items.append(('preview_problem_id', preview_id))
     return items
@@ -911,6 +943,7 @@ def _problem_builder_row(problem, filter_state, set_id):
         'prompt_excerpt': _problem_builder_prompt_excerpt(body_view),
         'image_count': image_count,
         'option_status': _problem_builder_option_status(problem),
+        'content_kind_label': 'Definition' if problem.content_kind == PROBLEM_CONTENT_KIND_DEFINITION else 'Problem',
     }
 
 
@@ -931,6 +964,7 @@ def _build_problem_set_preview_context(preview_problem):
             'difficulty': preview_problem.difficulty,
             'level': _problem_builder_metadata_value(preview_problem, 'level'),
             'answer_type': 'Multiple choice' if preview_problem.answer_type == PROBLEM_ANSWER_TYPE_MULTIPLE_CHOICE else 'Text input',
+            'content_kind': 'Definition' if preview_problem.content_kind == PROBLEM_CONTENT_KIND_DEFINITION else 'Problem',
             'image_count': sum(1 for block in preview_body_blocks if block.get('type') == 'image'),
             'option_status': _problem_builder_option_status(preview_problem),
         }
@@ -964,6 +998,8 @@ def _build_problem_set_detail_context(pset, filter_state):
         ]
 
     query = Problem.query.filter(Problem.answer_type == filter_state['answer_type'])
+    if filter_state['content_kind'] != 'all':
+        query = query.filter(Problem.content_kind == filter_state['content_kind'])
     if filter_state['subject_id']:
         query = query.join(Topic, Problem.topic_id == Topic.id).filter(Topic.subject_id == filter_state['subject_id'])
         if valid_topic_ids:
@@ -997,6 +1033,8 @@ def _build_problem_set_detail_context(pset, filter_state):
         'selected_topic_ids': valid_topic_ids,
         'selected_difficulty': filter_state['difficulty'],
         'selected_answer_type': filter_state['answer_type'],
+        'selected_content_kind': filter_state['content_kind'],
+        'content_kind_choices': BUILDER_CONTENT_KIND_CHOICES,
         'filter_state': {
             **filter_state,
             'topic_ids': valid_topic_ids,

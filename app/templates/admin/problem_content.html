@@ -349,6 +349,15 @@
       </label>
       {% endfor %}
     </div>
+    <div class="problem-answer-mode-row" style="margin-top:10px;">
+      <strong>Content Kind</strong>
+      {% for value, label in content_kind_choices %}
+      <label>
+        <input class="admin-choice-input" id="content_kind_{{ value }}" type="radio" name="content_kind" value="{{ value }}" {% if content_kind_value == value %}checked{% endif %}>
+        <span class="admin-choice-pill">{{ label }}</span>
+      </label>
+      {% endfor %}
+    </div>
   </div>
 
   {% if create_mode %}

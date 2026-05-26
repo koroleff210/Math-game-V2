@@ -46,6 +46,7 @@
                     <th>Topic</th>
                     <th>Difficulty</th>
                     <th>Answer Type</th>
+                    <th>Content Kind</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -58,6 +59,7 @@
                     <td>{{ p.topic.name }}</td>
                     <td>{{ p.difficulty }}</td>
                     <td>{{ p.answer_type }}</td>
+                    <td>{{ 'Definition' if p.content_kind == 'definition' else 'Problem' }}</td>
                     <td>
                         <div class="admin-row-actions">
                             <a href="{{ url_for('admin.problem_content', problem_id=p.id) }}">Edit</a>

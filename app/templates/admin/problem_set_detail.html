@@ -7,6 +7,7 @@
   {% endfor %}
   <input type="hidden" name="difficulty" value="{{ filter_state.difficulty }}">
   <input type="hidden" name="answer_type" value="{{ filter_state.answer_type }}">
+  <input type="hidden" name="content_kind" value="{{ filter_state.content_kind }}">
   {% if filter_state.preview_problem_id %}
   <input type="hidden" name="preview_problem_id" value="{{ filter_state.preview_problem_id }}">
   {% endif %}
@@ -66,7 +67,7 @@
   }
   .set-builder-filter-row {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 14px;
     align-items: end;
   }
@@ -254,6 +255,14 @@
           <option value="multiple_choice" {% if selected_answer_type == 'multiple_choice' %}selected{% endif %}>Multiple choice</option>
         </select>
       </p>
+      <p>
+        <label for="content_kind">Content kind</label><br>
+        <select id="content_kind" name="content_kind">
+          {% for value, label in content_kind_choices %}
+          <option value="{{ value }}" {% if selected_content_kind == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </p>
       <p style="margin-bottom:0;">
         <button type="submit">Filter</button>
         <a href="{{ url_for('admin.problem_set_detail', set_id=pset.id) }}#builder-workspace" style="margin-left:8px;">Clear</a>
@@ -303,6 +312,7 @@
             {% if row.level_label %} | {{ row.level_label }}{% endif %}
             | Difficulty {{ row.problem.difficulty }}
             | {% if row.problem.answer_type == 'multiple_choice' %}MC{% else %}Text{% endif %}
+            | {{ row.content_kind_label }}
             | {{ row.option_status }}
           </div>
           {% if row.prompt_excerpt %}<div class="set-builder-row-excerpt">{{ row.prompt_excerpt }}</div>{% endif %}
@@ -349,6 +359,7 @@
             {% if row.level_label %} | {{ row.level_label }}{% endif %}
             | Difficulty {{ row.problem.difficulty }}
             | {% if row.problem.answer_type == 'multiple_choice' %}MC{% else %}Text{% endif %}
+            | {{ row.content_kind_label }}
             | {{ row.option_status }}
           </div>
           {% if row.prompt_excerpt %}<div class="set-builder-row-excerpt">{{ row.prompt_excerpt }}</div>{% endif %}
