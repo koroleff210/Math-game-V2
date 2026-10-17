@@ -2,6 +2,23 @@
 
 Deployed and verified on 17 October 2026.
 
+**Current data state after the user-requested V4 fresh start (17 October 2026):**
+the online game has zero student profiles, classes, problems, sets, sessions,
+progress records and history/analytics. The existing admin, eight gear definitions,
+avatar assets, layouts and shared test-site accounts were preserved. V4 questions
+have not yet been imported; future sets will be selected from V4. Counts below
+describing the original migration are historical, before this reset.
+
+The pre-reset snapshot `game-20261017-161805.zip` was restored into a separate
+database and verified for equality across all 46 tables / 12,728 rows. A private
+local copy and reset report are in
+`C:/Users/korol/AppData/Local/KorePhysics/game-deployment/v4-reset-20261017/`.
+The server report is
+`/var/backups/korephysics-game/v4-fresh-start-20261017-161804.json`.
+The reset preserved admin/gear/media/schema records exactly; all 14 checked public
+admin/health pages returned HTTP 200 afterward. The old local development database
+and the original V4 source bank were not changed by the online reset.
+
 Game: https://game.korephysics.com/ · Admin: https://game.korephysics.com/admin/
 
 The game runs on the rented OVH server independently of this laptop. The existing
@@ -21,10 +38,10 @@ specific to each application.
   password works on both sites. An existing exam student uses their existing password.
 - Existing exam students can enter the game without another account being created
   manually; their game profile is created when they successfully sign in.
-- All 26 previous game students retain their usernames, passwords and progress.
-  To share their login, use **Players → Edit → Student email** to link the existing
-  game account to their exam email. Linking preserves the same game player ID and
-  progress. Their username remains usable as an alias for the shared login.
+- The 26 previous game students and their game progress were removed by the V4
+  fresh start. Their prior data is recoverable from the private pre-reset backup.
+  Shared exam identities were not deleted. An existing exam student signing in
+  again receives a new game profile with fresh progress.
 - **Reset Password** lets the student choose a new password. For a linked student,
   this changes sign-in on both sites and invalidates old sessions. Progress stays.
   The separate **Reset Player** action still clears character/gear/upgrades and
