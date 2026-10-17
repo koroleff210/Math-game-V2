@@ -624,7 +624,11 @@ def _do_seed() -> dict:
     """Seed minimal test data.  Returns a summary dict."""
     # ── Players ───────────────────────────────────────────────────────────────
     for u in _SEED_USERS:
-        p = Player(username=u['username'], is_admin=u['is_admin'])
+        p = Player(
+            username=u['username'],
+            is_admin=u['is_admin'],
+            avatar_gender_selected=u['is_admin'],
+        )
         p.set_password(u['password'])
         db.session.add(p)
     db.session.flush()

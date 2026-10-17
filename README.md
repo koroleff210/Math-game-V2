@@ -1,55 +1,34 @@
-# math_game_v2
+# Game v2
 
-Flask + SQLAlchemy + Socket.IO classroom multiplayer game with:
-- Classic live session gameplay
-- admin-authored problem bank
-- unified structured problem editor
-- problem-set builder workspace
-- persistent progression, diamonds, and gear
+The live game is at **https://game.korephysics.com/**. See [live operation and shared student login](docs/korephysics_live.md) for account linking, backups, deployment evidence and current limits.
 
-## Quick Start
+Flask, SQLAlchemy, and Socket.IO classroom math/physics game. Local development uses SQLite; the first self-hosted Internet pilot uses Docker Compose, PostgreSQL, and Caddy. For the audited feature map and v4 bank assessment, read [Project State](docs/project_state.md).
+
+## Run locally
 
 ```powershell
-cd "C:\Users\korol\OneDrive\Desktop\Game\Game v2"
 .venv\Scripts\python.exe run.py
 ```
 
-Open: [http://localhost:5000](http://localhost:5000)
+Open `http://localhost:5000`. The seed scripts create demo credentials (`admin/admin123` and player accounts); these are for local development only. `run.py` currently enables debug mode and binds to the LAN.
 
-Default admin:
-- `admin` / `admin123`
+## Implemented and planned
 
-## Canonical Docs
+- Classic individual mode with Mine, Treasure, and Steal is implemented.
+- Boss Rush has live battle, recovery, abilities, rounds, and rewards.
+- Team mode is a stub.
+- Expedition is a separate sibling prototype and is not part of this app.
+- The admin problem editor and external IB Physics import exist. The current game database contains old-bank imports; Questionbank v4 is in the sibling IB Physics Question System and needs an explicit migration.
 
-Use these as the current source of truth:
-- [docs/project_state.md](C:\Users\korol\OneDrive\Desktop\Game\Game v2\docs\project_state.md) — current implemented status, roadmap, migration head, and known limits
-- [docs/system_architecture.md](C:\Users\korol\OneDrive\Desktop\Game\Game v2\docs\system_architecture.md) — architecture boundaries, core models, and problem-system structure
-- [docs/manual_test_guide.md](C:\Users\korol\OneDrive\Desktop\Game\Game v2\docs\manual_test_guide.md) — current manual test flows for admin authoring and Classic smoke testing
-- [docs/bootstrap_prompt.txt](C:\Users\korol\OneDrive\Desktop\Game\Game v2\docs\bootstrap_prompt.txt) — short new-chat bootstrap
+## Documentation
 
-## Current Snapshot
+- [Current state and release roadmap](docs/project_state.md) — current source of truth for status.
+- [Self-hosted deployment](docs/self_hosted_deployment.md) — current Ubuntu/Docker Compose pilot path with fresh accounts and an empty problem bank.
+- [Earlier hosted pilot notes](docs/online_pilot.md) — superseded Render option, retained for reference.
+- [Cleanup inventory](docs/cleanup_inventory.md) — preservation rules and candidates for later refactoring.
+- [System architecture](docs/system_architecture.md) — implementation boundaries; review its March-era details against code when changing a subsystem.
+- [Manual test guide](docs/manual_test_guide.md) — Classic-focused smoke guide that needs extension before release.
+- [New chat bootstrap](docs/bootstrap_prompt.txt) — short onboarding note.
+- [Fresh laptop setup](SETUP_NEW_LAPTOP.md) — local Windows setup, not production deployment.
 
-As of 2026-03-24:
-- current Alembic head: `c1d2e3f4a5b6`
-- repo test folder contains 56 Python test files
-- Problem System V1 is implemented through:
-  - structured body blocks
-  - multiple accepted answers
-  - multiple choice
-  - graph blocks
-  - unified create/edit problem editor
-  - equation-based graph authoring UI
-  - Classic structured problem rendering
-  - problem-set builder workspace
-
-## Historical / Reference Docs
-
-These are retained for context, not as current source-of-truth docs:
-- [classic_mode_description_v1_0.txt](C:\Users\korol\OneDrive\Desktop\Game\Game v2\classic_mode_description_v1_0.txt)
-- [Diamonds_Upgrades_Roadmap_v1.txt](C:\Users\korol\OneDrive\Desktop\Game\Game v2\Diamonds_Upgrades_Roadmap_v1.txt)
-- [docs/checkpoints/2026-03-12/README.md](C:\Users\korol\OneDrive\Desktop\Game\Game v2\docs\checkpoints\2026-03-12\README.md)
-
-## Setup / Restore
-
-- fresh-machine setup: [SETUP_NEW_LAPTOP.md](C:\Users\korol\OneDrive\Desktop\Game\Game v2\SETUP_NEW_LAPTOP.md)
-- checkpoint restore reference: [docs/checkpoints/2026-03-12/BACKUP_RESTORE.md](C:\Users\korol\OneDrive\Desktop\Game\Game v2\docs\checkpoints\2026-03-12\BACKUP_RESTORE.md)
+`docs/dev_log.md`, `docs/checkpoints/`, `docs/archive/`, `classic_mode_description_v1_0.txt`, and `Diamonds_Upgrades_Roadmap_v1.txt` are historical references, not active plans.

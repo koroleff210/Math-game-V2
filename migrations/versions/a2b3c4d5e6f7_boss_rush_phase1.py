@@ -17,10 +17,10 @@ depends_on = None
 
 def upgrade():
     with op.batch_alter_table('problem_set', schema=None) as batch_op:
-        batch_op.add_column(sa.Column('usable_in_classic', sa.Boolean(), nullable=False, server_default=sa.text('1')))
-        batch_op.add_column(sa.Column('usable_in_boss_rush', sa.Boolean(), nullable=False, server_default=sa.text('0')))
-        batch_op.add_column(sa.Column('usable_as_recovery', sa.Boolean(), nullable=False, server_default=sa.text('0')))
-        batch_op.add_column(sa.Column('usable_in_team', sa.Boolean(), nullable=False, server_default=sa.text('0')))
+        batch_op.add_column(sa.Column('usable_in_classic', sa.Boolean(), nullable=False, server_default=sa.true()))
+        batch_op.add_column(sa.Column('usable_in_boss_rush', sa.Boolean(), nullable=False, server_default=sa.false()))
+        batch_op.add_column(sa.Column('usable_as_recovery', sa.Boolean(), nullable=False, server_default=sa.false()))
+        batch_op.add_column(sa.Column('usable_in_team', sa.Boolean(), nullable=False, server_default=sa.false()))
 
     op.create_table(
         'boss_rush_round_config',

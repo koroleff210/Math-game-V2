@@ -97,6 +97,11 @@ def _build_player_gear_shell_context(
 
     gear_view = _build_player_gear_view_for_state(selected_filter, selected_item_id)
     avatar_view = build_player_avatar_view(current_user, gear_view['loadout'])
+    character_selection_required = not current_user.is_character_locked
+    needs_gender_selection = (
+        character_selection_required
+        and not bool(getattr(current_user, 'avatar_gender_selected', True))
+    )
     return {
         'gear_filter': gear_view['selected_filter'],
         'gear_filter_tabs': gear_view['filter_tabs'],
@@ -109,7 +114,8 @@ def _build_player_gear_shell_context(
         'gear_avatar': avatar_view,
         'hub_status': get_player_hub_status(current_user),
         'character_face_locked': current_user.is_character_locked,
-        'character_selection_required': not current_user.is_character_locked,
+        'character_selection_required': character_selection_required,
+        'needs_gender_selection': needs_gender_selection,
         'avatar_body_variant': normalize_avatar_body_variant(getattr(current_user, 'avatar_body_variant', None)),
         'gear_shell_message': gear_shell_message,
     }
@@ -416,6 +422,7 @@ def avatar_body():
         return _dashboard_redirect_for_gear_state(selected_filter, selected_item_id)
 
     set_player_body_variant(current_user, variant)
+    current_user.avatar_gender_selected = True
     db.session.commit()
     message = f'Body set to {"Male" if variant == "m" else "Female"}.'
     _flash_if_full_page(message, 'success')
@@ -442,6 +449,7 @@ def avatar_confirm():
         current_user.selected_face_key,
         current_user.avatar_body_variant,
     )
+    current_user.avatar_gender_selected = True
     current_user.character_locked_at = datetime.now(timezone.utc)
     db.session.commit()
     flash('Character confirmed. Your face is now locked; gear can still be changed normally.', 'success')

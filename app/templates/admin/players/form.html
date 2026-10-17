@@ -7,17 +7,7 @@
 
 <p><a href="{{ url_for('admin.players_index') }}" style="color:#007bff;">&larr; Back to Players</a></p>
 
-{% with messages = get_flashed_messages(with_categories=true) %}
-    {% for category, message in messages %}
-        <div style="padding:10px; margin-bottom:8px; border-radius:4px;
-                    background:{% if category == 'success' %}#d4edda{% elif category == 'error' %}#f8d7da{% else %}#d1ecf1{% endif %};
-                    color:{% if category == 'success' %}#155724{% elif category == 'error' %}#721c24{% else %}#0c5460{% endif %};">
-            {{ message }}
-        </div>
-    {% endfor %}
-{% endwith %}
-
-<form method="POST" style="max-width:400px;">
+<form method="POST" class="admin-form-stack" style="max-width:480px;">
     {{ form.hidden_tag() }}
 
     <p>
@@ -48,6 +38,12 @@
     </p>
     {% endif %}
 
+    <p class="admin-field">
+        {{ form.shared_email.label }}
+        {{ form.shared_email(type='email', placeholder='student@example.com') }}
+        <span class="admin-subtle">Link an existing game player to their test-site email while keeping progress. Use Reset Password for shared accounts.</span>
+        {% for error in form.shared_email.errors %}<span class="admin-field-error">{{ error }}</span>{% endfor %}
+    </p>
     <p>
         {{ form.is_admin() }} {{ form.is_admin.label }}
     </p>

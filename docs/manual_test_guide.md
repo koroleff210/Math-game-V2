@@ -2,6 +2,11 @@
 
 _Updated: 2026-03-30_
 
+_Status note, 2026-10-02: the original sections remain a Classic-focused local
+smoke guide. The production multiplayer checklist at the end now covers the
+Internet pilot and Boss Rush at a high level. Use `docs/project_state.md` for
+the current feature and Questionbank v4 status._
+
 This guide stays intentionally current and practical.
 It focuses on current admin authoring/config flows, Hub behavior, Classic gameplay smoke paths, Treasure/Steal overlays, reconnect safety, and asset/avatar sanity.
 
@@ -21,7 +26,7 @@ cd "C:\Users\korol\OneDrive\Desktop\Game\Game v2"
 Open:
 - [http://localhost:5000](http://localhost:5000)
 
-Default admin:
+Local seed-only admin (never use on the public server):
 - `admin` / `admin123`
 
 Recommended player accounts:
@@ -411,3 +416,40 @@ Expected:
 - Treasure/Steal layout export tools work
 
 This is optional and development-only, not a player-facing acceptance path.
+
+## Production multiplayer pilot
+
+Use the [self-hosted deployment guide](self_hosted_deployment.md) and a fresh
+PostgreSQL database. Run this before inviting a class. Use one admin browser
+and two separate player browsers or profiles; test from different networks if
+possible. Record pass/fail and any browser-console or server-log errors.
+
+1. Log in as the new admin, create two players and a class, and verify both
+   player logins. A player must be redirected or denied for admin pages and
+   admin actions (Players, Problems, session management). An unknown username
+   and a wrong password should show the same generic login error. Repeated
+   failures should eventually return HTTP 429 without revealing whether the
+   username exists.
+2. Create one subject, topic, text problem, multiple-choice problem, Classic
+   problem set, and Boss Rush attack/recovery sets. Confirm the empty-library
+   admin flow and that each new item persists after a web restart.
+3. Create a Classic session. Join both players simultaneously. Verify Socket.IO
+   connects at the HTTPS host and upgrades to `wss://` where supported. Submit
+   correct and wrong answers, compare leaderboard updates in both browsers,
+   and watch admin live supervision.
+4. Exercise Mine, Treasure, Steal, store, round end and next-round start.
+   Refresh at pending action choice, Treasure selection, and Steal selection;
+   each should restore its pending UI without repeating a reward.
+5. Briefly disconnect and reconnect one player's network. The other player
+   must continue; the returning player should rejoin the same session. Refresh
+   both browsers and check leaderboard, wallet, and pending stage consistency.
+6. Start Boss Rush with both players. Check attack answers, recovery, boss HP,
+   abilities, round transitions, victory, and final rewards. Open history and
+   analytics after both modes to confirm saved results.
+7. Between rounds, restart only web and verify login, `/healthz`, existing
+   players, problems, sets, and saved history remain. Do not restart during a
+   live round for this data-retention check.
+
+Known limit: a web restart during an active Classic round can lose process-local
+pending actions, timers, and locks. Browser refresh and temporary WebSocket
+reconnect normally keep those stages while the same web process remains alive.

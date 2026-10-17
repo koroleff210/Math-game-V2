@@ -214,6 +214,7 @@ class ProblemChoiceOption(db.Model):
     problem_id = db.Column(db.Integer, db.ForeignKey('problem.id'), nullable=False, index=True)
     position = db.Column(db.Integer, nullable=False, default=1)
     option_text = db.Column(db.String(512), nullable=False)
+    image_asset_id = db.Column(db.Integer, db.ForeignKey('uploaded_asset.id'), nullable=True)
     is_correct = db.Column(db.Boolean, nullable=False, default=False)
 
     created_at = db.Column(

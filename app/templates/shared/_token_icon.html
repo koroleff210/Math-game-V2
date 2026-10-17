@@ -1,0 +1,56 @@
+{% macro token_icon(token_key, size='medium', label=None, count=None, compact=False) -%}
+  {%- set aliases = {
+    'shield_token': 'steal_shield',
+    'protected': 'steal_shield',
+    'active_shield': 'steal_shield',
+    'steal': 'steal_token',
+    'mine_x2': 'x2_mine',
+    'steal_x2': 'x2_steal',
+    'shield': 'second_chance'
+  } -%}
+  {%- set key = aliases.get(token_key, token_key) -%}
+  {%- set image_map = {
+    'steal_shield': 'classic_ui/icons/shield.png',
+    'steal_token': 'classic_ui/icons/steal_token.png',
+    'second_chance': 'classic_ui/icons/second_chance.png'
+  } -%}
+  {%- set fallback_map = {
+    'steal_shield': 'SH',
+    'steal_token': 'ST',
+    'second_chance': '2nd',
+    'x2_mine': 'x2M',
+    'x2_steal': 'x2S',
+    'bounty': 'B',
+    'treasure': '$'
+  } -%}
+  {%- set label_map = {
+    'steal_shield': 'Shield Token',
+    'steal_token': 'Steal Token',
+    'second_chance': 'Second Chance',
+    'x2_mine': 'x2 Mine',
+    'x2_steal': 'x2 Steal',
+    'bounty': 'Bounty',
+    'treasure': 'Treasure'
+  } -%}
+  {%- set display_label = label or label_map.get(key, token_key|replace('_', ' ')|title) -%}
+  <span class="token-badge token-badge--{{ size }}{% if compact %} token-badge--compact{% endif %}" title="{{ display_label }}" aria-label="{{ display_label }}{% if count is not none %}: {{ count }}{% endif %}">
+    <span class="token-icon token-icon--{{ size }}" aria-hidden="true">
+      {%- if image_map.get(key) -%}
+        <img
+          src="{{ url_for('static', filename=image_map.get(key)) }}"
+          alt=""
+          onerror="this.hidden=true; this.nextElementSibling.hidden=false;"
+        >
+        <span class="token-icon-fallback" hidden>{{ fallback_map.get(key, '?') }}</span>
+      {%- else -%}
+        <span class="token-icon-fallback">{{ fallback_map.get(key, '?') }}</span>
+      {%- endif -%}
+    </span>
+    {%- if not compact -%}
+      <span class="token-badge-label">{{ display_label }}</span>
+    {%- endif -%}
+    {%- if count is not none -%}
+      <strong class="token-badge-count">{{ count }}</strong>
+    {%- endif -%}
+  </span>
+{%- endmacro %}

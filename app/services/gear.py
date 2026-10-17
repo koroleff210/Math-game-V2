@@ -521,12 +521,18 @@ def resolve_gear_image_static_path(
     slot_type: str,
     image_key: str | None = None,
     avatar_body_variant: str | None = None,
+    item_id: str | None = None,
 ) -> str:
     """Return selected gear image path, or the slot placeholder path.
 
     Supports package folders (new) and legacy flat filenames (old).
     """
     variant = normalize_avatar_body_variant(avatar_body_variant)
+    if item_id:
+        from app.services.uploaded_media import asset_url, find_gear_asset
+        uploaded = find_gear_asset(item_id, variant, 'front')
+        if uploaded:
+            return asset_url(uploaded)
     if image_key:
         if _is_package_directory(slot_type, image_key):
             variant_order = [variant, 'shared']
@@ -554,9 +560,15 @@ def resolve_gear_icon_static_path(
     image_key: str | None = None,
     avatar_asset_key: str | None = None,
     avatar_body_variant: str | None = None,
+    item_id: str | None = None,
 ) -> str:
     """Return slot-scoped icon path with variant-aware icon fallbacks."""
     variant = normalize_avatar_body_variant(avatar_body_variant)
+    if item_id:
+        from app.services.uploaded_media import asset_url, find_gear_asset
+        uploaded = find_gear_asset(item_id, variant, 'icon', category='gear_icon')
+        if uploaded:
+            return asset_url(uploaded)
     icon_candidates: list[str] = []
 
     def _push_icon_candidate(filename: str | None) -> None:
@@ -626,6 +638,7 @@ def resolve_gear_icon_static_path(
         slot_type=slot_type,
         image_key=image_key,
         avatar_body_variant=avatar_body_variant,
+        item_id=item_id,
     )
 
 
@@ -654,12 +667,14 @@ def build_admin_gear_item_view(item: GearItemDefinition) -> dict:
         'image_key': item.image_key,
         'avatar_asset_key': item.avatar_asset_key,
         'icon_static_path': resolve_gear_icon_static_path(
+            item_id=item.id,
             slot_type=item.slot_type,
             image_key=item.image_key,
             avatar_asset_key=item.avatar_asset_key,
             avatar_body_variant='m',
         ),
         'image_static_path': resolve_gear_image_static_path(
+            item_id=item.id,
             slot_type=item.slot_type,
             image_key=item.image_key,
             avatar_body_variant='m',
@@ -871,12 +886,14 @@ def list_blacksmith_gear_for_player(player_id: int) -> list:
         'image_key': item.image_key,
         'avatar_asset_key': item.avatar_asset_key,
         'icon_static_path': resolve_gear_icon_static_path(
+            item_id=item.id,
             slot_type=item.slot_type,
             image_key=item.image_key,
             avatar_asset_key=item.avatar_asset_key,
             avatar_body_variant=player_variant,
         ),
         'image_static_path': resolve_gear_image_static_path(
+            item_id=item.id,
             slot_type=item.slot_type,
             image_key=item.image_key,
             avatar_body_variant=player_variant,
@@ -1023,6 +1040,10 @@ def is_item_variant_compatible_for_player(item: GearItemDefinition, avatar_body_
     if not item.is_active:
         return False
 
+    from app.services.uploaded_media import find_gear_asset
+    if find_gear_asset(item.id, variant, 'front'):
+        return True
+
     image_key = (item.image_key or '').strip()
     avatar_asset_key = (item.avatar_asset_key or '').strip()
     if image_key and _is_package_directory(item.slot_type, image_key):
@@ -1153,12 +1174,14 @@ def build_player_gear_hub_view(
             'image_key': item.image_key,
             'avatar_asset_key': item.avatar_asset_key,
             'icon_static_path': resolve_gear_icon_static_path(
+                item_id=item.id,
                 slot_type=item.slot_type,
                 image_key=item.image_key,
                 avatar_asset_key=item.avatar_asset_key,
                 avatar_body_variant=player_variant,
             ),
             'image_static_path': resolve_gear_image_static_path(
+                item_id=item.id,
                 slot_type=item.slot_type,
                 image_key=item.image_key,
                 avatar_body_variant=player_variant,
@@ -1251,12 +1274,14 @@ def build_player_gear_hub_view(
             'image_key': item.image_key,
             'avatar_asset_key': item.avatar_asset_key,
             'icon_static_path': resolve_gear_icon_static_path(
+                item_id=item.id,
                 slot_type=item.slot_type,
                 image_key=item.image_key,
                 avatar_asset_key=item.avatar_asset_key,
                 avatar_body_variant=player_variant,
             ),
             'image_static_path': resolve_gear_image_static_path(
+                item_id=item.id,
                 slot_type=item.slot_type,
                 image_key=item.image_key,
                 avatar_body_variant=player_variant,

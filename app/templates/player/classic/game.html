@@ -407,6 +407,73 @@
         font-size: 0.88rem;
     }
 
+    .token-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        line-height: 1.2;
+        white-space: nowrap;
+    }
+
+    .token-badge--compact {
+        gap: 4px;
+    }
+
+    .token-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 30px;
+        height: 30px;
+        flex: 0 0 auto;
+        border-radius: 999px;
+        background: linear-gradient(180deg, rgba(255, 249, 236, 0.96), rgba(226, 211, 184, 0.90));
+        border: 1px solid rgba(104, 83, 48, 0.20);
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.74),
+            0 3px 8px rgba(58, 42, 20, 0.08);
+        overflow: hidden;
+        color: #4d3518;
+        font-size: 0.68rem;
+        font-weight: 900;
+        letter-spacing: -0.03em;
+    }
+
+    .token-icon--small {
+        width: 22px;
+        height: 22px;
+        font-size: 0.54rem;
+    }
+
+    .token-icon--large {
+        width: 54px;
+        height: 54px;
+        font-size: 0.86rem;
+    }
+
+    .token-icon img {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+    }
+
+    .token-icon-fallback {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        height: 100%;
+    }
+
+    .token-icon-fallback--hidden {
+        display: none;
+    }
+
+    .token-badge-count {
+        font-size: 0.92rem;
+        color: #2f2a22;
+    }
+
     #support-rail {
         gap: 12px;
     }
@@ -553,7 +620,7 @@
     #currency-bar .resource-value {
         display: inline-flex;
         align-items: baseline;
-        gap: 0;
+        gap: 4px;
         min-width: 0;
         white-space: nowrap;
         line-height: 1.1;
@@ -602,6 +669,13 @@
         display: flex;
         flex-direction: column;
         gap: 2px;
+    }
+
+    .token-status-label,
+    #bonus-summary-list dt {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
     }
 
     #shield-token-count {
@@ -710,27 +784,88 @@
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.68);
     }
 
-    .store-item {
-        align-items: flex-start;
-        gap: 10px;
-        padding: 10px 0;
+    .store-token-card {
+        display: grid;
+        grid-template-columns: 48px minmax(0, 1fr);
+        align-items: start;
+        gap: 9px;
+        padding: 9px 0;
         border-bottom-color: rgba(110, 93, 67, 0.14);
     }
 
-    .store-item-info strong {
+    .store-token-card__icon {
+        width: 48px;
+        min-width: 48px;
+        display: flex;
+        justify-content: center;
+        padding-top: 1px;
+    }
+
+    .store-token-card__icon .token-icon {
+        width: 44px;
+        height: 44px;
+        font-size: 0.72rem;
+    }
+
+    .store-token-card__body {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        min-width: 0;
+    }
+
+    .store-token-card__topline {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 8px;
+        min-width: 0;
+    }
+
+    .store-token-card__name {
+        min-width: 0;
         color: #3c2f21;
+        font-weight: 800;
+        line-height: 1.15;
+        overflow-wrap: anywhere;
     }
 
-    .store-item-cost {
-        color: #8f670c;
+    .store-token-card__price {
+        flex: 0 0 auto;
+        white-space: nowrap;
+        color: #7b5710;
+        font-size: 0.74rem;
+        font-weight: 800;
+        line-height: 1.1;
+        padding: 3px 7px;
+        border-radius: 999px;
+        background: rgba(255, 246, 219, 0.92);
+        border: 1px solid rgba(143, 103, 12, 0.20);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.58);
     }
 
-    .store-item-qty {
+    .store-token-card__description {
+        color: #5d5143;
+        font-size: 0.78rem;
+        font-weight: 700;
+        line-height: 1.25;
+        overflow-wrap: anywhere;
+    }
+
+    .store-token-card__meta {
         color: var(--player-ui-muted);
+        font-size: 0.72rem;
+        line-height: 1.2;
     }
 
-    .btn-buy {
-        border-radius: 10px;
+    .store-token-card__buy {
+        align-self: flex-end;
+        min-width: 76px;
+        min-height: 30px;
+        padding: 5px 12px;
+        border-radius: 9px;
+        font-size: 0.8rem;
+        line-height: 1.1;
         background: linear-gradient(180deg, #4c8e5d 0%, #3a7249 100%);
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
     }
@@ -2951,7 +3086,7 @@
                         <p id="player-name">{{ player.username }}</p>
                         <p id="player-session-note">Session #{{ game_session.id }}</p>
                         <div id="player-shield-status" aria-live="polite">
-                            <span id="player-shield-status-icon">&#128737;</span>
+                            <span id="player-shield-status-icon" class="token-icon token-icon--small"></span>
                             <span id="player-shield-status-label">Protected</span>
                             <span id="player-shield-status-time"></span>
                         </div>
@@ -2960,7 +3095,7 @@
                 <div id="currency-bar">
                     <span id="gold-display"><span class="resource-label">Gold</span><span class="resource-value"><span id="gold-amount">0</span></span></span>
                     <span id="gems-display"><span class="resource-label">Gems</span><span class="resource-value"><span id="gems-amount">0</span></span></span>
-                    <span id="steal-tokens-display"><span class="resource-label">Steal Tokens</span><span class="resource-value resource-value--tokens"><span id="steal-tokens-amount">0</span>/<span id="steal-tokens-max">1</span></span></span>
+                    <span id="steal-tokens-display"><span class="resource-label">Steal Tokens</span><span class="resource-value resource-value--tokens"><span id="steal-token-icon-slot"></span><span id="steal-tokens-amount">0</span>/<span id="steal-tokens-max">1</span></span></span>
                     <span id="streak-display"><span class="resource-label">Streak</span><span class="resource-value"><span id="streak-value">x0</span></span></span>
                 </div>
             </section>
@@ -2969,7 +3104,7 @@
                 <h3>Actions</h3>
                 <div id="shield-token-row">
                     <div id="shield-token-meta">
-                        <span class="support-subtle">Shield Token</span>
+                        <span class="support-subtle token-status-label"><span id="shield-token-icon-slot"></span> Shield Token</span>
                         <strong id="shield-token-count">0</strong>
                     </div>
                     <button id="btn-activate-shield" type="button" onclick="activateShield()" disabled>Activate</button>
@@ -2984,9 +3119,9 @@
             <div class="support-subsection">
                 <h4>Total Bonuses</h4>
                 <dl id="bonus-summary-list">
-                    <dt>Mine Bonus</dt>
+                    <dt><span id="summary-mine-icon-slot"></span> Mine Bonus</dt>
                     <dd id="bonus-summary-mine">0</dd>
-                    <dt>Second Chance</dt>
+                    <dt><span id="summary-second-chance-icon-slot"></span> Second Chance</dt>
                     <dd id="bonus-summary-shield">0</dd>
                 </dl>
             </div>
@@ -3166,7 +3301,7 @@
             <h3>Leaderboard</h3>
             <table id="lb-table">
                 <tbody id="lb-body">
-                    <tr><td colspan="2" style="color:#999;">Waiting for leaderboard data.</td></tr>
+                    <tr><td colspan="4" style="color:#999;">Waiting for leaderboard data.</td></tr>
                 </tbody>
             </table>
         </section>
@@ -3247,6 +3382,103 @@ const SESSION_ID = {{ game_session.id }};
     const MOBILE_PROBLEM_PAGE_SIZE = 3;
     const DESKTOP_PROBLEM_PAGE_SIZE = 4;
     let mobileProblemPageIndex = 0;
+    const TOKEN_ICON_DEFS = {
+        steal_shield: {
+            label: 'Shield Token',
+            src: '{{ url_for("static", filename="classic_ui/icons/shield.png") }}',
+            fallback: 'SH'
+        },
+        steal_token: {
+            label: 'Steal Token',
+            src: '{{ url_for("static", filename="classic_ui/icons/steal_token.png") }}',
+            fallback: 'ST'
+        },
+        second_chance: {
+            label: 'Second Chance',
+            src: '{{ url_for("static", filename="classic_ui/icons/second_chance.png") }}',
+            fallback: '2nd'
+        },
+        x2_mine: {
+            label: 'x2 Mine',
+            fallback: 'x2M'
+        },
+        x2_steal: {
+            label: 'x2 Steal',
+            fallback: 'x2S'
+        },
+        bounty: {
+            label: 'Bounty',
+            fallback: 'B'
+        },
+        treasure: {
+            label: 'Treasure',
+            fallback: '$'
+        }
+    };
+    const TOKEN_KEY_ALIASES = {
+        shield: 'second_chance',
+        shield_token: 'steal_shield',
+        protected: 'steal_shield',
+        active_shield: 'steal_shield',
+        steal: 'steal_token',
+        mine_x2: 'x2_mine',
+        steal_x2: 'x2_steal'
+    };
+
+    function normalizeTokenKey(key) {
+        return TOKEN_KEY_ALIASES[key] || key;
+    }
+
+    function tokenDef(key) {
+        const normalized = normalizeTokenKey(key);
+        return TOKEN_ICON_DEFS[normalized] || {
+            label: String(key || 'Token').replace(/_/g, ' '),
+            fallback: '?'
+        };
+    }
+
+    function tokenIconHtml(key, sizeClass) {
+        const def = tokenDef(key);
+        const size = sizeClass || 'small';
+        const fallback = escapeHtml(def.fallback || '?');
+        if (def.src) {
+            return '<span class="token-icon token-icon--' + size + '" aria-hidden="true">' +
+                '<img src="' + def.src + '" alt="" onerror="this.hidden=true;this.nextElementSibling.hidden=false;">' +
+                '<span class="token-icon-fallback" hidden>' + fallback + '</span>' +
+                '</span>';
+        }
+        return '<span class="token-icon token-icon--' + size + '" aria-hidden="true">' +
+            '<span class="token-icon-fallback">' + fallback + '</span>' +
+            '</span>';
+    }
+
+    function tokenBadgeHtml(key, count, options) {
+        const config = options || {};
+        const def = tokenDef(key);
+        const size = config.size || 'small';
+        const compact = config.compact !== false;
+        const countHtml = count !== undefined && count !== null
+            ? '<strong class="token-badge-count">' + escapeHtml(String(count)) + '</strong>'
+            : '';
+        const labelHtml = compact ? '' : '<span class="token-badge-label">' + escapeHtml(def.label) + '</span>';
+        return '<span class="token-badge token-badge--' + size + (compact ? ' token-badge--compact' : '') + '" title="' + escapeHtml(def.label) + '">' +
+            tokenIconHtml(key, size) + labelHtml + countHtml +
+            '</span>';
+    }
+
+    function initStaticTokenIcons() {
+        const shieldStatusIcon = document.getElementById('player-shield-status-icon');
+        const stealSlot = document.getElementById('steal-token-icon-slot');
+        const shieldSlot = document.getElementById('shield-token-icon-slot');
+        const mineSlot = document.getElementById('summary-mine-icon-slot');
+        const secondChanceSlot = document.getElementById('summary-second-chance-icon-slot');
+        if (shieldStatusIcon) shieldStatusIcon.outerHTML = tokenIconHtml('steal_shield', 'small');
+        if (stealSlot) stealSlot.innerHTML = tokenIconHtml('steal_token', 'small');
+        if (shieldSlot) shieldSlot.innerHTML = tokenIconHtml('steal_shield', 'small');
+        if (mineSlot) mineSlot.innerHTML = tokenIconHtml('x2_mine', 'small');
+        if (secondChanceSlot) secondChanceSlot.innerHTML = tokenIconHtml('second_chance', 'small');
+    }
+
     function getRoundBackgroundIndex(sessionId, roundId, roundNumber) {
         if (!ROUND_BACKGROUND_URLS.length) return -1;
         const sid = Number(sessionId) || 0;
@@ -4660,6 +4892,7 @@ const SESSION_ID = {{ game_session.id }};
         socket.emit('classic_join', { session_id: SESSION_ID });
     });
 
+    initStaticTokenIcons();
     applyRoundBackground(INITIAL_ROUND_ID, INITIAL_ROUND_NUMBER);
 
     socket.on('join_ack', function (data) {
@@ -4701,17 +4934,7 @@ const SESSION_ID = {{ game_session.id }};
         renderBonuses(data.active_bonuses || {});
         renderActionLog(data.recent_actions || []);
 
-        if (data.leaderboard && data.leaderboard.length > 0) {
-            const tbody = document.getElementById('lb-body');
-            tbody.innerHTML = '';
-            data.leaderboard.forEach(function (entry, i) {
-                const row = document.createElement('tr');
-                row.innerHTML = '<td>' + (i + 1) + '. ' + escapeHtml(entry.username) + '</td>' +
-                                '<td>Gold ' + entry.gold + '</td>' +
-                                '<td style="color:#1a7f3c;">Gems ' + (entry.gems || 0) + '</td>';
-                tbody.appendChild(row);
-            });
-        }
+        renderLeaderboard(data.leaderboard || []);
 
         if (data.pending_treasure && data.pending_treasure.chests && data.pending_treasure.chests.length) {
             hydratePendingTreasure(data.pending_treasure);
@@ -5028,19 +5251,29 @@ const SESSION_ID = {{ game_session.id }};
     // ── Leaderboard ──────────────────────────────────────────────────────────
 
     socket.on('leaderboard_update', function (data) {
+        renderLeaderboard(data.leaderboard || []);
+    });
+
+    function renderLeaderboard(rows) {
         const tbody = document.getElementById('lb-body');
+        if (!tbody) return;
         tbody.innerHTML = '';
-        data.leaderboard.forEach(function (entry, i) {
+        if (!rows || rows.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" style="color:#999;">Waiting for leaderboard data.</td></tr>';
+            return;
+        }
+        rows.forEach(function (entry, i) {
             const row = document.createElement('tr');
             row.innerHTML = '<td>' + (i + 1) + '. ' + escapeHtml(entry.username) + '</td>' +
                             '<td>Gold ' + entry.gold + '</td>' +
-                            '<td style="color:#1a7f3c;">Gems ' + (entry.gems || 0) + '</td>';
+                            '<td style="color:#1a7f3c;">Gems ' + (entry.gems || 0) + '</td>' +
+                            '<td>' + tokenBadgeHtml('steal_token', entry.steal_tokens || 0, { compact: true, size: 'small' }) + '</td>';
             tbody.appendChild(row);
         });
-    });
+    }
 
     function escapeHtml(str) {
-        return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g, '&quot;');
     }
 
     function applyProblemButtonState(btn, problem, isSelected) {
@@ -5271,7 +5504,7 @@ const SESSION_ID = {{ game_session.id }};
         container.innerHTML = '';
         items.forEach(function (item) {
             const div = document.createElement('div');
-            div.className = 'store-item';
+            div.className = 'store-item store-token-card';
             div.id = 'store-item-' + item.id;
 
             const outOfStock = item.quantity_left === 0;
@@ -5283,20 +5516,25 @@ const SESSION_ID = {{ game_session.id }};
                 'steal_shield': 'Shield Token (activate when ready)',
             };
             const bonusLabel = bonusLabels[item.bonus_type] || item.bonus_type;
+            const priceLabel = (item.currency === 'gems' ? 'Gems ' : 'Gold ') + item.cost;
 
             div.innerHTML =
-                '<div class="store-item-info">' +
-                    '<strong>' + escapeHtml(item.name) + '</strong> ' +
-                    '<span style="font-size:0.85em; color:#555;">- ' + bonusLabel + '</span><br>' +
-                    (item.description ? '<small>' + escapeHtml(item.description) + '</small><br>' : '') +
-                    '<span class="store-item-qty">' + qtyLabel + '</span>' +
-                '</div>' +
-                '<span class="store-item-cost">' + (item.currency === 'gems' ? 'Gems ' : 'Gold ') + item.cost + '</span>' +
-                '<button class="btn-buy" id="buy-btn-' + item.id + '"' +
-                    (outOfStock ? ' disabled' : '') +
-                    ' onclick="buyItem(' + item.id + ')">' +
-                    (outOfStock ? 'Out of stock' : 'Buy') +
-                '</button>';
+                '<div class="store-token-card__icon">' + tokenIconHtml(item.bonus_type, 'large') + '</div>' +
+                '<div class="store-token-card__body">' +
+                    '<div class="store-token-card__topline">' +
+                        '<div class="store-token-card__name">' + escapeHtml(item.name) + '</div>' +
+                        '<div class="store-token-card__price">' + escapeHtml(priceLabel) + '</div>' +
+                    '</div>' +
+                    '<div class="store-token-card__description">' +
+                        escapeHtml(item.description || bonusLabel) +
+                    '</div>' +
+                    '<div class="store-token-card__meta">' + escapeHtml(qtyLabel) + '</div>' +
+                    '<button class="btn-buy store-token-card__buy" id="buy-btn-' + item.id + '"' +
+                        (outOfStock ? ' disabled' : '') +
+                        ' onclick="buyItem(' + item.id + ')">' +
+                        (outOfStock ? 'Out' : 'Buy') +
+                    '</button>' +
+                '</div>';
 
             container.appendChild(div);
         });
@@ -5343,10 +5581,14 @@ const SESSION_ID = {{ game_session.id }};
         const shieldTokenCountEl = document.getElementById('shield-token-count');
         const activateBtn = document.getElementById('btn-activate-shield');
         const parts = [];
-        if (bonuses.x2_mine) parts.push('Mine x2 x' + bonuses.x2_mine);
-        if (bonuses.shield) parts.push('Second Chance x' + bonuses.shield);
+        if (bonuses.x2_mine) {
+            parts.push(tokenBadgeHtml('x2_mine', bonuses.x2_mine, { compact: false, size: 'small' }));
+        }
+        if (bonuses.shield) {
+            parts.push(tokenBadgeHtml('second_chance', bonuses.shield, { compact: false, size: 'small' }));
+        }
         const shieldTokenCount = bonuses.steal_shield || 0;
-        el.textContent = parts.length ? ('Active bonuses: ' + parts.join('  |  ')) : 'No active bonuses.';
+        el.innerHTML = parts.length ? ('Active bonuses: ' + parts.join(' ')) : 'No active bonuses.';
         if (shieldTokenCountEl) shieldTokenCountEl.textContent = shieldTokenCount;
         if (activateBtn) activateBtn.disabled = !(roundActive && shieldTokenCount > 0);
         if (mineSummary) mineSummary.textContent = bonuses.x2_mine || 0;

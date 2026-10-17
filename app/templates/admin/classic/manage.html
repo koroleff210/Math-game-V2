@@ -1,4 +1,5 @@
 {% extends "admin/layout.html" %}
+{% from "shared/_token_icon.html" import token_icon %}
 
 {% block title %}Manage Classic Session #{{ game_session.id }}{% endblock %}
 
@@ -20,6 +21,53 @@
 {%- endmacro %}
 
 {% block admin_content %}
+<style>
+    .token-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        line-height: 1.2;
+        white-space: nowrap;
+    }
+    .token-badge--compact {
+        gap: 2px;
+    }
+    .token-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        border-radius: 999px;
+        background: #f7f1e3;
+        border: 1px solid rgba(80, 64, 38, 0.18);
+        overflow: hidden;
+        color: #4f3b20;
+        font-size: 0.62rem;
+        font-weight: 800;
+    }
+    .token-icon img {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+    }
+    .token-icon-fallback {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        height: 100%;
+    }
+    .token-icon-fallback--hidden {
+        display: none;
+    }
+    .admin-token-strip {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+</style>
 <h1>Classic Session #{{ game_session.id }}</h1>
 
 <div style="background:#e8f4f8; border:1px solid #bee5eb; border-radius:6px; padding:12px 16px; margin-bottom:16px;">
@@ -279,7 +327,7 @@
 <table border="1" cellpadding="8" style="border-collapse:collapse;">
     <thead>
     <tr>
-        <th>#</th><th>Player</th><th>Gold</th><th>Gems</th>
+        <th>#</th><th>Player</th><th>Gold</th><th>Gems</th><th>Tokens</th>
     </tr>
     </thead>
     <tbody id="leaderboard-tbody">
@@ -289,6 +337,21 @@
         <td>{{ w.player.username }}</td>
         <td>{{ w.gold }}</td>
         <td>{{ w.gems }}</td>
+        <td>
+            <span class="admin-token-strip">
+                {{ token_icon('steal_token', 'small', count=w.steal_tokens, compact=True) }}
+                {% set counts = wallet_bonus_counts.get(w.player_id, {}) %}
+                {% if counts.get('steal_shield', 0) %}
+                    {{ token_icon('steal_shield', 'small', count=counts.get('steal_shield'), compact=True) }}
+                {% endif %}
+                {% if counts.get('shield', 0) %}
+                    {{ token_icon('shield', 'small', count=counts.get('shield'), compact=True) }}
+                {% endif %}
+                {% if counts.get('x2_mine', 0) %}
+                    {{ token_icon('x2_mine', 'small', count=counts.get('x2_mine'), compact=True) }}
+                {% endif %}
+            </span>
+        </td>
     </tr>
     {% endfor %}
     </tbody>
@@ -296,7 +359,7 @@
 {% else %}
 <table border="1" cellpadding="8" style="border-collapse:collapse;">
     <thead>
-    <tr><th>#</th><th>Player</th><th>Gold</th><th>Gems</th></tr>
+    <tr><th>#</th><th>Player</th><th>Gold</th><th>Gems</th><th>Tokens</th></tr>
     </thead>
     <tbody id="leaderboard-tbody"></tbody>
 </table>
@@ -369,7 +432,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 '<td>' + (idx + 1) + '</td>' +
                 '<td>' + escHtml(entry.username) + '</td>' +
                 '<td>' + entry.gold + '</td>' +
-                '<td>' + entry.gems + '</td>';
+                '<td>' + entry.gems + '</td>' +
+                '<td>' + tokenBadgeHtml('steal_token', entry.steal_tokens || 0) + '</td>';
             tbody.appendChild(tr);
         });
     });
@@ -407,6 +471,22 @@ document.addEventListener('DOMContentLoaded', function () {
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;');
+    }
+
+    function tokenBadgeHtml(key, count) {
+        const defs = {
+            steal_token: {
+                label: 'Steal Token',
+                src: '{{ url_for("static", filename="classic_ui/icons/steal_token.png") }}',
+                fallback: 'ST'
+            }
+        };
+        const def = defs[key] || { label: key, fallback: '?' };
+        const iconHtml = def.src
+            ? '<span class="token-icon token-icon--small" aria-hidden="true"><img src="' + def.src + '" alt="" onerror="this.hidden=true;this.nextElementSibling.hidden=false;"><span class="token-icon-fallback" hidden>' + escHtml(def.fallback) + '</span></span>'
+            : '<span class="token-icon token-icon--small" aria-hidden="true"><span class="token-icon-fallback">' + escHtml(def.fallback) + '</span></span>';
+        return '<span class="token-badge token-badge--small token-badge--compact" title="' + escHtml(def.label) + '">' +
+            iconHtml + '<strong class="token-badge-count">' + escHtml(String(count)) + '</strong></span>';
     }
 });
 </script>

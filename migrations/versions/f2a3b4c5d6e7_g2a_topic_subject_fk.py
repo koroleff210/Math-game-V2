@@ -14,6 +14,7 @@ Topic.subject string field using conservative normalization:
 
 """
 import re
+from datetime import datetime, timezone
 from alembic import op
 import sqlalchemy as sa
 
@@ -71,18 +72,19 @@ def upgrade():
     # Insert Subject rows and collect their IDs.
     key_to_id = {}
     for key, display_name in subject_map.items():
-        # Use INSERT OR IGNORE to be safe if the subject already exists.
-        conn.execute(
-            sa.text(
-                "INSERT OR IGNORE INTO subject (name, created_at) "
-                "VALUES (:name, datetime('now'))"
-            ),
-            {'name': display_name},
-        )
         result = conn.execute(
             sa.text("SELECT id FROM subject WHERE name = :name"),
             {'name': display_name},
         ).fetchone()
+        if result is None:
+            conn.execute(
+                sa.text("INSERT INTO subject (name, created_at) VALUES (:name, :created_at)"),
+                {'name': display_name, 'created_at': datetime.now(timezone.utc)},
+            )
+            result = conn.execute(
+                sa.text("SELECT id FROM subject WHERE name = :name"),
+                {'name': display_name},
+            ).fetchone()
         if result:
             key_to_id[key] = result[0]
 

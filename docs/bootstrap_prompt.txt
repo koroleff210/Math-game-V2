@@ -1,91 +1,26 @@
-NEW CONVERSATION BOOTSTRAP PROMPT
-================================
+GAME V2: NEW CHAT BOOTSTRAP
+===========================
 
-PROJECT
--------
-math_game_v2
-Root:    C:\Users\korol\OneDrive\Desktop\Game\Game v2\
-Startup: .venv\Scripts\python.exe run.py
-Port:    5000
+Read docs/project_state.md first. It was audited 2026-10-01 and supersedes
+the March snapshot. Then read docs/system_architecture.md for boundaries
+and docs/manual_test_guide.md for older local smoke paths.
 
-Always use:
-- `.venv\Scripts\python.exe`
+Root: C:\Users\korol\OneDrive\Desktop\Game\Game v2
+Local start: .venv\Scripts\python.exe run.py
+Local database: instance/math_game.db (back up before any migration)
+Alembic head at audit: a6b7c8d9e0f1
 
-CURRENT SNAPSHOT
-----------------
-Date: 2026-03-30
-Head: f1a2b3c4d5e6
+Implemented: Classic individual game, Boss Rush, Hub, admin authoring,
+problem sets, gear/diamonds, analytics. Team is a stub. Expedition lives
+in ../expedition_mode as a separate Flask/JSON prototype.
 
-Current repo reality:
-- Classic Mode is the main gameplay center and is playable end-to-end
-- Hub is the persistent prep/dashboard surface
-- authored-content stack is live:
-  - subjects
-  - topics
-  - problem bootstrap -> full content editor
-  - graph blocks
-  - problem-set builder
-- Classic admin config UX is grouped and uses current mechanic language
-- Classic player page uses a stable 3-column shell
-- Treasure and Steal now use center-stage overlays above the problem area
-- post-solve action choice, Treasure, Steal target selection, and Steal/Treasure reveal state are resumable across refresh/reconnect
-- shield semantics are aligned around:
-  - `Second Chance`
-  - `Shield Token`
-  - `Protected`
+The current game contains old-bank IB Physics imports. Questionbank v4 is
+in C:\Users\korol\OneDrive\Desktop\IB Physics Question System\data\questionbank_v4:
+per-question JSON,
+content-addressed assets, and a SQLite export. Its migration_index.jsonl
+maps old canonical IDs to new phys_ IDs. Do not reset problem content or
+student progress as a shortcut.
 
-READ THESE FIRST
-----------------
-Canonical current docs:
-- `docs/project_state.md`
-- `docs/system_architecture.md`
-- `docs/manual_test_guide.md`
-
-Historical/reference only:
-- `docs/dev_log.md`
-- `docs/checkpoints/*`
-- `docs/archive/*`
-
-CRITICAL CURRENT INVARIANTS
----------------------------
-- `Problem` remains the root authored question entity
-- canonical content interpretation goes through `app/services/problem_content.py`
-- canonical graph storage remains `ProblemBlock.graph_config_json`
-- admin preview and Classic gameplay should keep sharing the interpreted content path
-- Hub is the live prep layer; Join is the runtime freeze boundary
-- `SessionParticipantSnapshot` is the frozen runtime source for progression-derived gameplay values
-- Classic gameplay should not read live persistent progression/gear rows directly for gameplay math
-- Classic player page should be extended incrementally, not structurally rebuilt by default
-- Treasure and Steal mechanics are server-resolved; their stage-event presentation is template/JS-driven
-- pending post-solve action and stage-event restore logic now matter; do not break reconnect safety
-- when tests or manual validation create Classic sessions, explicitly end them before closing the task
-
-CURRENT UI / SYSTEM HOTSPOTS
-----------------------------
-- player gameplay shell:
-  - left rail
-  - center problem window + workflow panel + stage-event overlays
-  - right rail
-- Treasure overlay:
-  - one selected chest can grant reward
-  - independent chest-fill semantics
-- Steal overlay:
-  - target avatar in scene
-  - selected-only reveal in current visual pass
-- admin Classic new/manage flows:
-  - grouped config language
-  - live supervision
-  - next-round editor
-
-ASSET / RENDER NOTES
---------------------
-- avatar layers come from `app/services/avatar.py` and `app/static/gear/`
-- Treasure/Steal stage-event assets live under `app/static/classic_ui/`
-- gameplay template contains explicit overlay layout maps and dev-only overlay tuning tools
-
-WORKING STYLE DEFAULT
----------------------
-- prefer incremental stabilization/polish over broad rewrites
-- preserve current mechanics unless the task explicitly changes them
-- keep docs aligned to code reality, not hoped-for future design
-- if code and docs diverge, update docs to match code unless the task is explicitly a code correction
+The working tree contains substantial uncommitted work. Preserve it.
+Historical docs/dev_log.md and docs/checkpoints/* are not current plans.
+Many tests are direct scripts; running them through pytest may bypass setup.

@@ -1,0 +1,8 @@
+[Unit]
+Description=Back up KorePhysics game database, media and private configuration
+After=postgresql.service
+
+[Service]
+Type=oneshot
+UMask=0077
+ExecStart=/usr/bin/python3 /opt/korephysics-game/app/deploy/backup_game.py

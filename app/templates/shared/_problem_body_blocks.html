@@ -5,7 +5,7 @@
     {% elif block.type == 'image' %}
       <div class="problem-body-image">
         <img
-          src="{{ url_for('static', filename=block.image_path) }}"
+          src="{{ block.image_url }}"
           alt="Problem image"
           style="max-width: {{ block.image_width_pct }}%;"
         >

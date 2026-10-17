@@ -22,6 +22,13 @@ instance/
 
 # ── Environment / secrets ────────────────────────────────────────────────────
 .env
+.env.*
+!.env.example
+*.db
+*.sqlite
+*.sqlite3
+/backups/
+/admin-access.txt
 
 # ── OS junk ──────────────────────────────────────────────────────────────────
 .DS_Store
@@ -42,3 +49,7 @@ deep_gameplay_results.json
 deep_ids.json
 regression_results.json
 tmp_run_server.py
+
+# Generated release/toolkit archives stay local; their source assets are tracked.
+/math-game-online-test*.zip
+/avatar_gear_toolkit_current_state_*.zip

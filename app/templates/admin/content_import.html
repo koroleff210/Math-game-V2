@@ -1,0 +1,33 @@
+{% extends "admin/layout.html" %}
+{% block title %}Content Import{% endblock %}
+{% block admin_content %}
+<h1>Content Import</h1>
+<p>Import a Questionbank v4 ZIP containing <code>problems/</code> and <code>assets/</code>. Only approved multiple-choice records are supported. Validation never changes the problem bank.</p>
+<form method="post" enctype="multipart/form-data">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="action" value="validate">
+  <p><label>Questionbank v4 ZIP <input type="file" name="archive" accept=".zip" required></label></p>
+  <p><label>Existing Subject <select name="subject_id"><option value="">Create/use Physics</option>{% for subject in subjects %}<option value="{{ subject.id }}">{{ subject.name }}</option>{% endfor %}</select></label></p>
+  <p><label>Or new Subject name <input name="new_subject" maxlength="64" placeholder="Physics"></label></p>
+  <button type="submit">Validate ZIP</button>
+</form>
+{% if report %}
+<h2>Preview changes</h2>
+<table><tbody>
+{% for label, key in [('Total records','total'),('Valid','valid'),('New','new'),('Matching source ID','matching'),('Would update','update'),('Would skip unchanged','skip'),('Invalid','invalid'),('Missing assets','missing_assets'),('Duplicate source IDs','duplicate_source_ids'),('Unsupported answer types','unsupported_answer_types')] %}
+<tr><th>{{ label }}</th><td>{{ report[key] }}</td></tr>
+{% endfor %}
+</tbody></table>
+{% if report.errors %}<h3>Representative validation errors</h3><ul>{% for row in report.errors %}<li><code>{{ row.file }}</code>: {{ row.error }}</li>{% endfor %}</ul>{% endif %}
+{% if stage and report.valid %}
+<p>{{ report.valid }} valid records will be processed. Invalid records are excluded. Updates keep existing Problem IDs and set memberships.</p>
+<form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="action" value="import">
+  <input type="hidden" name="stage_id" value="{{ stage.id }}">
+  <button type="submit">Confirm import</button>
+</form>
+{% endif %}
+{% endif %}
+{% if result %}<h2>Results</h2><p>Created: {{ result.new }} · Updated: {{ result.update }} · Unchanged: {{ result.skip }} · Invalid excluded: {{ result.invalid }}</p>{% endif %}
+{% endblock %}

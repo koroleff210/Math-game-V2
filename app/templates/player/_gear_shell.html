@@ -11,7 +11,54 @@
     {% endif %}
   </div>
 
-  {% if character_selection_required %}
+  {% if needs_gender_selection %}
+    <div class="equipment-pane gender-selection-card">
+      <div class="character-selection-copy gender-selection-copy">
+        <h2 class="character-selection-title">Choose your character type</h2>
+        <p class="character-selection-text">You can still change this later.</p>
+      </div>
+
+      <div class="gender-choice-grid" aria-label="Choose your character type">
+        <form method="POST" action="{{ url_for('player.avatar_body') }}" class="gender-choice-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="variant" value="m">
+          <input type="hidden" name="gear_filter" value="{{ gear_filter }}">
+          <input type="hidden" name="selected_item" value="{{ gear_selected_item.id if gear_selected_item else '' }}">
+          <button type="submit" class="gender-choice-card">
+            <span class="gender-choice-image-wrap">
+              <img
+                class="gender-choice-image"
+                src="{{ url_for('static', filename='avatars/gender/male_silhouette.png') }}"
+                alt=""
+                onerror="this.style.display='none';"
+              >
+            </span>
+            <span class="gender-choice-label">Male</span>
+            <span class="gender-choice-action">Choose Male</span>
+          </button>
+        </form>
+
+        <form method="POST" action="{{ url_for('player.avatar_body') }}" class="gender-choice-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="variant" value="f">
+          <input type="hidden" name="gear_filter" value="{{ gear_filter }}">
+          <input type="hidden" name="selected_item" value="{{ gear_selected_item.id if gear_selected_item else '' }}">
+          <button type="submit" class="gender-choice-card">
+            <span class="gender-choice-image-wrap">
+              <img
+                class="gender-choice-image"
+                src="{{ url_for('static', filename='avatars/gender/female_silhouette.png') }}"
+                alt=""
+                onerror="this.style.display='none';"
+              >
+            </span>
+            <span class="gender-choice-label">Female</span>
+            <span class="gender-choice-action">Choose Female</span>
+          </button>
+        </form>
+      </div>
+    </div>
+  {% elif character_selection_required %}
     <div class="equipment-pane character-selection-card">
       <div class="character-selection-copy">
         <h2 class="character-selection-title">Choose Your Character</h2>

@@ -515,7 +515,12 @@ def register_classic_handlers(socketio):
             .all()
         )
         leaderboard = [
-            {'username': w.player.username, 'gold': w.gold, 'gems': w.gems}
+            {
+                'username': w.player.username,
+                'gold': w.gold,
+                'gems': w.gems,
+                'steal_tokens': w.steal_tokens,
+            }
             for w in wallets_lb
         ]
 
@@ -1909,7 +1914,12 @@ def _emit_leaderboard(socketio, session_id: int) -> None:
         .all()
     )
     leaderboard = [
-        {'username': w.player.username, 'gold': w.gold, 'gems': w.gems}
+        {
+            'username': w.player.username,
+            'gold': w.gold,
+            'gems': w.gems,
+            'steal_tokens': w.steal_tokens,
+        }
         for w in wallets
     ]
     socketio.emit('leaderboard_update', {'leaderboard': leaderboard},

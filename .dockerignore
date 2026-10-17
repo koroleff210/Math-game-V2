@@ -1,0 +1,17 @@
+.git
+.venv
+.env
+instance
+__pycache__
+*.py[cod]
+*.db
+*.sqlite
+*.sqlite3
+*.zip
+*.log
+.pytest_cache
+tests
+docs
+ibdp_definition_curation_updated*
+*.bat
+*.ps1

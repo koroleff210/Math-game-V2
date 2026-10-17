@@ -132,6 +132,9 @@ def list_available_face_keys(body_variant: str | None = None) -> list[str]:
         else:
             if variant == 'm':
                 keys.append(key)
+    from app.models.media import UploadedAsset
+    category = 'face_f' if target_variant == 'f' else 'face_m'
+    keys.extend(row.asset_key for row in UploadedAsset.query.filter_by(category=category).all() if row.asset_key)
     return _sort_asset_keys(keys)
 
 
@@ -279,6 +282,11 @@ def _package_key_candidates(item: GearItemDefinition | None) -> list[str]:
 
 
 def _resolve_package_layer(slot_type: str, item: GearItemDefinition | None, body_variant: str, layer_filename: str) -> str | None:
+    if item is not None:
+        from app.services.uploaded_media import asset_url, find_gear_asset
+        uploaded = find_gear_asset(item.id, body_variant, layer_filename.removesuffix('.png'))
+        if uploaded:
+            return asset_url(uploaded)
     for package_key in _package_key_candidates(item):
         variant_path = _new_package_layer_path(slot_type, package_key, body_variant, layer_filename)
         if variant_path:
@@ -324,7 +332,7 @@ def _legacy_visual_key_from_item(item: GearItemDefinition | None, slot_type: str
 def _resolve_head_layers(item: GearItemDefinition | None, body_variant: str) -> tuple[str | None, str | None, str | None]:
     back = _resolve_package_layer(GEAR_SLOT_HEAD, item, body_variant, 'back.png')
     front = _resolve_package_layer(GEAR_SLOT_HEAD, item, body_variant, 'front.png')
-    if back and front:
+    if front:
         return back, front, None
     if normalize_avatar_body_variant(body_variant) == 'f':
         return None, None, None
@@ -422,7 +430,13 @@ def build_player_avatar_view(player, loadout) -> dict:
             f'face_m_{selected_face_key}.png',
         ]
     )
-    for face_filename in face_filenames:
+    from app.models.media import UploadedAsset
+    from app.services.uploaded_media import asset_url
+    face_category = 'face_f' if body_variant == 'f' else 'face_m'
+    uploaded_face = UploadedAsset.query.filter_by(category=face_category, asset_key=selected_face_key).first()
+    if uploaded_face:
+        layers.append(_build_layer('face', asset_url(uploaded_face)))
+    for face_filename in ([] if uploaded_face else face_filenames):
         face_path = os.path.join(_avatar_directory(AVATAR_FOLDERS['face']), face_filename)
         if _file_exists(face_path):
             layers.append(_build_layer('face', _avatar_static_path(AVATAR_FOLDERS['face'], face_filename)))

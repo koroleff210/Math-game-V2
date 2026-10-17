@@ -36,5 +36,9 @@ WTForms==3.2.1               # Form validation library
 # ── Environment / Config ───────────────────────────────────────────────────────
 python-dotenv==1.2.2         # Load .env file for local config overrides
 
+# Admin v4 import and persistent image validation.
+beautifulsoup4==4.15.0
+Pillow==12.3.0
+
 # ── Testing ────────────────────────────────────────────────────────────────────
 pytest==9.0.2                # Test runner

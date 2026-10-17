@@ -28,7 +28,7 @@ import re
 from urllib.parse import urlencode
 
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, abort, make_response
-from flask_login import login_required
+from flask_login import current_user, login_required
 from sqlalchemy import select
 
 from app.extensions import db
@@ -58,7 +58,8 @@ from app.models.analytics import (
     AnalyticsRoundProblem,
 )
 from app.routes.forms import TopicForm, SubjectForm, ProblemForm, ProblemSetForm, PlayerCreateForm, PlayerEditForm, PlayerGroupForm, DiamondAwardForm, GearItemForm
-from app.services.progression import get_or_create_player_progression, award_diamonds_to_player
+from app.services.progression import award_diamonds_to_player
+from app.services.player_reset import reset_player_to_starting_state
 from app.services.analytics_reports import (
     build_class_dashboard,
     parse_date_filter,
@@ -108,7 +109,7 @@ from app.services.problem_content import (
     update_problem_choice_options,
     uses_structured_problem_answers,
 )
-from app.models.progression import PlayerProgression, DiamondTransaction
+from app.models.progression import PlayerProgression
 
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
@@ -304,25 +305,53 @@ def topics():
 @login_required
 @admin_required
 def problems():
-    subject_id = request.args.get('subject_id', 0, type=int)
+    filter_state = _parse_problem_board_filters(request.args)
     subjects = Subject.query.order_by(Subject.name).all()
 
-    if subject_id:
-        all_problems = (
-            Problem.query
-            .join(Topic, Problem.topic_id == Topic.id)
-            .filter(Topic.subject_id == subject_id)
-            .order_by(Problem.id.desc())
+    topics_for_subject = []
+    valid_topic_ids = []
+    if filter_state['subject_id']:
+        topics_for_subject = (
+            Topic.query
+            .filter_by(subject_id=filter_state['subject_id'])
+            .order_by(Topic.name)
             .all()
         )
-    else:
-        all_problems = Problem.query.order_by(Problem.id.desc()).all()
+        allowed_topic_ids = {topic.id for topic in topics_for_subject}
+        valid_topic_ids = [
+            topic_id for topic_id in filter_state['topic_ids']
+            if topic_id in allowed_topic_ids
+        ]
+
+    query = Problem.query.join(Topic, Problem.topic_id == Topic.id)
+    if filter_state['subject_id']:
+        query = query.filter(Topic.subject_id == filter_state['subject_id'])
+        if valid_topic_ids:
+            query = query.filter(Problem.topic_id.in_(valid_topic_ids))
+    if filter_state['difficulty']:
+        query = query.filter(Problem.difficulty == filter_state['difficulty'])
+    if filter_state['answer_type'] != 'all':
+        query = query.filter(Problem.answer_type == filter_state['answer_type'])
+    if filter_state['content_kind'] != 'all':
+        query = query.filter(Problem.content_kind == filter_state['content_kind'])
+
+    all_problems = query.order_by(Problem.id.desc()).all()
 
     return render_template(
         'admin/problems.html',
         problems=all_problems,
         subjects=subjects,
-        selected_subject_id=subject_id,
+        topics_for_subject=topics_for_subject,
+        selected_subject_id=filter_state['subject_id'],
+        selected_topic_ids=valid_topic_ids,
+        selected_difficulty=filter_state['difficulty'],
+        selected_answer_type=filter_state['answer_type'],
+        selected_content_kind=filter_state['content_kind'],
+        content_kind_choices=BUILDER_CONTENT_KIND_CHOICES,
+        filter_state={
+            **filter_state,
+            'topic_ids': valid_topic_ids,
+        },
     )
 
 
@@ -350,6 +379,33 @@ def _subject_choices_for_problem():
 
 def _problem_editor_topic_choices():
     return [(t.id, t.name) for t in Topic.query.order_by(Topic.name).all()]
+
+
+def _parse_problem_board_filters(source):
+    subject_id = source.get('subject_id', type=int) or 0
+    difficulty = source.get('difficulty', type=int) or 0
+    raw_answer_type = (source.get('answer_type') or 'all').strip()
+    if raw_answer_type not in {
+        'all',
+        PROBLEM_ANSWER_TYPE_TEXT_INPUT,
+        PROBLEM_ANSWER_TYPE_MULTIPLE_CHOICE,
+    }:
+        raw_answer_type = 'all'
+    raw_content_kind = (source.get('content_kind') or 'all').strip()
+    if raw_content_kind not in {'all', PROBLEM_CONTENT_KIND_PROBLEM, PROBLEM_CONTENT_KIND_DEFINITION}:
+        raw_content_kind = 'all'
+    topic_ids = [
+        topic_id
+        for topic_id in source.getlist('topic_id', type=int)
+        if topic_id
+    ]
+    return {
+        'subject_id': subject_id,
+        'topic_ids': list(dict.fromkeys(topic_ids)),
+        'difficulty': difficulty,
+        'answer_type': raw_answer_type,
+        'content_kind': raw_content_kind,
+    }
 
 
 def _build_problem_editor_create_context(*, subject_helper_value: int):
@@ -1243,6 +1299,36 @@ def problem_set_delete(set_id):
     return redirect(url_for('admin.problem_sets'))
 
 
+def _link_student_identity(player, email):
+    import re
+    from app.services import shared_identity
+    email = (email or '').strip().lower()
+    if not email:
+        if player.shared_identity_id:
+            raise ValueError('Keep the linked email. Shared accounts cannot be unlinked here.')
+        return
+    if player.is_admin:
+        raise ValueError('Shared emails are for student accounts. Admins use game credentials.')
+    if not shared_identity.enabled():
+        raise ValueError('Shared sign-in must be configured before linking an email.')
+    if not re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+', email):
+        raise ValueError('Enter a valid student email.')
+    existing = Player.query.filter(Player.shared_email == email, Player.id != player.id).first()
+    if existing:
+        raise ValueError('This email is already linked to another game player.')
+    if player.shared_email and player.shared_email != email:
+        raise ValueError('A linked email cannot be reassigned to a different person.')
+    if player.shared_email == email and player.shared_identity_id:
+        return
+    identity = shared_identity.call('provision', email=email, name=player.username)
+    if 'error' in identity:
+        raise ValueError('This email cannot be linked. Check that it belongs to a student.')
+    player.shared_email = identity['email']
+    player.shared_identity_id = identity['id']
+    player.password_hash = ''
+    player.credential_version = (player.credential_version or 0) + 1
+
+
 # ── Players ─────────────────────────────────────────────────────
 
 @admin_bp.route('/players/')
@@ -1273,9 +1359,25 @@ def player_new():
                 username=form.username.data.strip(),
                 is_admin=form.is_admin.data,
                 yeargroup=(form.yeargroup.data or '').strip() or None,
+                avatar_gender_selected=form.is_admin.data,
             )
-            player.set_password(form.password.data)
+            if form.password.data:
+                player.set_password(form.password.data)
+            else:
+                player.password_hash = ''
             db.session.add(player)
+            db.session.flush()
+            try:
+                if form.shared_email.data and form.password.data:
+                    raise ValueError('Leave the shared student password blank. The student chooses it on first sign-in.')
+                _link_student_identity(player, form.shared_email.data)
+            except ValueError as exc:
+                db.session.rollback()
+                flash(str(exc), 'error')
+                all_players = Player.query.order_by(Player.username).all()
+                return render_template('admin/players/index.html', players=all_players, form=form, create_open=True)
+            if not player.is_admin:
+                reset_player_to_starting_state(player)
             db.session.commit()
             flash(f'Player "{player.username}" created.', 'success')
             return redirect(url_for('admin.players_index'))
@@ -1304,16 +1406,80 @@ def player_edit(player_id):
         if existing:
             flash(f'Username "{form.username.data}" is already taken.', 'error')
         else:
+            if player.is_admin and not form.is_admin.data and Player.query.filter_by(is_admin=True).count() == 1:
+                flash('Keep at least one admin account.', 'error')
+                return render_template('admin/players/form.html', form=form, title='Edit Player', player=player)
             player.username = form.username.data.strip()
             player.is_admin = form.is_admin.data
             player.yeargroup = (form.yeargroup.data or '').strip() or None
-            new_pw = (form.new_password.data or '').strip()
-            if new_pw:  # AD-33: blank = preserve existing hash
+            new_pw = form.new_password.data or ''
+            try:
+                if player.is_admin and not player.password_hash and not new_pw:
+                    raise ValueError('Set a password before making this player an admin.')
+                if (player.shared_identity_id or form.shared_email.data) and new_pw:
+                    raise ValueError('For shared accounts, use Reset Password so the student chooses it on either site.')
+                _link_student_identity(player, form.shared_email.data)
+            except ValueError as exc:
+                db.session.rollback()
+                flash(str(exc), 'error')
+                return render_template('admin/players/form.html', form=form, title='Edit Player', player=player)
+            if new_pw:  # blank preserves the existing password
                 player.set_password(new_pw)
             db.session.commit()
             flash(f'Player "{player.username}" updated.', 'success')
             return redirect(url_for('admin.players_index'))
     return render_template('admin/players/form.html', form=form, title='Edit Player', player=player)
+
+
+@admin_bp.route('/players/<int:player_id>/reset-password', methods=['POST'])
+@login_required
+@admin_required
+def player_reset_password(player_id):
+    from app.services import shared_identity
+    player = db.session.get(Player, player_id)
+    if player is None or player.is_admin:
+        flash('Choose a student account to reset its password.', 'error')
+    else:
+        try:
+            if player.shared_identity_id:
+                identity = shared_identity.call('reset', email=player.shared_email)
+                if 'error' in identity:
+                    raise ValueError('The shared password could not be reset. Please try again.')
+            player.password_hash = ''
+            player.credential_version = (player.credential_version or 0) + 1
+            db.session.commit()
+            flash('Password reset. The student chooses a new password on next sign-in. Progress is preserved.', 'success')
+        except ValueError as exc:
+            db.session.rollback()
+            flash(str(exc), 'error')
+    return redirect(url_for('admin.players_index'))
+
+
+@admin_bp.route('/players/<int:player_id>/reset', methods=['POST'])
+@login_required
+@admin_required
+def player_reset(player_id):
+    player = db.session.get(Player, player_id)
+    if player is None:
+        flash('Player not found.', 'error')
+        return redirect(url_for('admin.players_index'))
+
+    try:
+        result = reset_player_to_starting_state(
+            player,
+            admin_player_id=current_user.id,
+        )
+        db.session.commit()
+        flash(
+            f'Reset "{player.username}" to first-login state with '
+            f'{result["diamonds_balance"]} welcome gift Diamond(s).',
+            'success',
+        )
+    except ValueError as exc:
+        db.session.rollback()
+        flash(str(exc), 'error')
+
+    return redirect(url_for('admin.players_index'))
 
 
 @admin_bp.route('/players/<int:player_id>/delete', methods=['POST'])
@@ -1334,8 +1500,34 @@ def player_delete(player_id):
         return redirect(url_for('admin.players_index'))
 
     username = player.username
-    db.session.delete(player)
-    db.session.commit()
+    if player.id == current_user.id:
+        flash('You cannot delete the admin account you are using.', 'error')
+        return redirect(url_for('admin.players_index'))
+    # Keep historical references. Only an unused player's own setup data may go.
+    owned_tables = {'player_gear_loadout', 'player_gear_ownership', 'player_progression',
+                    'player_upgrade', 'diamond_transaction', 'player_group_members'}
+    for table in db.metadata.tables.values():
+        for foreign_key in table.foreign_keys:
+            if foreign_key.column.table.name != 'player':
+                continue
+            column = foreign_key.parent
+            if table.name in owned_tables and column.name == 'player_id':
+                continue
+            if db.session.execute(select(column).where(column == player_id).limit(1)).first():
+                flash(f'Cannot delete "{username}" — saved game or audit records refer to this player.', 'error')
+                return redirect(url_for('admin.players_index'))
+    from sqlalchemy.exc import IntegrityError
+    try:
+        for name in owned_tables:
+            table = db.metadata.tables[name]
+            db.session.execute(table.delete().where(table.c.player_id == player_id))
+        db.session.expire_all()
+        db.session.delete(player)
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        flash('This player now has linked records and cannot be deleted.', 'error')
+        return redirect(url_for('admin.players_index'))
     flash(f'Player "{username}" deleted.', 'success')
     return redirect(url_for('admin.players_index'))
 

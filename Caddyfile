@@ -1,0 +1,5 @@
+{$GAME_DOMAIN} {
+    encode zstd gzip
+    # Caddy forwards Host and X-Forwarded-* and handles WebSocket upgrades.
+    reverse_proxy web:8000
+}

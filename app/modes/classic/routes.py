@@ -39,6 +39,7 @@ from app.models.history import RoundHistory, RoundPlayerResult, build_history_cs
 from app.models.analytics import AnalyticsRound
 from app.modes.classic.forms import ClassicSessionForm, StoreItemForm, NextRoundForm
 from app.modes.classic import state
+from app.modes.classic import store as classic_store
 from app.modes.classic.history_snapshot import freeze_round_history
 from app.modes.classic.admin_summary import (
     build_admin_supervision_summary_context,
@@ -290,6 +291,10 @@ def manage(session_id):
         .order_by(PlayerWallet.gold.desc())
         .all()
     )
+    wallet_bonus_counts = {
+        wallet.player_id: classic_store.get_active_counts(wallet.player_id, session_id)
+        for wallet in wallets
+    }
 
     # Enrolled players
     enrolled = RoundPlayer.query.filter_by(session_id=session_id).all()
@@ -318,6 +323,7 @@ def manage(session_id):
         game_round=game_round,
         config=config,
         wallets=wallets,
+        wallet_bonus_counts=wallet_bonus_counts,
         enrolled=enrolled,
         solve_counts=summary_context['solve_counts'],
         steal_events=summary_context['steal_events'],

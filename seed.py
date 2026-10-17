@@ -36,7 +36,8 @@ def seed():
 
             player = Player(
                 username=user_data['username'],
-                is_admin=user_data['is_admin']
+                is_admin=user_data['is_admin'],
+                avatar_gender_selected=user_data['is_admin'],
             )
             player.set_password(user_data['password'])
             db.session.add(player)

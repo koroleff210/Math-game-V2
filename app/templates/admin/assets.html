@@ -1,0 +1,45 @@
+{% extends "admin/layout.html" %}
+{% block title %}Assets{% endblock %}
+{% block admin_content %}
+<h1>Uploaded Assets</h1>
+<p>Built-in packaged art remains available and cannot be deleted here. Uploads are stored on the persistent media volume.</p>
+<form method="post" enctype="multipart/form-data" id="asset-upload-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <p><label>Display name <input name="display_name" maxlength="128" required></label></p>
+  <p><label>Category <select name="category" id="asset-category"><option value="face_m">Male avatar face</option><option value="face_f">Female avatar face</option><option value="gear_layer">Gear avatar layer</option><option value="gear_icon">Gear/item icon</option></select></label></p>
+  <p><label>Face key (optional, max 16) <input name="asset_key" maxlength="16"></label></p>
+  <p><label>Gear item <select name="gear_item_id"><option value="">—</option>{% for item in gear_items %}<option value="{{ item.id }}">{{ item.slot_type }} · {{ item.name }}</option>{% endfor %}</select></label></p>
+  <p><label>Body variant <select name="variant"><option value="shared">Shared</option><option value="m">Male</option><option value="f">Female</option></select></label></p>
+  <p><label>Layer <select name="layer"><option value="front">Front</option><option value="back">Head back</option><option value="underlay">Chest underlay</option></select></label></p>
+  <p><label>PNG/JPEG/WebP <input type="file" name="image" id="asset-image" accept="image/png,image/jpeg,image/webp" required></label></p>
+  <p><img id="asset-preview" alt="Selected upload preview" style="display:none;max-width:180px;max-height:180px"></p>
+  <button type="submit">Save uploaded asset</button>
+</form>
+<h2>Recent uploaded assets</h2>
+<table><thead><tr><th>Preview</th><th>Name / use</th><th>References</th><th>Actions</th></tr></thead><tbody>
+{% for row in rows %}<tr>
+  <td><img src="{{ row.url }}" alt="{{ row.asset.display_name }}" style="max-width:80px;max-height:80px"></td>
+  <td>{{ row.asset.display_name }}<br><small>{{ row.asset.category }} · {{ row.asset.asset_key or row.asset.gear_item_id or '' }} · {{ row.asset.variant or '' }} {{ row.asset.layer or '' }}</small></td>
+  <td>{{ row.references }}{% if row.references %} (in use){% endif %}</td>
+  <td>{% if row.asset.category != 'problem_image' %}
+    <form method="post" action="{{ url_for('assets.replace', asset_id=row.asset.id) }}" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="file" name="image" accept="image/png,image/jpeg,image/webp" required><button>Replace</button>
+    </form>
+    <form method="post" action="{{ url_for('assets.delete', asset_id=row.asset.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {% if row.references %}<label><input type="checkbox" name="confirm_referenced" value="yes"> Confirm deletion of referenced art</label>{% endif %}
+      <button>Delete</button>
+    </form>{% else %}Managed by Content Import{% endif %}
+  </td>
+</tr>{% endfor %}
+</tbody></table>
+<script>
+const input = document.getElementById('asset-image');
+const preview = document.getElementById('asset-preview');
+input.addEventListener('change', () => {
+  if (!input.files.length) { preview.style.display = 'none'; return; }
+  preview.src = URL.createObjectURL(input.files[0]);
+  preview.style.display = 'block';
+});
+</script>
+{% endblock %}

@@ -1,6 +1,6 @@
 # System Architecture
 
-_Updated: 2026-03-30_
+_Originally written 2026-03-30; status and migration head refreshed 2026-10-01. Detailed Classic boundaries below should be checked against current code when edited._
 
 This file documents current architectural boundaries and runtime/data-flow rules.
 Use [C:\Users\korol\OneDrive\Desktop\Game\Game v2\docs\project_state.md](C:\Users\korol\OneDrive\Desktop\Game\Game v2\docs\project_state.md) for status and [C:\Users\korol\OneDrive\Desktop\Game\Game v2\docs\manual_test_guide.md](C:\Users\korol\OneDrive\Desktop\Game\Game v2\docs\manual_test_guide.md) for manual verification.
@@ -14,7 +14,7 @@ Use [C:\Users\korol\OneDrive\Desktop\Game\Game v2\docs\project_state.md](C:\User
 | Migrations | Alembic via Flask-Migrate |
 | Auth | Flask-Login |
 | Real-time | Flask-SocketIO (`threading`) |
-| DB | SQLite (`instance/math_game.db`) |
+| DB | SQLite locally (`instance/math_game.db`); PostgreSQL in self-hosted production |
 | Templates | Jinja2 |
 | Graph rendering | Plotly in browser |
 
@@ -25,7 +25,24 @@ Canonical startup:
 ```
 
 Current Alembic head:
-- `f1a2b3c4d5e6`
+- `a6b7c8d9e0f1`
+
+Production startup is `docker/entrypoint.sh`: wait for PostgreSQL, apply the
+existing migration chain, create the first admin if absent, then start one
+Gunicorn `gthread` worker behind Caddy. PostgreSQL is internal to Compose; Caddy
+owns HTTPS and Socket.IO WebSocket proxying. Classic's in-memory pending state
+requires exactly one web process and can be lost on a web restart. See
+`docs/self_hosted_deployment.md`.
+
+Current registered gameplay modes:
+- Classic and Boss Rush have HTTP blueprints and Socket.IO handlers.
+- Team has no registered runtime implementation.
+- Expedition is a separate sibling Flask application using JSON storage.
+
+Questionbank v4 is an external source package in the sibling IB Physics Question
+System. The game still stores imported questions in its own SQLite tables; its
+existing importer expects the older combined JSON/image layout. See
+`docs/project_state.md` for the v4 migration assessment.
 
 ## Documentation Roles
 
@@ -447,3 +464,9 @@ These remain implemented and active:
 - round history/archive
 
 This document keeps focus on the architecture boundaries most likely to matter for current work.
+
+## Content import and persistent media
+
+The admin `Content Import` page stages a Questionbank v4 ZIP in `GAME_MEDIA_ROOT/staging`, validates it without database writes, then requires a separate confirmation. The importer accepts approved four-option MCQs and reports unsupported structured records. Stable `phys_...` IDs map through the existing `ProblemSourceMetadata` table; an unchanged hash skips, a changed hash updates the same `Problem` ID, and set membership remains attached. Imported text, image blocks, and answer options use the existing structured problem model and shared renderer. Image-only choices reference `UploadedAsset` through `ProblemChoiceOption.image_asset_id`.
+
+`UploadedAsset` records describe validated PNG/JPEG/WebP files stored beneath `GAME_MEDIA_ROOT`. `/media/<id>` resolves only database-owned generated filenames. The admin `Assets` page manages uploaded face and gear images, while the existing avatar and gear services resolve uploaded images before packaged assets. Docker mounts `media_data` at `/data/media`; PostgreSQL metadata lives in `postgres_data`. Back up and restore these volumes as a matching pair. Built-in art remains in `app/static` and is not managed by the upload UI.

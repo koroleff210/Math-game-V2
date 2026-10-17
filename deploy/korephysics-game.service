@@ -1,0 +1,23 @@
+[Unit]
+Description=KorePhysics math game
+After=network.target postgresql.service korephysics-identity.service
+Wants=korephysics-identity.service
+
+[Service]
+User=korephysics-game
+Group=korephysics-game
+WorkingDirectory=/opt/korephysics-game/app
+EnvironmentFile=/etc/korephysics-game/app.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/opt/korephysics-game/venv/bin/gunicorn --worker-class gthread --workers 1 --threads 100 --bind 127.0.0.1:5060 --timeout 120 --access-logfile - run:app
+Restart=on-failure
+RestartSec=3
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/korephysics-game
+
+[Install]
+WantedBy=multi-user.target

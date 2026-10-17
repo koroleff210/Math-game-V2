@@ -13,7 +13,7 @@
     <summary class="admin-details-summary">
         <span class="admin-details-summary-text">
             <span class="admin-details-summary-title">Create Player</span>
-            <span class="admin-details-summary-hint">Uses the existing player creation flow and validation.</span>
+            <span class="admin-details-summary-hint">Add a student; leave the password blank for first sign-in setup.</span>
         </span>
         <span class="admin-details-summary-icon">v</span>
     </summary>
@@ -37,6 +37,12 @@
                 {% endif %}
             </p>
 
+            <p class="admin-field">
+                {{ form.shared_email.label }}
+                {{ form.shared_email(size=40, type='email', placeholder='student@example.com') }}
+                <span class="admin-subtle">Required for online students. Uses the same login as the test site. Leave the password blank.</span>
+                {% for error in form.shared_email.errors %}<span class="admin-field-error">{{ error }}</span>{% endfor %}
+            </p>
             <p class="admin-field">
                 {{ form.yeargroup.label }}
                 {{ form.yeargroup(size=20, placeholder='e.g. Year 7') }}
@@ -71,6 +77,7 @@
                 <tr>
                     <th>Username</th>
                     <th>Admin?</th>
+                    <th>Sign-in</th>
                     <th>Year Group</th>
                     <th>Classes</th>
                     <th>Created</th>
@@ -82,6 +89,8 @@
                 <tr>
                     <td>{{ player.username }}</td>
                     <td>{% if player.is_admin %}✓{% endif %}</td>
+                    <td>{% if player.shared_email %}{{ player.shared_email }} <span class="admin-subtle">(shared)</span>
+                        {% elif not player.password_hash %}Password setup pending{% else %}Game username{% endif %}</td>
                     <td>{{ player.yeargroup or '-' }}</td>
                     <td>
                         {% set grps = player.groups %}
@@ -95,8 +104,20 @@
                     <td>
                         <div class="admin-row-actions">
                             <a href="{{ url_for('admin.player_edit', player_id=player.id) }}">Edit</a>
+                            {% if not player.is_admin %}
+                            <form method="POST" action="{{ url_for('admin.player_reset_password', player_id=player.id) }}"
+                                  onsubmit="return confirm('Reset this student password? Shared accounts will use the new password on both sites. Game progress is preserved.')">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit">Reset Password</button>
+                            </form>
+                            <form method="POST" action="{{ url_for('admin.player_reset', player_id=player.id) }}"
+                                  onsubmit="return confirm('Reset this player to first-login state? This clears character, gear, upgrades, and sets the welcome gift balance to 3 Diamonds.')">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit">Reset Player</button>
+                            </form>
+                            {% endif %}
                             <form method="POST" action="{{ url_for('admin.player_delete', player_id=player.id) }}"
-                                  onsubmit="return confirm('Delete player {{ player.username }}?')">
+                                  onsubmit="return confirm('Delete this unused game player? The shared test-site account is preserved.')">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="admin-link-danger">Delete</button>
                             </form>

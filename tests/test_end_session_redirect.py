@@ -26,7 +26,15 @@ from app.models.problems import Topic, Problem, ProblemSet
 from app.models.game import GameSession, GameRound
 from app.models.classic import ClassicRoundConfig
 
-flask_app = create_app()
+class _TestConfig:
+    TESTING = True
+    SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
+    SECRET_KEY = 'isolated-session-redirect-test'
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SOCKETIO_ASYNC_MODE = 'threading'
+
+
+flask_app = create_app(_TestConfig)
 flask_app.config['WTF_CSRF_ENABLED'] = False
 flask_app.config['TESTING'] = True
 
@@ -80,6 +88,7 @@ def _clean():
 
 
 with flask_app.app_context():
+    db.create_all()
     _clean()
 
     # Create admin user

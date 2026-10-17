@@ -1,0 +1,31 @@
+Game v2 self-hosted online-test v2 release
+
+The ZIP contains one root directory: math-game-online/
+Top-level entries inside that directory:
+
+app/                       Complete Flask application, templates, static assets, Classic, Boss Rush, admin, and Socket.IO code. Includes currently untracked runtime dependencies.
+migrations/                Complete Flask-Migrate/Alembic chain through b7c8d9e0f1a2, including uploaded-asset metadata and MCQ image options.
+docker/                    Production entrypoint: wait for PostgreSQL, migrate, bootstrap one admin, start one Gunicorn worker.
+docs/                      Self-hosted deployment and architecture guides.
+.dockerignore              Excludes local data and development files from the web image.
+.env.example               Documented production environment template; contains no real secrets.
+Caddyfile                  HTTPS and WebSocket-capable reverse proxy for the configured hostname.
+Dockerfile                 Linux Python production image.
+docker-compose.yml         Web, PostgreSQL, and Caddy services with persistent database and media volumes.
+config.py                  Runtime configuration, including production safeguards.
+requirements.txt           Application dependencies.
+requirements-prod.txt      Gunicorn and PostgreSQL driver dependencies.
+run.py                     Flask application import target used by Gunicorn and Flask CLI.
+SERVER_TEST_CHECKLIST.md   Exact first-server and multiplayer verification sequence.
+RELEASE_MANIFEST.txt       This inventory.
+
+Excluded: .env and all real credentials, local SQLite/instance data, .venv,
+Python caches, .git, IDE files, generated logs/results, backup archives,
+Windows launch helpers, seed scripts, tests, historical plans, scratch files,
+and separate question-bank/source projects. No existing player or problem data
+is bundled. The first PostgreSQL database is fresh.
+
+The package includes the whole app/static tree to preserve existing Classic,
+Boss Rush, avatar, gear, and problem-rendering assets. Optional legacy physics
+images are included as application static files; Questionbank v4 is imported
+only after admin validation and confirmation.

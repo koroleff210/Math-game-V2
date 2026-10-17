@@ -1193,17 +1193,20 @@ def update_problem_block_content(problem, block_id: int, payload: dict) -> None:
 def build_problem_choice_view(problem) -> dict:
     answer_type = getattr(problem, 'answer_type', PROBLEM_ANSWER_TYPE_TEXT_INPUT) or PROBLEM_ANSWER_TYPE_TEXT_INPUT
     ordered_options = sorted(problem.choice_options, key=lambda option: (option.position, option.id or 0))
+    from app.models.media import UploadedAsset
+    from app.services.uploaded_media import asset_url
+    options = []
+    for option in ordered_options:
+        rendered_html = render_inline_text_html(option.option_text)
+        if option.image_asset_id:
+            image_url = asset_url(db.session.get(UploadedAsset, option.image_asset_id))
+            if image_url:
+                rendered_html += f'<br><img src="{image_url}" alt="Option image" style="max-width:100%;height:auto">'
+        options.append({'id': option.id, 'position': option.position,
+                        'option_text': option.option_text, 'rendered_html': rendered_html})
     return {
         'answer_type': answer_type,
-        'options': [
-            {
-                'id': option.id,
-                'position': option.position,
-                'option_text': option.option_text,
-                'rendered_html': render_inline_text_html(option.option_text),
-            }
-            for option in ordered_options
-        ],
+        'options': options,
     }
 
 
@@ -1215,6 +1218,7 @@ def build_problem_body_view(problem) -> dict:
     for older records that have not been initialized into structured blocks yet.
     """
     blocks = sorted(problem.blocks, key=lambda row: (row.position, row.id or 0))
+    from app.services.uploaded_media import resolve_problem_image_url
     body_blocks = []
 
     if blocks:
@@ -1233,6 +1237,7 @@ def build_problem_body_view(problem) -> dict:
                     'type': PROBLEM_BLOCK_TYPE_IMAGE,
                     'position': block.position,
                     'image_path': block.image_path or '',
+                    'image_url': resolve_problem_image_url(block.image_path),
                     'image_width_pct': block.image_width_pct or 100,
                 })
             elif block.block_type == PROBLEM_BLOCK_TYPE_GRAPH:
@@ -1262,6 +1267,7 @@ def build_problem_body_view(problem) -> dict:
                 'type': PROBLEM_BLOCK_TYPE_IMAGE,
                 'position': len(body_blocks) + 1,
                 'image_path': legacy_image_path,
+                'image_url': resolve_problem_image_url(legacy_image_path),
                 'image_width_pct': 100,
             })
         uses_legacy_fallback = True

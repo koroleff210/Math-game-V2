@@ -1,0 +1,5 @@
+-r requirements.txt
+
+# Linux production runtime: one threaded Socket.IO worker and PostgreSQL.
+gunicorn>=23,<25
+psycopg[binary]>=3.2.9,<4

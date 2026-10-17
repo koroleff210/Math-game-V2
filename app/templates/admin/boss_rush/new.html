@@ -22,7 +22,7 @@
 {% block admin_content %}
 {% set title = page_title|default('New Boss Rush') %}
 {% set eyebrow = page_eyebrow|default('Launch') %}
-{% set description = page_description|default('Create the Boss Rush setup shell: boss, class scope, attack/recovery problem sets, and reward defaults.') %}
+{% set description = page_description|default('Choose the boss, class, attack and recovery problem sets, and rewards.') %}
 {% include "admin/_page_header.html" %}
 
 <form method="POST" action="{{ form_action|default(url_for('boss_rush_admin.new_session')) }}" data-boss-rush-config-form>

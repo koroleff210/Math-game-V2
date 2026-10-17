@@ -5,32 +5,119 @@
 {% block admin_content %}
 {% set title = 'Problems' %}
 {% set eyebrow = 'Problem Bank' %}
-{% set description = 'Browse the problem bank, filter by subject, and jump directly into the editor.' %}
+{% set description = 'Browse the problem bank with builder-style filters, then jump directly into the editor.' %}
 {% set primary_href = url_for('admin.problem_new') %}
 {% set primary_label = '+ New Problem' %}
 {% include "admin/_page_header.html" %}
+<style>
+    .problem-board-filters {
+        display: grid;
+        gap: 14px;
+    }
+    .problem-board-filter-row {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 14px;
+        align-items: end;
+    }
+    .problem-board-filter-row select {
+        width: 100%;
+        box-sizing: border-box;
+    }
+    .problem-board-topic-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        max-height: 220px;
+        overflow-y: auto;
+        padding: 10px;
+        border: 1px solid rgba(112, 95, 68, 0.14);
+        border-radius: 10px;
+        background: rgba(255, 251, 245, 0.72);
+    }
+    .problem-board-topic-list label {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+    .problem-board-actions {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    @media (max-width: 900px) {
+        .problem-board-filter-row {
+            grid-template-columns: 1fr 1fr;
+        }
+    }
+</style>
 
 <section class="admin-section-card">
-    <form method="GET" action="{{ url_for('admin.problems') }}" class="admin-filter-bar">
-        <p class="admin-field">
-            <label for="subject_id">Filter by Subject</label>
-            <select name="subject_id" id="subject_id" onchange="this.form.submit()">
-                <option value="0"{% if selected_subject_id == 0 %} selected{% endif %}>All Subjects</option>
-                {% for s in subjects %}
-                <option value="{{ s.id }}"{% if selected_subject_id == s.id %} selected{% endif %}>{{ s.name }}</option>
+    <form method="GET" action="{{ url_for('admin.problems') }}" class="problem-board-filters">
+        <div class="problem-board-filter-row">
+            <p class="admin-field">
+                <label for="subject_id">Subject</label>
+                <select name="subject_id" id="subject_id" onchange="this.form.submit()">
+                    <option value="0"{% if selected_subject_id == 0 %} selected{% endif %}>All Subjects</option>
+                    {% for s in subjects %}
+                    <option value="{{ s.id }}"{% if selected_subject_id == s.id %} selected{% endif %}>{{ s.name }}</option>
+                    {% endfor %}
+                </select>
+            </p>
+            <p class="admin-field">
+                <label for="difficulty">Difficulty</label>
+                <select id="difficulty" name="difficulty">
+                    <option value="0" {% if selected_difficulty == 0 %}selected{% endif %}>Any</option>
+                    {% for value in [1, 2, 3, 4, 5] %}
+                    <option value="{{ value }}" {% if selected_difficulty == value %}selected{% endif %}>{{ value }}</option>
+                    {% endfor %}
+                </select>
+            </p>
+            <p class="admin-field">
+                <label for="answer_type">Answer Type</label>
+                <select id="answer_type" name="answer_type">
+                    <option value="all" {% if selected_answer_type == 'all' %}selected{% endif %}>All</option>
+                    <option value="text_input" {% if selected_answer_type == 'text_input' %}selected{% endif %}>Text input</option>
+                    <option value="multiple_choice" {% if selected_answer_type == 'multiple_choice' %}selected{% endif %}>Multiple choice</option>
+                </select>
+            </p>
+            <p class="admin-field">
+                <label for="content_kind">Content Kind</label>
+                <select id="content_kind" name="content_kind">
+                    {% for value, label in content_kind_choices %}
+                    <option value="{{ value }}" {% if selected_content_kind == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </p>
+            <div class="problem-board-actions">
+                <button type="submit" class="admin-btn admin-btn-primary">Filter</button>
+                <a href="{{ url_for('admin.problems') }}">Clear</a>
+            </div>
+        </div>
+
+        <div>
+            <label><strong>Topics</strong></label>
+            {% if topics_for_subject %}
+            <div class="problem-board-topic-list">
+                {% for topic in topics_for_subject %}
+                <label>
+                    <input type="checkbox" name="topic_id" value="{{ topic.id }}" {% if topic.id in selected_topic_ids %}checked{% endif %}>
+                    {{ topic.name }}
+                </label>
                 {% endfor %}
-            </select>
-        </p>
-        <noscript>
-            <button type="submit" class="admin-btn admin-btn-secondary">Apply Filter</button>
-        </noscript>
+            </div>
+            {% else %}
+            <p class="admin-subtle" style="margin:8px 0 0;">Select a subject to filter by topic.</p>
+            {% endif %}
+        </div>
     </form>
 
     <div class="admin-toolbar">
         <div>
             <h2 class="admin-toolbar-title">All Problems</h2>
             <p class="admin-toolbar-subtitle">
-                {{ problems|length }} problem{{ '' if problems|length == 1 else 's' }}{% if selected_subject_id %} in the selected subject{% endif %}
+                {{ problems|length }} problem{{ '' if problems|length == 1 else 's' }}{% if selected_subject_id %} matching the current filters{% endif %}
             </p>
         </div>
     </div>

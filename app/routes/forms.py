@@ -106,16 +106,29 @@ class ProblemSetForm(FlaskForm):
 
 class PlayerCreateForm(FlaskForm):
     username  = StringField('Username', validators=[DataRequired(), Length(max=64)])
-    password  = PasswordField('Password', validators=[DataRequired(), Length(min=4)])
+    password  = PasswordField('Password (optional for students)', validators=[Optional(), Length(min=8, max=256)])
+    shared_email = StringField('Student email (shared login)', validators=[Optional(), Length(max=254)])
     yeargroup = StringField('Year Group (optional)', validators=[Optional(), Length(max=32)])
     is_admin  = BooleanField('Admin account')
     submit    = SubmitField('Create Player')
 
+    def validate(self, extra_validators=None):
+        valid = super().validate(extra_validators=extra_validators)
+        if self.is_admin.data and not self.password.data:
+            self.password.errors.append('Set a password for an admin account.')
+            valid = False
+        from app.services.shared_identity import enabled
+        if enabled() and not self.is_admin.data and not (self.shared_email.data or '').strip():
+            self.shared_email.errors.append('Enter the student email to use the shared login on both sites.')
+            valid = False
+        return valid
+
 
 class PlayerEditForm(FlaskForm):
+    shared_email = StringField('Student email (shared login)', validators=[Optional(), Length(max=254)])
     username     = StringField('Username', validators=[DataRequired(), Length(max=64)])
     new_password = PasswordField('New Password (leave blank to keep current)',
-                                 validators=[Optional()])
+                                 validators=[Optional(), Length(min=8, max=256)])
     yeargroup    = StringField('Year Group (optional)', validators=[Optional(), Length(max=32)])
     is_admin     = BooleanField('Admin account')
     submit       = SubmitField('Save Changes')

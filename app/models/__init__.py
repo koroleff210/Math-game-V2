@@ -13,3 +13,4 @@ from app.models.progression  import PlayerProgression, DiamondTransaction, Playe
 from app.models.gear         import GearItemDefinition, PlayerGearOwnership, PlayerGearLoadout  # noqa: F401
 from app.models.boss_rush    import BossRushRoundConfig, BossRushBattleState, BossRushPlayerState, BossRushProblemAttempt  # noqa: F401
 from app.models.analytics    import AnalyticsRound, AnalyticsRoundProblem, AnalyticsPlayerRound, AnalyticsPlayerProblem, AnalyticsAnswerAttempt, AnalyticsClassicEconomyEvent, AnalyticsBossRushBattleEvent  # noqa: F401
+from app.models.media        import UploadedAsset  # noqa: F401

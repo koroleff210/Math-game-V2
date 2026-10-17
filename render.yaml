@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: math-physics-game-test
+    runtime: python
+    plan: 0.5c-512mb
+    region: frankfurt
+    numInstances: 1
+    buildCommand: pip install -r requirements-prod.txt
+    preDeployCommand: python -m flask db upgrade && python -m flask create-admin
+    startCommand: gunicorn --worker-class gthread --workers 1 --threads 32 --bind 0.0.0.0:$PORT run:app
+    healthCheckPath: /healthz
+    envVars:
+      - key: GAME_ENV
+        value: production
+      - key: PYTHON_VERSION
+        value: 3.14.3
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: math-physics-game-test-db
+          property: connectionString
+      - key: INITIAL_ADMIN_USERNAME
+        sync: false
+      - key: INITIAL_ADMIN_PASSWORD
+        sync: false
+
+databases:
+  - name: math-physics-game-test-db
+    plan: 0.1c-256mb
+    region: frankfurt
+    diskSizeGB: 1

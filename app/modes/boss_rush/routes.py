@@ -1,8 +1,6 @@
 # app/modes/boss_rush/routes.py
 #
-# Phase 1 HTTP shell for Boss Rush. Admin can create/manage/start/end a
-# Boss Rush session; players can join a placeholder lobby/game route. Live
-# answer submission, boss damage, recovery, and reward finalization are deferred.
+# Boss Rush HTTP routes for session control, battle answers, recovery, and rewards.
 
 from datetime import datetime, timezone
 
@@ -336,7 +334,7 @@ def new_session():
         db.session.commit()
         _emit_hub_session_available(game_session)
 
-        flash(f'Boss Rush session #{game_session.id} created. Battle mechanics are still deferred for Phase 2.', 'success')
+        flash(f'Boss Rush session #{game_session.id} created. Players can join while you prepare the first round.', 'success')
         return redirect(url_for('boss_rush_admin.manage', session_id=game_session.id))
 
     return render_template(
@@ -345,7 +343,7 @@ def new_session():
         form_action=url_for('boss_rush_admin.new_session'),
         page_title='New Boss Rush',
         page_eyebrow='Launch',
-        page_description='Create the Boss Rush setup shell: boss, class scope, attack/recovery problem sets, and reward defaults.',
+        page_description='Choose the boss, class, attack and recovery problem sets, and rewards.',
         submit_title='Create Shell',
         submit_button_label='Create Boss Rush',
         submit_description='This creates the session, round config, and boss state rows.',

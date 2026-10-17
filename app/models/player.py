@@ -19,7 +19,11 @@ class Player(UserMixin, db.Model):
     password_hash = db.Column(db.String(256), nullable=False)
     is_admin   = db.Column(db.Boolean, default=False, nullable=False)
     yeargroup  = db.Column(db.String(32), nullable=True)
+    shared_email = db.Column(db.String(254), unique=True, nullable=True)
+    shared_identity_id = db.Column(db.Integer, unique=True, nullable=True)
+    credential_version = db.Column(db.Integer, nullable=False, default=0, server_default='0')
     avatar_body_variant = db.Column(db.String(8), nullable=False, default='m')
+    avatar_gender_selected = db.Column(db.Boolean, nullable=False, default=True)
     selected_face_key = db.Column(db.String(16), nullable=False, default='001')
     character_locked_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(
@@ -36,10 +40,11 @@ class Player(UserMixin, db.Model):
     def set_password(self, password):
         """Hash and store the password.  Never stores the plain-text value."""
         self.password_hash = generate_password_hash(password)
+        self.credential_version = (self.credential_version or 0) + 1
 
     def check_password(self, password):
         """Return True if the given plain-text password matches the stored hash."""
-        return check_password_hash(self.password_hash, password)
+        return bool(self.password_hash) and check_password_hash(self.password_hash, password)
 
     # ── Flask-Login requirement ───────────────────────────────────────────────
     def get_id(self):

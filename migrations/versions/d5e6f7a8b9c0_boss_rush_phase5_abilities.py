@@ -17,7 +17,7 @@ depends_on = None
 
 def upgrade():
     with op.batch_alter_table('boss_rush_round_config', schema=None) as batch_op:
-        batch_op.add_column(sa.Column('ability_enabled', sa.Boolean(), nullable=False, server_default=sa.text('1')))
+        batch_op.add_column(sa.Column('ability_enabled', sa.Boolean(), nullable=False, server_default=sa.true()))
         batch_op.add_column(sa.Column('ability_interval_seconds', sa.Integer(), nullable=False, server_default='60'))
         batch_op.add_column(sa.Column('fire_burn_damage', sa.Integer(), nullable=False, server_default='1'))
         batch_op.add_column(sa.Column('fire_shield_max_stacks', sa.Integer(), nullable=False, server_default='1'))
@@ -29,12 +29,12 @@ def upgrade():
         batch_op.add_column(sa.Column('next_ability_at', sa.DateTime(), nullable=True))
         batch_op.add_column(sa.Column('last_ability_at', sa.DateTime(), nullable=True))
         batch_op.add_column(sa.Column('ability_count', sa.Integer(), nullable=False, server_default='0'))
-        batch_op.add_column(sa.Column('stone_guard_active', sa.Boolean(), nullable=False, server_default=sa.text('0')))
+        batch_op.add_column(sa.Column('stone_guard_active', sa.Boolean(), nullable=False, server_default=sa.false()))
         batch_op.add_column(sa.Column('last_ability_summary_json', sa.JSON(), nullable=True))
 
     with op.batch_alter_table('boss_rush_player_state', schema=None) as batch_op:
         batch_op.add_column(sa.Column('fire_shield_stacks', sa.Integer(), nullable=False, server_default='0'))
-        batch_op.add_column(sa.Column('submitted_since_last_ability', sa.Boolean(), nullable=False, server_default=sa.text('1')))
+        batch_op.add_column(sa.Column('submitted_since_last_ability', sa.Boolean(), nullable=False, server_default=sa.true()))
         batch_op.add_column(sa.Column('last_ability_personal_message', sa.String(length=255), nullable=True))
 
 
