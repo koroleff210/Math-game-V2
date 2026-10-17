@@ -18,6 +18,7 @@ class UploadedAsset(db.Model):
     storage_name = db.Column(db.String(96), nullable=False, unique=True)
     media_type = db.Column(db.String(32), nullable=False)
     sha256 = db.Column(db.String(64), nullable=False)
+    editor_state = db.Column(db.JSON, nullable=True)
     uploaded_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
     gear_item = db.relationship('GearItemDefinition', backref='uploaded_assets')

@@ -68,6 +68,8 @@ def create_app(config_class=Config):
     flask_app.register_blueprint(import_bp)
     from app.routes.assets import assets_bp
     flask_app.register_blueprint(assets_bp)
+    from app.routes.gear_studio import studio_bp
+    flask_app.register_blueprint(studio_bp)
 
     from app.modes.classic.routes import classic_admin_bp, classic_player_bp
     flask_app.register_blueprint(classic_admin_bp)

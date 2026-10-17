@@ -112,17 +112,20 @@ def replace(asset_id):
         if upload is None or os.path.splitext(upload.filename or '')[1].lower() not in _ALLOWED_EXTENSIONS:
             raise ValueError('Choose a PNG, JPEG, or WebP file.')
         saved = write_image(upload.read(16 * 1024 * 1024 + 1))
-        old_name = asset.storage_name
+        old_names = [asset.storage_name, (asset.editor_state or {}).get('source_name')]
         asset.storage_name = saved['storage_name']
         asset.media_type = saved['media_type']
         asset.sha256 = saved['sha256']
+        asset.editor_state = None
         try:
             db.session.commit()
         except Exception:
             db.session.rollback()
             remove_image(saved['storage_name'])
             raise
-        remove_image(old_name)
+        for name in old_names:
+            if name:
+                remove_image(name)
         flash('Asset replaced; its references remain attached.', 'success')
     except ValueError as exc:
         flash(str(exc), 'error')
@@ -141,9 +144,11 @@ def delete(asset_id):
     elif reference_count(asset) and request.form.get('confirm_referenced') != 'yes':
         flash('Asset is referenced. Tick the explicit confirmation box before deleting it.', 'error')
     else:
-        name = asset.storage_name
+        names = [asset.storage_name, (asset.editor_state or {}).get('source_name')]
         db.session.delete(asset)
         db.session.commit()
-        remove_image(name)
+        for name in names:
+            if name:
+                remove_image(name)
         flash('Uploaded asset deleted.', 'success')
     return redirect(url_for('assets.index'))

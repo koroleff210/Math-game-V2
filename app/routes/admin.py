@@ -246,6 +246,9 @@ def gear_delete(item_id):
     try:
         result = delete_admin_gear_item(item_id)
         db.session.commit()
+        from app.services.uploaded_media import remove_image
+        for filename in result.get('removed_asset_files', []):
+            remove_image(filename)
         flash(
             f'Gear item "{result["item_name"]}" deleted. '
             f'Removed from {result["removed_ownerships"]} player inventory row(s) '

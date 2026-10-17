@@ -173,10 +173,13 @@ def test_classic_template_includes_chest_underlay_layer():
     assert "'chest-underlay'" in src
 
 
-def test_face_list_filters_by_variant_and_resets_incompatible_selection():
+def test_face_list_filters_by_variant_and_resets_incompatible_selection(monkeypatch):
+    # Keep this contract independent of which faces artists have since added.
+    monkeypatch.setattr('app.services.avatar._list_png_files',
+                        lambda folder: ['face_001.png', 'face_f_001.png', 'face_test_m_only.png'])
     with flask_app.app_context():
         db.create_all()
-        player = Player(username='variant_face_filter_player', selected_face_key='005')
+        player = Player(username='variant_face_filter_player', selected_face_key='test_m_only')
         player.set_password('pass1234')
         db.session.add(player)
         db.session.commit()
@@ -186,9 +189,8 @@ def test_face_list_filters_by_variant_and_resets_incompatible_selection():
         assert '001' in male_faces
         assert '001' in female_faces
 
-        # face_005 exists in male set but not in female set in current assets.
-        assert '005' in male_faces
-        assert '005' not in female_faces
+        assert 'test_m_only' in male_faces
+        assert 'test_m_only' not in female_faces
         set_player_body_variant(player, 'f')
         db.session.commit()
         assert player.avatar_body_variant == 'f'

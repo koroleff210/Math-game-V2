@@ -2,6 +2,7 @@
 {% block title %}Assets{% endblock %}
 {% block admin_content %}
 <h1>Uploaded Assets</h1>
+<p><a class="admin-btn admin-btn-primary" href="{{ url_for('gear_studio.index') }}">Open Gear Studio — fit faces and gear on the avatar</a></p>
 <p>Built-in packaged art remains available and cannot be deleted here. Uploads are stored on the persistent media volume.</p>
 <form method="post" enctype="multipart/form-data" id="asset-upload-form">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

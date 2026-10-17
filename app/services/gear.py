@@ -848,6 +848,15 @@ def delete_admin_gear_item(item_id: str) -> dict:
     )
 
     item_name = item.name
+    from app.models.media import UploadedAsset
+    removed_asset_files = []
+    for asset in UploadedAsset.query.filter_by(gear_item_id=item.id).all():
+        removed_asset_files.append(asset.storage_name)
+        source_name = (asset.editor_state or {}).get('source_name')
+        if source_name:
+            removed_asset_files.append(source_name)
+        db.session.delete(asset)
+    db.session.flush()
     db.session.delete(item)
     db.session.flush()
 
@@ -856,6 +865,7 @@ def delete_admin_gear_item(item_id: str) -> dict:
         'item_name': item_name,
         'removed_ownerships': removed_ownerships,
         'cleared_loadout_slots': cleared_loadout_slots,
+        'removed_asset_files': removed_asset_files,
     }
 
 
