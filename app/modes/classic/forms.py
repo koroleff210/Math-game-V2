@@ -167,6 +167,7 @@ class ClassicConfigFieldsForm(FlaskForm):
 
 
 class ClassicSessionForm(ClassicConfigFieldsForm):
+    proctoring_required = BooleanField('Require entire-screen sharing')
     """Admin form: create a new Classic Mode session with round configuration."""
 
     problem_set_id = SelectField(

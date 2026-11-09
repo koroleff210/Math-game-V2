@@ -21,6 +21,9 @@
 {%- endmacro %}
 
 {% block admin_content %}
+{% if game_session.proctoring_required and game_session.status != 'finished' %}
+<a class="admin-btn" target="_blank" rel="noopener" href="{{ url_for('proctoring.monitor', game_id=game_session.id) }}">Open proctoring</a>
+{% endif %}
 <style>
     .token-badge {
         display: inline-flex;

@@ -41,6 +41,7 @@ from app.models.analytics import AnalyticsRound
 from app.modes.classic.forms import ClassicSessionForm, StoreItemForm, NextRoundForm
 from app.modes.classic import engine, state
 from app.modes.classic.presets import PRESETS
+from app.services.proctoring import SHARE_REQUIRED, end_proctoring, may_play
 from app.modes.classic import store as classic_store
 from app.modes.classic.history_snapshot import freeze_round_history
 from app.modes.classic.admin_summary import (
@@ -100,6 +101,7 @@ def _emit_hub_session_available(game_session):
         'session_id': game_session.id,
         'label': game_session.display_label or '',
         'mode': 'classic',
+        'proctoring_required': game_session.proctoring_required,
     }
     if game_session.group_id:
         socketio.emit('session_available', payload,
@@ -206,6 +208,7 @@ def new_session():
 
         # 1. Create the GameSession
         game_session = GameSession(
+            proctoring_required=form.proctoring_required.data,
             mode='classic',
             status='waiting',
             problem_set_id=form.problem_set_id.data,
@@ -516,6 +519,8 @@ def end_session(session_id):
     from app.services.economy import settle_session
     settle_session(game_session)
     db.session.commit()
+    if game_session.proctoring_required:
+        end_proctoring(session_id)
 
     # clear_session is idempotent — safe even if already called from end_round
     state.clear_session(session_id)
@@ -887,6 +892,9 @@ def join_session():
         return redirect(url_for('player.dashboard'))
 
     # --- Participation transaction ---
+    if not may_play(game_session, current_user.id):
+        flash(SHARE_REQUIRED, 'error')
+        return redirect(url_for('player.dashboard'))
     # All three participation rows are created here and nowhere else.
 
     # 1. RoundPlayer (session enrollment)
@@ -1011,16 +1019,17 @@ def lobby(session_id):
 @login_required
 def game(session_id):
     """Player game screen — initial shell loaded once; Socket.IO handles live updates."""
-    game_session = db.session.get(GameSession, session_id)
-    if not game_session or game_session.mode != 'classic':
-        abort(404)
-
-    game_round = (
-        GameRound.query
-        .filter_by(session_id=session_id, ended_at=None)
+    # Read the session state and its open round from the same database snapshot.
+    row = (
+        db.session.query(GameSession, GameRound)
+        .outerjoin(GameRound, (GameRound.session_id == GameSession.id) & GameRound.ended_at.is_(None))
+        .filter(GameSession.id == session_id, GameSession.mode == 'classic')
         .order_by(GameRound.round_number.desc())
         .first()
     )
+    if row is None:
+        abort(404)
+    game_session, game_round = row
 
     # Deny unauthorized users before any status-based redirect.
     if not player_in_session_group(current_user, game_session):
@@ -1038,6 +1047,8 @@ def game(session_id):
     # Round is over — show final results.
     if game_session.status == 'finished':
         return redirect(url_for('classic_player.round_over', session_id=session_id))
+    if not game_round or not game_round.classic_config:
+        abort(409, 'No open round. Ask the teacher to check the game.')
 
     loadout = PlayerGearLoadout.query.filter_by(player_id=current_user.id).first()
     if loadout is None:

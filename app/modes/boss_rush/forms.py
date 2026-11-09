@@ -10,6 +10,7 @@ from app.modes.boss_rush.engine import DEFAULT_BOSS_RUSH_SETTINGS, boss_type_cho
 
 
 class BossRushSessionForm(FlaskForm):
+    proctoring_required = BooleanField('Require entire-screen sharing')
     attack_problem_set_id = SelectField(
         'Attack Problem Set',
         coerce=int,

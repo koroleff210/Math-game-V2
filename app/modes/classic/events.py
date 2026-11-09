@@ -70,12 +70,18 @@ from app.services.analytics import (
     record_answer_attempt,
     record_classic_economy_event,
 )
+from app.services.proctoring import SHARE_REQUIRED, may_play
 
 
 def _serialized_economy(fn):
     @wraps(fn)
     def wrapped(data):
-        with economy.session_lock(int((data or {}).get('session_id', 0))):
+        session_id = int((data or {}).get('session_id', 0))
+        with economy.session_lock(session_id):
+            game = db.session.get(GameSession, session_id) if current_user.is_authenticated else None
+            if game and not may_play(game, current_user.id):
+                emit('proctor_required', {'message': SHARE_REQUIRED})
+                return
             return fn(data)
     return wrapped
 
@@ -1508,6 +1514,7 @@ def register_classic_handlers(socketio):
     # ── classic_steal_cancel ──────────────────────────────────────────────────
 
     @socketio.on('classic_steal_cancel')
+    @_serialized_economy
     def handle_steal_cancel(data):
         """
         Player cancels target selection during a steal attempt.
@@ -1905,6 +1912,7 @@ def register_classic_handlers(socketio):
     # ── classic_activate_steal_shield ─────────────────────────────────────────
 
     @socketio.on('classic_activate_steal_shield')
+    @_serialized_economy
     def handle_activate_steal_shield(data):
         """
         Player manually activates a steal_shield item from their inventory.

@@ -52,6 +52,7 @@ from app.services.analytics import (
     finalize_boss_rush_round,
     snapshot_boss_rush_round_problem_sets,
 )
+from app.services.proctoring import SHARE_REQUIRED, end_proctoring, may_play
 
 
 boss_rush_admin_bp = Blueprint('boss_rush_admin', __name__, url_prefix='/admin/boss-rush')
@@ -108,6 +109,7 @@ def _emit_hub_session_available(game_session):
         'session_id': game_session.id,
         'label': game_session.display_label or '',
         'mode': BOSS_RUSH_MODE,
+        'proctoring_required': game_session.proctoring_required,
     }
     if game_session.group_id:
         socketio.emit('session_available', payload, room=f'hub_group_{game_session.group_id}')
@@ -313,6 +315,7 @@ def new_session():
             return redirect(url_for('boss_rush_admin.manage', session_id=live.id))
 
         game_session = GameSession(
+            proctoring_required=form.proctoring_required.data,
             mode=BOSS_RUSH_MODE,
             status='waiting',
             problem_set_id=form.attack_problem_set_id.data,
@@ -612,6 +615,8 @@ def end_session(session_id):
     from app.services.economy import settle_session
     settle_session(game_session)
     db.session.commit()
+    if game_session.proctoring_required:
+        end_proctoring(session_id)
     _emit_live_state(session_id)
     flash('Boss Rush session ended.', 'success')
     return redirect(url_for('boss_rush_admin.index'))
@@ -648,6 +653,8 @@ def finalize_rewards(session_id):
         settle_session(game_session)
         finalize_boss_rush_round(game_round, reward_snapshot=result.get('snapshot'))
         db.session.commit()
+        if game_session.proctoring_required:
+            end_proctoring(session_id)
         _emit_live_state(session_id)
     except ValueError as exc:
         db.session.rollback()
@@ -699,6 +706,9 @@ def join(session_id):
         return redirect(url_for('player.dashboard'))
     if not _player_in_session_group(current_user, game_session):
         flash('This Boss Rush session is restricted to another class.', 'error')
+        return redirect(url_for('player.dashboard'))
+    if not may_play(game_session, current_user.id):
+        flash(SHARE_REQUIRED, 'error')
         return redirect(url_for('player.dashboard'))
 
     game_round = _latest_round(session_id)
@@ -802,6 +812,9 @@ def submit_answer(session_id):
     if not RoundPlayer.query.filter_by(session_id=session_id, player_id=current_user.id).first():
         flash('Join the Boss Rush session before answering.', 'error')
         return redirect(url_for('player.dashboard'))
+    if not may_play(game_session, current_user.id):
+        flash(SHARE_REQUIRED, 'error')
+        return redirect(url_for('boss_rush_player.game', session_id=session_id))
 
     game_round = _latest_round(session_id)
     config = game_round.boss_rush_config if game_round else None

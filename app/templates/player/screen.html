@@ -7,11 +7,20 @@
   <link rel="stylesheet" href="{{ url_for('static',filename='css/player_ui.css',v='20261018-1') }}">
   <script defer src="{{ url_for('static',filename='js/player_screen.js',v='20261017-3') }}"></script>
   <script defer src="{{ url_for('static',filename='js/player_ui.js',v='20261018-1') }}"></script>
+  <script defer src="{{ url_for('static', filename='js/socket.io.min.js') }}"></script>
+  <script defer src="{{ url_for('static', filename='js/proctoring.js') }}"></script>
 </head>
 <body class="ui-player-screen">
   <header class="ui-player-toolbar" aria-label="Screen controls">
     <button id="ui-fullscreen-toggle" type="button" class="ui-fullscreen-button ui-fullscreen-floating" data-ui-fullscreen aria-pressed="false" hidden>Fullscreen</button>
   </header>
   <iframe id="player-page-frame" title="KorePhysics player screen" src="{{ frame_url }}" allow="fullscreen"></iframe>
+  <dialog id="proctor-pause" aria-labelledby="proctor-title">
+    <h2 id="proctor-title">Share your entire screen</h2>
+    <p>Only the teacher can view this live share. Audio is off.</p>
+    <p id="proctor-status" role="status"></p>
+    <button type="button" id="proctor-resume">Share screen</button>
+    <button type="button" id="proctor-cancel">Cancel join</button>
+  </dialog>
 </body>
 </html>

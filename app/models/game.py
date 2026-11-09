@@ -39,6 +39,7 @@ class GameSession(db.Model):
     ended_at   = db.Column(db.DateTime, nullable=True)
     economy_version = db.Column(db.Integer, nullable=False, default=2)
     economy_settled_at = db.Column(db.DateTime, nullable=True)
+    proctoring_required = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
 
     # Relationships
     rounds         = db.relationship('GameRound',   backref='session', lazy='dynamic', cascade='all, delete-orphan')

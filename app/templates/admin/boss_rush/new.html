@@ -27,6 +27,7 @@
 
 <form method="POST" action="{{ form_action|default(url_for('boss_rush_admin.new_session')) }}" data-boss-rush-config-form>
     {{ form.hidden_tag() }}
+    {% if not game_session %}<p class="admin-field">{{ form.proctoring_required() }} {{ form.proctoring_required.label }}</p>{% endif %}
 
     <div class="admin-grid-two">
         <div>

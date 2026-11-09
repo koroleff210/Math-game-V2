@@ -14,6 +14,9 @@
     {% block head %}{% endblock %}
 </head>
 <body>
+    {% if ui_enhanced and game_session and game_session.proctoring_required and game_session.status != 'finished' %}
+    <div hidden data-proctored-session="{{ game_session.id }}"></div>
+    {% endif %}
     {% if ui_enhanced %}<button id="ui-fullscreen-toggle" type="button" class="ui-fullscreen-button ui-fullscreen-floating" data-ui-fullscreen aria-pressed="false" hidden>Fullscreen</button>{% endif %}
     {% if ui_enhanced %}<div id="ui-page-loader" role="status" aria-live="polite"><div class="ui-loading-card"><span class="ui-loading-spinner" aria-hidden="true"></span>Preparing your screen…</div></div>{% endif %}
     {% block flash_messages %}

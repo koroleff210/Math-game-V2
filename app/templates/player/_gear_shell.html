@@ -112,10 +112,10 @@
             {% else %}
               {% set join_action = url_for('classic_player.join_session') %}
             {% endif %}
-            <form method="POST" action="{{ join_action }}">
+            <form method="POST" action="{{ join_action }}"{% if hub_status.session.proctoring_required %} data-proctor-join="{{ hub_status.session.id }}"{% endif %}>
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="session_id" value="{{ hub_status.session.id }}">
-              <button type="submit" class="btn btn-success btn-small">Join Game</button>
+              <button type="submit" class="btn btn-success btn-small">{{ 'Share screen and join' if hub_status.session.proctoring_required else 'Join Game' }}</button>
             </form>
             <p class="gear-session-control-note">
               {% if hub_status.session.display_label %}

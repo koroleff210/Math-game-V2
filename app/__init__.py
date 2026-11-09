@@ -6,6 +6,7 @@
 # IMPORTANT: the Flask instance is named 'flask_app' (not 'app') to avoid a
 # name collision with the 'app' package itself when using 'import app.models'.
 
+import json
 import os
 
 from flask import Flask
@@ -86,6 +87,10 @@ def create_app(config_class=Config):
     # ── Register Socket.IO event handlers ─────────────────────────────────────
     from app.socketio_handlers import register_all_handlers
     register_all_handlers(socketio)
+    from app.services import proctoring
+    flask_app.config.setdefault('PROCTOR_ICE_SERVERS', json.loads(os.environ.get('PROCTOR_ICE_SERVERS', '[]')))
+    flask_app.register_blueprint(proctoring.bp)
+    proctoring.register(socketio, flask_app)
 
     # ── Register maintenance CLI commands ─────────────────────────────────────
     from app.cli.maintenance import (

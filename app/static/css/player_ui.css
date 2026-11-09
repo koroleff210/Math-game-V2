@@ -18,6 +18,9 @@ html.ui-loading [data-gear-avatar-composite-region] .avatar-stage{visibility:hid
 .ui-fullscreen-floating{position:fixed;right:max(12px,env(safe-area-inset-right));top:7px;z-index:19000;height:32px;box-sizing:border-box}
 .ui-embedded [data-ui-fullscreen]{display:none!important}
 .ui-player-screen{margin:0;height:100vh;height:100dvh;overflow:hidden;background:#d8c9ad;font-family:"Segoe UI",sans-serif}
+#proctor-pause{max-width:min(32rem,85vw);padding:1.25rem;border:1px solid #666;border-radius:.7rem}
+#proctor-pause::backdrop{background:rgba(0,0,0,.72)}
+#proctor-pause button{padding:.55rem .8rem;margin-right:.4rem}
 .ui-player-toolbar{position:absolute;top:0;right:0;z-index:19000;box-sizing:border-box}
 .ui-player-toolbar .ui-fullscreen-floating{top:14px;bottom:auto;right:20px;font-size:1rem;height:28px;width:30px;padding:2px;opacity:.8}
 .ui-player-toolbar .ui-fullscreen-floating:hover,.ui-player-toolbar .ui-fullscreen-floating:focus-visible{opacity:1}

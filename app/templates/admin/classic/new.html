@@ -27,6 +27,7 @@
 
 <form method="POST" action="{{ url_for('classic_admin.new_session') }}" data-classic-session-form>
     {{ form.hidden_tag() }}
+    <p class="admin-field">{{ form.proctoring_required() }} {{ form.proctoring_required.label }}</p>
     <script type="application/json" data-classic-presets>{{ presets|tojson }}</script>
     <div class="admin-section-card">
         <label for="classic-preset">Round preset</label>

@@ -1844,10 +1844,12 @@
 
     if (state === 'eligible' && sessionId) {
       control.innerHTML =
-        '<form method="POST" action="' + joinSessionUrl + '">' +
+        '<form method="POST" action="' + joinSessionUrl + '"' +
+          (data.proctoring_required ? ' data-proctor-join="' + sessionId + '"' : '') + '>' +
           '<input type="hidden" name="csrf_token" value="' + csrfToken + '">' +
           '<input type="hidden" name="session_id" value="' + sessionId + '">' +
-          '<button type="submit" class="btn btn-success btn-small">Join Game</button>' +
+          '<button type="submit" class="btn btn-success btn-small">' +
+          (data.proctoring_required ? 'Share screen and join' : 'Join Game') + '</button>' +
         '</form>' +
         '<p class="gear-session-control-note">' +
           (label ? 'Ready: ' + label : 'A joinable session is ready.') +
