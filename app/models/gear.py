@@ -38,6 +38,7 @@ class GearItemDefinition(db.Model):
     image_key = db.Column(db.String(255), nullable=True)
     avatar_asset_key = db.Column(db.String(16), nullable=True)
     diamond_cost = db.Column(db.Integer, nullable=False, default=0)
+    gold_cost = db.Column(db.Integer, nullable=False, default=300)
 
     mine_gold_delta = db.Column(db.Integer, nullable=False, default=0)
     steal_gold_delta = db.Column(db.Integer, nullable=False, default=0)

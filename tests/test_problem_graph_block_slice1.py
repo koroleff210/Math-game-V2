@@ -303,8 +303,8 @@ def run_tests():
         r = player_client.get(f'/classic/game/{ids["session_id"]}')
         game_html = r.get_data(as_text=True)
         check(
-            'PGB-06: classic page loads shared graph renderer assets',
-            r.status_code == 200 and 'problem_graph_renderer.js' in game_html and 'cdn.plot.ly' in game_html,
+            'PGB-06: classic page uses shared renderer without blocking on Plotly',
+            r.status_code == 200 and 'problem_graph_renderer.js' in game_html and '<script src="https://cdn.plot.ly' not in game_html,
         )
 
         socket_client = socketio.test_client(flask_app, flask_test_client=player_client)

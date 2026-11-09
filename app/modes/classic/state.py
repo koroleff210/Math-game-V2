@@ -200,7 +200,7 @@ def get_streak(player_id: int, round_id: int) -> int:
 # ── [Step D] Steal intent API ────────────────────────────────────────────────
 
 def set_steal_intent(player_id: int, session_id: int, round_id: int,
-                     problem_id: int) -> None:
+                     problem_id: int, *, target_ids=None) -> None:
     """Record that a player has chosen the Steal action and is selecting a target.
 
     problem_id is stored so that classic_steal_cancel can restore
@@ -211,6 +211,7 @@ def set_steal_intent(player_id: int, session_id: int, round_id: int,
         'session_id': session_id,
         'round_id':   round_id,
         'problem_id': problem_id,
+        'target_ids': target_ids,
     }
 
 

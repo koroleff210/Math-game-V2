@@ -1,0 +1,17 @@
+{% if progress_rows %}
+<table>
+    <thead><tr><th>Player</th><th>Attempts</th><th>Correct</th><th>Last answer (UTC)</th></tr></thead>
+    <tbody>
+        {% for username, stats in progress_rows %}
+        <tr>
+            <td>{{ username }}</td>
+            <td>{{ stats.attempts if stats else 0 }}</td>
+            <td>{{ stats.correct if stats else 0 }}</td>
+            <td>{{ stats.latest.strftime('%H:%M:%S') if stats else 'Waiting' }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>No players have joined yet.</p>
+{% endif %}

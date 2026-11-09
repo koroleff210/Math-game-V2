@@ -1,0 +1,28 @@
+{% macro resource_icon(kind, combo_low=3, combo_high=6) -%}
+<span class="resource-icon" role="img" aria-label="{{ kind|replace('_', ' ') }}" title="{{ kind|replace('_', ' ')|capitalize }}"{% if kind == 'streak' %} data-combo-icon data-combo-low="{{ combo_low }}" data-combo-high="{{ combo_high }}"{% for tier in ['small', 'medium', 'large'] %} data-combo-{{ tier }}="{{ url_for('static', filename='classic_ui/icons/streak_' ~ tier ~ '.png')|ui_image }}"{% endfor %}{% endif %}>
+{% if kind in ['gold', 'gem', 'diamond', 'shield', 'steal_token', 'second_chance', 'health', 'health_lost', 'attack', 'timer', 'double_mine', 'streak'] %}
+<img src="{{ url_for('static', filename='classic_ui/icons/' ~ ('streak_small' if kind == 'streak' else kind) ~ '.png')|ui_image }}" alt="" width="28" height="28" decoding="async">
+{% else %}
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+{% if kind == 'mine' %}<path d="m5 21 12-13M3 7c7-6 13-5 18 2-6-3-11-3-18-2Z"/>
+{% elif kind == 'treasure' %}<path d="M3 11h18v10H3Zm0 0V8a9 6 0 0 1 18 0v3M8 3v18m8-18v18"/><path fill="currentColor" d="M10 10h4v5h-4z"/>
+{% else %}<path d="m5 12 4 4L19 6"/>{% endif %}
+</svg>
+{% endif %}
+</span>
+{%- endmacro %}
+
+{% macro combo_preloads() -%}
+{% for tier in ['small', 'medium', 'large'] %}<link rel="preload" as="image" href="{{ url_for('static', filename='classic_ui/icons/streak_' ~ tier ~ '.png')|ui_image }}">{% endfor %}
+<script>
+function updateComboIcon(icon, count) {
+    if (!icon) return;
+    const tier = count >= Number(icon.dataset.comboHigh) ? 'large' : count >= Number(icon.dataset.comboLow) ? 'medium' : 'small';
+    const image = icon.querySelector('img');
+    const source = icon.getAttribute('data-combo-' + tier);
+    if (image && image.getAttribute('src') !== source) image.src = source;
+    icon.style.opacity = count > 0 ? '1' : '.4';
+    icon.title = 'Combo: ' + count;
+}
+</script>
+{%- endmacro %}

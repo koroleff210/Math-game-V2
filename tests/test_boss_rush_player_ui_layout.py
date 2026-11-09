@@ -174,7 +174,7 @@ def run_tests():
         check(
             'BRUI-01b: Boss Rush page includes boss theme variables and air class',
             'boss-theme-air-elemental' in html
-            and 'background_air_elemental.png' in html
+            and flask_app.jinja_env.filters['ui_image']('/static/classic_ui/player_ui/background_air_elemental.png') in html
             and '--br-bg-image' in html
             and '--br-hp-fill' in html
             and '--br-ability-fill' in html,
@@ -256,7 +256,7 @@ def run_tests():
             all_themes_render = all_themes_render and (
                 r.status_code == 200
                 and expected_theme_classes[boss_type] in html
-                and expected_backgrounds[boss_type] in html
+                and flask_app.jinja_env.filters['ui_image']('/static/classic_ui/player_ui/' + expected_backgrounds[boss_type]) in html
                 and 'boss-battle-shell' in html
                 and 'data-ability-timer-fill' in html
             )

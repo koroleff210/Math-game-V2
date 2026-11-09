@@ -9,6 +9,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app import create_app
 from app.extensions import db
 from app.models.player import Player
+from app.models.economy import GoldTransaction
+from app.models.progression import PlayerProgression
 from app.services import shared_identity
 
 
@@ -60,6 +62,8 @@ def test_local_first_password_reset_and_legacy_progress(game):
     with game.app_context():
         assert Player.query.filter_by(username='legacy').one().id == legacy_id
         assert Player.query.filter_by(username='new-student').one().id == new_id
+        assert PlayerProgression.query.filter_by(player_id=new_id).one().saved_gold == 700
+        assert GoldTransaction.query.filter_by(player_id=new_id).one().amount_delta == 700
     assert admin.post('/admin/players/new', data=dict(username='bad-admin', is_admin='y')).status_code == 200
     with game.app_context():
         assert Player.query.filter_by(username='bad-admin').first() is None
@@ -68,6 +72,7 @@ def test_local_first_password_reset_and_legacy_progress(game):
     assert admin.post(f'/admin/players/{new_id}/delete').status_code == 302
     with game.app_context():
         assert db.session.get(Player, new_id) is None
+        assert GoldTransaction.query.filter_by(player_id=new_id).first() is None
         assert db.session.get(Player, legacy_id) is not None
         admin_id = Player.query.filter_by(username='admin').one().id
     admin.post(f'/admin/players/{admin_id}/edit', data=dict(username='admin'))
@@ -135,6 +140,9 @@ def test_shared_accounts_both_directions_and_session_revocation(game, gateway, m
     assert 'error' in bridge('authenticate', email='student@example.test', password='shared-password')
     with game.app_context():
         assert Player.query.filter_by(shared_email='student@example.test').one().id == player_id
+        new_player = Player.query.filter_by(shared_email='exam-student@example.test').one()
+        assert PlayerProgression.query.filter_by(player_id=new_player.id).one().saved_gold == 700
+        assert GoldTransaction.query.filter_by(player_id=new_player.id).one().amount_delta == 700
 
 
 def test_shared_outage_fails_closed(game, monkeypatch):

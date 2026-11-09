@@ -9,6 +9,7 @@
 {% include "admin/_page_header.html" %}
 
 <div style="margin-bottom:16px;">
+    <a href="{{ url_for('learning.sessions') }}">Session Reports &amp; AI Export</a> ·
     <a href="{{ url_for('admin.analytics_rounds') }}">All</a>
     <span style="color:#999; margin:0 8px;">|</span>
     <a href="{{ url_for('admin.analytics_rounds', mode='classic') }}">Classic</a>

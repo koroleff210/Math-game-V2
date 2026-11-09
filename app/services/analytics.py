@@ -129,6 +129,8 @@ def _joined_at(game_round, player):
 
 
 def ensure_analytics_round(game_round, mode=None, *, config=None):
+    from app.services.learning_reports import ensure_session_settings
+    ensure_session_settings(game_round.session)
     mode = mode or getattr(game_round.session, 'mode', None) or ANALYTICS_MODE_CLASSIC
     row = AnalyticsRound.query.filter_by(round_id=game_round.id).first()
     session = game_round.session
@@ -183,6 +185,8 @@ def snapshot_round_problem(game_round, problem, mode_context, problem_set_contex
     if row is not None:
         return row
     snap = _subject_topic_snapshot(problem)
+    from app.services.learning_snapshots import freeze_question
+    content = freeze_question(problem)
     row = AnalyticsRoundProblem(
         analytics_round_id=analytics_round.id,
         round_id=game_round.id,
@@ -196,7 +200,8 @@ def snapshot_round_problem(game_round, problem, mode_context, problem_set_contex
         mode_context=mode_context,
         problem_set_context=problem_set_context,
         source_metadata_json=_problem_source_metadata_snapshot(problem),
-        answer_key_snapshot_json=None,
+        answer_key_snapshot_json=content['answer_key'],
+        content_snapshot_json=content,
     )
     db.session.add(row)
     db.session.flush()

@@ -1,0 +1,21 @@
+{% extends 'admin/layout.html' %}
+{% from 'shared/_learning_macros.html' import pct %}
+{% block title %}Session Reports{% endblock %}
+{% block head %}{{ super() }}<link rel="stylesheet" href="{{ url_for('static', filename='css/learning.css') }}">{% endblock %}
+{% block admin_content %}<div class="learning">
+<h1>Session reports</h1><p class="muted">Inspect answers, follow learning progress and export evidence for AI analysis.</p>
+<form class="lr-toolbar" method="get">
+<label>Session label<input name="q" value="{{ request.args.get('q','') }}"></label>
+<label>Class<select name="group"><option value="">All classes / open</option>{% for group in groups %}<option value="{{ group.id }}" {{ 'selected' if request.args.get('group',type=int)==group.id }}>{{ group.name }}</option>{% endfor %}</select></label>
+<label>Mode<select name="mode"><option value="">All modes</option>{% for mode in ['classic','boss_rush'] %}<option {{ 'selected' if request.args.get('mode')==mode }}>{{ mode }}</option>{% endfor %}</select></label>
+<label>Student ID<input type="number" min="1" name="student" value="{{ request.args.get('student','') }}"></label>
+<label>From (UTC)<input type="date" name="date_from" value="{{ request.args.get('date_from','') }}"></label>
+<label>To (UTC)<input type="date" name="date_to" value="{{ request.args.get('date_to','') }}"></label>
+<button type="submit">Filter</button><a href="{{ url_for('learning.sessions') }}">Clear</a><a href="{{ url_for('admin.analytics_class_dashboard') }}">Class analytics</a></form>
+{% if request.args.get('student') %}<section class="lr-panel"><h2>Student progress across sessions</h2><p class="muted">First responses within each round/context. Different sets and repeated questions can affect comparisons.</p>{% for r in reports|reverse %}{% if not r.settings or r.settings.include_in_progress %}<div class="lr-chart-row"><a href="{{ url_for('learning.session_detail',session_id=r.session.id,student=request.args.get('student')) }}">{{ r.session.created_at.strftime('%Y-%m-%d') }} · {{ r.session.mode }}</a><div class="lr-track"><div class="lr-bar" style="width:{{ ((r.metrics.first_accuracy or 0)*100)|round(1) }}%"></div></div><span>{{ r.metrics.first_correct }}/{{ r.metrics.first_known }} first try</span></div>{% endif %}{% endfor %}<small>Shows the selected page of sessions; provisional results can change.</small></section>{% endif %}
+<div class="lr-panel lr-table-scroll"><table><thead><tr><th>Session</th><th>Class / mode</th><th>Participants / rounds</th><th>First try</th><th>Eventually solved</th><th>Report</th></tr></thead><tbody>
+{% for r in reports %}<tr><td><a href="{{ url_for('learning.session_detail',session_id=r.session.id,student=request.args.get('student')) }}">{{ r.session.display_label }}</a><br><small>#{{ r.session.id }} · {{ r.session.created_at.strftime('%Y-%m-%d %H:%M') }} UTC</small></td><td>{{ r.rounds[0].group_name_snapshot if r.rounds else (r.session.group.name if r.session.group else 'Open') }}<br>{{ r.session.mode }}</td><td>{{ r.students|selectattr('joined_at')|list|length }} joined · {{ r.rounds|length }} rounds</td><td>{{ pct(r.metrics.first_accuracy) }}<br><small>{{ r.metrics.first_correct }}/{{ r.metrics.first_known }}</small></td><td>{{ pct(r.metrics.eventual_accuracy) }}<br><small>{{ r.metrics.solved }}/{{ r.metrics.attempted }}</small></td><td>{{ 'Finalized' if r.finalized else 'Provisional' }}<br>{{ 'Published' if r.settings and r.settings.published_at else 'Private' }}{% if r.settings and not r.settings.include_in_progress %}<br>Excluded from progress{% endif %}</td></tr>
+{% else %}<tr><td colspan="6">No sessions match. Create a game session to begin recording results.</td></tr>{% endfor %}
+</tbody></table></div>
+<nav class="lr-toolbar" aria-label="Report pages">{% if pagination.has_prev %}<a href="{{ url_for('learning.sessions', **dict(request.args,page=pagination.prev_num)) }}">Previous</a>{% endif %}<span>Page {{ pagination.page }} / {{ pagination.pages or 1 }}</span>{% if pagination.has_next %}<a href="{{ url_for('learning.sessions', **dict(request.args,page=pagination.next_num)) }}">Next</a>{% endif %}</nav>
+</div>{% endblock %}

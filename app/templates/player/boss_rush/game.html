@@ -1,10 +1,13 @@
 {% extends "base.html" %}
+{% from "shared/_resource_icon.html" import resource_icon, combo_preloads %}
 
 {% block title %}Boss Rush{% endblock %}
 
 {% block flash_messages %}{% endblock %}
 
 {% block head %}
+{{ combo_preloads() }}
+<link rel="preload" as="image" href="{{ url_for('static', filename='classic_ui/icons/health_lost.png')|ui_image }}">
 <script src="/static/js/socket.io.min.js"></script>
 <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
 <script src="{{ url_for('static', filename='js/problem_graph_renderer.js') }}"></script>
@@ -37,7 +40,7 @@
         --br-warm-accent-soft: rgba(167, 122, 45, 0.18);
         --br-danger: #9b4f3f;
         --br-danger-soft: rgba(155, 79, 63, 0.16);
-        --br-bg-image: url("{{ url_for('static', filename='classic_ui/player_ui/background_fire_giant.png') }}");
+        --br-bg-image: url("{{ url_for('static', filename='classic_ui/player_ui/background_fire_giant.png')|ui_image }}");
         --br-bg-overlay: linear-gradient(180deg, rgba(244, 235, 218, 0.54), rgba(226, 211, 187, 0.42));
         --br-shell-bg: linear-gradient(180deg, rgba(255, 249, 239, 0.18), rgba(236, 224, 202, 0.10)), linear-gradient(180deg, rgba(239, 227, 205, 0.26), rgba(234, 219, 195, 0.17));
         --br-identity-glow: rgba(167, 122, 45, 0.12);
@@ -879,7 +882,7 @@
     /* Boss Rush material alignment with Classic/Hub. Kept as a late visual layer
        so existing data hooks, form actions, and live-update selectors remain intact. */
     .boss-theme-fire-giant {
-        --br-bg-image: url("{{ url_for('static', filename='classic_ui/player_ui/background_fire_giant.png') }}");
+        --br-bg-image: url("{{ url_for('static', filename='classic_ui/player_ui/background_fire_giant.png')|ui_image }}");
         --br-bg-overlay: linear-gradient(180deg, rgba(255, 238, 214, 0.48), rgba(231, 199, 162, 0.40));
         --br-panel: rgba(253, 242, 223, 0.66);
         --br-panel-strong: rgba(255, 248, 236, 0.84);
@@ -907,7 +910,7 @@
     }
 
     .boss-theme-air-elemental {
-        --br-bg-image: url("{{ url_for('static', filename='classic_ui/player_ui/background_air_elemental.png') }}");
+        --br-bg-image: url("{{ url_for('static', filename='classic_ui/player_ui/background_air_elemental.png')|ui_image }}");
         --br-bg-overlay: linear-gradient(180deg, rgba(250, 245, 232, 0.46), rgba(224, 229, 225, 0.38));
         --br-panel: rgba(250, 246, 235, 0.64);
         --br-panel-strong: rgba(255, 252, 244, 0.84);
@@ -934,7 +937,7 @@
     }
 
     .boss-theme-mirror-phantom {
-        --br-bg-image: url("{{ url_for('static', filename='classic_ui/player_ui/background_mirror_cave.png') }}");
+        --br-bg-image: url("{{ url_for('static', filename='classic_ui/player_ui/background_mirror_cave.png')|ui_image }}");
         --br-bg-overlay: linear-gradient(180deg, rgba(240, 246, 247, 0.48), rgba(223, 228, 230, 0.40));
         --br-panel: rgba(244, 248, 248, 0.66);
         --br-panel-strong: rgba(252, 254, 254, 0.86);
@@ -961,7 +964,7 @@
     }
 
     .boss-theme-swamp-monster {
-        --br-bg-image: url("{{ url_for('static', filename='classic_ui/player_ui/background_mud_monster.png') }}");
+        --br-bg-image: url("{{ url_for('static', filename='classic_ui/player_ui/background_mud_monster.png')|ui_image }}");
         --br-bg-overlay: linear-gradient(180deg, rgba(240, 233, 210, 0.52), rgba(207, 195, 157, 0.42));
         --br-panel: rgba(244, 238, 219, 0.68);
         --br-panel-strong: rgba(253, 249, 238, 0.86);
@@ -988,7 +991,7 @@
     }
 
     .boss-theme-stone-golem {
-        --br-bg-image: url("{{ url_for('static', filename='classic_ui/player_ui/background_stone_golem.png') }}");
+        --br-bg-image: url("{{ url_for('static', filename='classic_ui/player_ui/background_stone_golem.png')|ui_image }}");
         --br-bg-overlay: linear-gradient(180deg, rgba(241, 235, 224, 0.50), rgba(216, 207, 193, 0.40));
         --br-panel: rgba(245, 240, 231, 0.66);
         --br-panel-strong: rgba(253, 250, 244, 0.86);
@@ -1015,7 +1018,7 @@
     }
 
     .boss-theme-time-wraith {
-        --br-bg-image: url("{{ url_for('static', filename='classic_ui/player_ui/background_time_keeper.png') }}");
+        --br-bg-image: url("{{ url_for('static', filename='classic_ui/player_ui/background_time_keeper.png')|ui_image }}");
         --br-bg-overlay: linear-gradient(180deg, rgba(247, 235, 207, 0.50), rgba(222, 199, 157, 0.42));
         --br-panel: rgba(249, 239, 218, 0.68);
         --br-panel-strong: rgba(255, 249, 235, 0.86);
@@ -1199,6 +1202,31 @@
         color: rgba(127, 105, 72, 0.26);
     }
 
+    .boss-reward-help{margin-top:8px;font-size:.95rem}
+    .boss-reward-help > button{width:100%;padding:6px 3px;border:0;background:transparent;color:var(--br-heading);font:inherit;font-weight:700;text-align:left;cursor:pointer}
+    .boss-reward-popover{box-sizing:border-box;width:min(440px,calc(100vw - 32px));max-height:calc(100dvh - 40px);padding:20px;border:1px solid var(--br-border-strong);border-radius:18px;background:var(--br-content-strong);color:var(--br-text);box-shadow:var(--br-shadow);font-size:1rem;overflow:auto}
+    .boss-reward-popover::backdrop{background:rgba(40,30,15,.18)}
+    .boss-reward-popover h2{margin-top:0;font-size:1.2rem}
+    .boss-reward-popover button{padding:6px 14px;border:1px solid var(--br-border-strong);border-radius:8px;background:var(--br-button);color:var(--br-text);font:inherit;cursor:pointer}
+    .boss-economy-counters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:8px}
+    .boss-reward-number{display:flex;align-items:center;gap:6px;font-size:1.4rem}
+    .boss-reward-number .resource-icon{display:inline-flex;width:28px;height:28px;flex-shrink:0}
+    .boss-reward-number img{width:28px;height:28px;object-fit:contain}
+    .resource-icon{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;vertical-align:middle;flex-shrink:0}
+    .resource-icon img,.resource-icon svg{width:100%;height:100%;object-fit:contain}
+    .boss-icon-label{display:inline-flex;align-items:center;gap:5px}
+    .boss-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+    .leader-score .resource-icon,.leader-meta .resource-icon{width:20px;height:20px}
+    .leader-score strong,.leader-score [data-row-combo]{display:inline-flex;align-items:center;gap:4px}
+    .stat-tile .stat-label .resource-icon{width:32px;height:32px}
+    .stat-tile.combo-primary{gap:4px}
+    .stat-tile.combo-primary .stat-value{display:flex;align-items:baseline;gap:2px;white-space:nowrap;font-size:1.3rem}
+    .stat-tile.combo-primary small{font-size:.65rem}
+    .player-health-row{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:3px}
+    .player-health-row .resource-icon{width:34px;height:34px}
+    .fire-shield-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 6px;padding:4px 7px;background:var(--br-chip);border:1px solid var(--br-border);border-radius:12px;font-size:.85rem}
+    .fire-shield-row strong{display:inline-flex;align-items:center;gap:5px;font-size:1.1rem}
+    .fire-shield-row.is-empty .resource-icon{opacity:.4}
     .boss-rush-muted,
     .arena-subtitle,
     .leader-meta,
@@ -1321,14 +1349,61 @@
         color: var(--br-text);
     }
 
-    @media (max-width: 1180px) {
+    @media (min-width: 821px) {
+        .boss-left-rail {
+            display:grid;
+            grid-template-rows:minmax(104px,1fr) auto auto;
+            overflow:visible;
+            padding-right:0;
+        }
+        .boss-left-rail > .boss-identity-card {
+            display:grid;
+            grid-template-rows:auto minmax(0,1fr) auto auto auto;
+            min-height:0;
+        }
+        .boss-identity-card > .boss-portrait-wrap {
+            position:relative;
+            height:auto;
+            min-height:0;
+        }
+        .boss-identity-card > .boss-portrait-wrap .boss-rush-boss-img {
+            position:absolute;
+            inset:0;
+            width:100%;
+            height:100%;
+        }
+        .boss-left-rail > .ability-panel,
+        .boss-left-rail > .stats-panel {
+            min-width:0;
+        }
+        .boss-left-rail .boss-panel-title{margin-bottom:4px}
+        .boss-left-rail .ability-time{font-size:1.1rem;min-width:0}
+        .boss-left-rail .ability-chip{gap:5px;padding:6px}
+        .boss-left-rail .ability-timer-track{height:10px}
+        .boss-left-rail .stat-tile{min-height:26px;padding:4px 6px}
+        .boss-left-rail .stat-stack{gap:4px}
+        .boss-left-rail .boss-economy-counters{gap:6px;margin-bottom:4px}
+        .boss-left-rail .boss-reward-help{margin-top:3px}
+    }
+
+    @media (min-width:821px) and (max-height:650px) {
+        .boss-battle-shell{gap:8px;padding:7px}
+        .boss-left-rail{gap:5px}
+        .boss-left-rail .boss-panel{padding:5px}
+        .boss-left-rail .boss-title-row{margin:4px 0}
+        .boss-left-rail .boss-panel-title{font-size:.72rem;margin-bottom:3px}
+        .boss-left-rail .mini-hp-row{margin-bottom:4px}
+        .boss-left-rail .player-health-row .resource-icon{width:28px;height:28px}
+        .boss-left-rail .stat-tile .stat-label .resource-icon{width:26px;height:26px}
+        .boss-left-rail .fire-shield-row{margin-bottom:4px;padding:2px 6px}
+    }
+
+    @media (min-width:821px) and (max-width:1180px) {
         .boss-battle-shell {
-            grid-template-columns: minmax(200px, 0.8fr) minmax(420px, 1.55fr);
+            grid-template-columns: minmax(190px,0.85fr) minmax(0,2fr) minmax(180px,0.85fr);
         }
         .boss-right-rail {
-            grid-column: 1 / -1;
-            display: grid;
-            grid-template-columns: 0.7fr 1.3fr;
+            grid-column:auto;
         }
     }
 
@@ -1426,7 +1501,7 @@
             <section class="boss-panel ability-panel">
                 <div class="ability-chip">
                     <span data-ability-name>{{ player_state_payload.ability.name }}</span>
-                    <strong class="ability-time" data-ability-timer>{% if player_state_payload.ability.frozen %}Ability frozen{% elif player_state_payload.ability.enabled %}{{ player_state_payload.ability.seconds_remaining or 0 }}s{% else %}Inactive{% endif %}</strong>
+                    <strong class="ability-time boss-icon-label">{{ resource_icon('timer') }}<span data-ability-timer>{% if player_state_payload.ability.frozen %}Ability frozen{% elif player_state_payload.ability.enabled %}{{ player_state_payload.ability.seconds_remaining or 0 }}s{% else %}Inactive{% endif %}</span></strong>
                     <small data-ability-summary>{{ player_state_payload.ability.hint }}</small>
                     <div class="ability-timer-track" aria-hidden="true">
                         <div class="ability-timer-fill" data-ability-timer-fill></div>
@@ -1438,17 +1513,27 @@
 
             <section class="boss-panel stats-panel">
                 <p class="boss-panel-title">Your Battle</p>
+                {% if game_session.economy_version >= 2 %}
+                <div class="boss-economy-counters">
+                    <div><span class="stat-label">Gold secured</span><strong class="boss-reward-number">{{ resource_icon('gold') }} <span data-secured-gold>{{ player_state_payload.session_gold }}</span></strong></div>
+                    {% if config.shared_bank_enabled %}<div><span class="stat-label" title="Unlocked by victory; expires if the fight ends before victory">Team bank</span><strong class="boss-reward-number">{{ resource_icon('gold') }} <span data-team-bank>{{ player_state_payload.team_bank.total }}</span></strong></div>{% endif %}
+                </div>
+                {% endif %}
+                <div class="player-health-row" data-player-hearts role="img" aria-label="Health: {{ player_state_payload.player_hp }} of {{ config.player_max_hp }}">
+                    {% for index in range(config.player_max_hp) %}{{ resource_icon('health' if index < player_state_payload.player_hp else 'health_lost') }}{% endfor %}
+                </div>
+                {% if config.boss_type == 'fire_giant' %}
+                <div class="fire-shield-row{% if not player_state.fire_shield_stacks %} is-empty{% endif %}" data-fire-shield title="Correct attacks grant Fire Shield; it protects against Heat Wave">
+                    <span>Fire Shield</span><strong>{{ resource_icon('shield') }} <span data-fire-shield-count>{{ player_state.fire_shield_stacks or 0 }}</span></strong>
+                </div>
+                {% endif %}
                 <div class="stat-stack compact">
-                    <div class="stat-tile stat-wide">
-                        <span class="stat-label">HP</span>
-                        <span class="stat-value boss-rush-heart" data-player-hearts></span>
-                    </div>
                     <div class="stat-tile combo-primary">
-                        <span class="stat-label">Combo</span>
+                        <span class="stat-label">{{ resource_icon('streak', config.reward_combo_start if config.shared_bank_enabled else 3, config.reward_combo_high if config.shared_bank_enabled else 6) }}<span class="boss-sr-only">Combo</span></span>
                         <span class="stat-value"><span data-player-combo>{{ player_state_payload.current_combo }}</span> <small data-player-combo-bonus class="boss-rush-muted"></small></span>
                     </div>
                     <div class="stat-tile">
-                        <span class="stat-label">Damage</span>
+                        <span class="stat-label">{{ resource_icon('attack') }}<span class="boss-sr-only">Damage</span></span>
                         <span class="stat-value" data-player-damage>{{ player_state_payload.damage_dealt }}</span>
                     </div>
                     <div class="stat-tile stat-wide stat-row">
@@ -1459,12 +1544,22 @@
                         <span class="stat-label">Solved</span>
                         <span class="stat-value">{{ player_state_payload.attack_solved_count }} / {{ player_state_payload.attack_total_count }}</span>
                     </div>
-                    <div class="stat-tile stat-wide stat-row">
+                    {% if config.boss_type != 'fire_giant' %}<div class="stat-tile stat-wide stat-row">
                         <span class="stat-label">Bonuses</span>
                         <span class="stat-value active-bonuses-box" data-active-bonuses>No active bonuses</span>
-                    </div>
+                    </div>{% endif %}
                     <span style="display:none;" data-player-max-combo>{{ player_state_payload.max_combo }}</span>
                 </div>
+                {% if game_session.economy_version >= 2 %}<div class="boss-reward-help">
+                <button type="button" popovertarget="boss-reward-popover">Victory & combo rewards</button>
+                <div id="boss-reward-popover" class="boss-reward-popover" popover aria-labelledby="boss-reward-title">
+                <h2 id="boss-reward-title">Victory & combo rewards</h2>
+                {% if config.shared_bank_enabled %}
+                <p class="boss-rush-muted" data-team-bank-status>{{ 'Unlocked by victory' if battle_state.rewards_finalized_at else 'Team bank unlocks on victory. Secured gold is kept.' }}</p>
+                <p class="boss-rush-muted">Next attack: +<span data-next-secured>{{ player_state_payload.next_attack_rewards[0] }}</span> {{ resource_icon('gold') }} secured · +<span data-next-bank>{{ player_state_payload.next_attack_rewards[1] }}</span> {{ resource_icon('gold') }} team.<br>Combo {{ config.reward_combo_start }} / {{ config.reward_combo_high }} boosts both. Recovery: 0 {{ resource_icon('gold') }}.</p>
+                {% else %}<p class="boss-rush-muted">Correct attack +{{ config.attack_gold }} · defeat +{{ config.defeat_gold }}. Recovery restores health.</p>{% endif %}
+                <button type="button" popovertarget="boss-reward-popover" popovertargetaction="hide">Close</button>
+                </div></div>{% endif %}
             </section>
         </aside>
 
@@ -1479,7 +1574,7 @@
                         {% elif player_state_payload.mode == 'completed' %}
                             You solved every attack problem and remain on the leaderboard.
                         {% elif player_state_payload.boss_defeated %}
-                            The boss is down. Rewards are handled by the admin.
+                            {{ 'The team bank is unlocked. Your victory rewards are secured.' if config.shared_bank_enabled else 'The boss is down. Rewards are handled by the admin.' }}
                         {% else %}
                             Solve the current problem to damage the shared boss.
                         {% endif %}
@@ -1496,7 +1591,7 @@
                         {% if battle_state.rewards_finalized_at %}
                             <p>Rewards have been finalized.</p>
                             {% if reward_entry %}
-                            <p><strong>Your Diamonds:</strong> {{ reward_entry.total_diamonds }}</p>
+                            <p><strong>Your {{ 'defeat gold' if game_session.economy_version >= 2 else 'Diamonds' }}:</strong> {{ reward_entry.total_gold if game_session.economy_version >= 2 else reward_entry.total_diamonds }} {{ resource_icon('gold' if game_session.economy_version >= 2 else 'diamond') }}</p>
                             <p>
                                 <strong>Rank:</strong> {% if reward_entry.rank %}#{{ reward_entry.rank }}{% else %}-{% endif %}
                                 |
@@ -1504,16 +1599,21 @@
                                 |
                                 <strong>Max Combo:</strong> {{ reward_entry.max_combo }}
                             </p>
-                            <p class="boss-rush-muted">
+                            {% if config.shared_bank_enabled %}
+                            <p>Team bank share: <strong>{{ reward_entry.bank_share }}</strong> {{ resource_icon('gold') }} · victory bonus: <strong>{{ reward_entry.defeat_gold }}</strong> {{ resource_icon('gold') }}</p>
+                            {% if reward_entry.total_diamonds %}<p>{{ resource_icon('diamond') }} {{ reward_entry.total_diamonds }} victory diamonds</p>{% endif %}
+                            {% if reward_entry.loot_received %}<p>Gear won: <strong>{{ reward_entry.loot_name }}</strong></p>{% elif reward_entry.loot_fallback_gold %}<p>Gear alternative: <strong>+{{ reward_entry.loot_fallback_gold }}</strong> {{ resource_icon('gold') }}</p>{% endif %}
+                            {% if not reward_entry.eligible %}<p>One correct attack is required for bank shares and victory loot.</p>{% endif %}
+                            {% else %}<p class="boss-rush-muted">
                                 Placement {{ reward_entry.breakdown.placement }},
                                 other participant {{ reward_entry.breakdown.other_participant }},
                                 highest combo {{ reward_entry.breakdown.highest_combo }}
-                            </p>
+                            </p>{% endif %}
                             {% else %}
-                            <p><strong>Your Diamonds:</strong> 0</p>
+                            <p><strong>Your {{ 'defeat gold' if game_session.economy_version >= 2 else 'Diamonds' }}:</strong> 0</p>
                             {% endif %}
                         {% else %}
-                            <p>The boss is down. Waiting for the admin to finalize Diamond rewards.</p>
+                            <p>The boss is down. Waiting for the admin to finalize rewards.</p>
                             <p><strong>Your Damage:</strong> {{ player_state_payload.damage_dealt }} | <strong>Max Combo:</strong> {{ player_state_payload.max_combo }}</p>
                         {% endif %}
                     </div>
@@ -1649,6 +1749,7 @@
   const CURRENT_PLAYER_ID = {{ current_user.id }};
   const INITIAL_BOSS_RUSH_STATE = {{ live_state_payload|tojson }};
   const INITIAL_BATTLE_FLASHES = {{ battle_flash_messages|tojson }};
+  const BATTLE_ICONS = {{ {'health': resource_icon('health'), 'health_lost': resource_icon('health_lost'), 'attack': resource_icon('attack'), 'shield': resource_icon('shield'), 'combo': resource_icon('streak', config.reward_combo_start if config.shared_bank_enabled else 3, config.reward_combo_high if config.shared_bank_enabled else 6)}|tojson }};
   let bossRushSocket = null;
   let latestAbilityState = null;
   let abilityCheckPending = false;
@@ -1669,10 +1770,9 @@
   }
 
   function renderHearts(entry) {
-    const hearts = entry && entry.hp_hearts ? entry.hp_hearts : [];
-    return hearts.map(function (heart) {
-      return heart.filled ? '&hearts;' : '<span class="boss-rush-heart-empty">&hearts;</span>';
-    }).join(' ');
+    return (entry.hp_hearts || []).map(function (heart) {
+      return heart.filled ? BATTLE_ICONS.health : BATTLE_ICONS.health_lost;
+    }).join('');
   }
 
   function comboLabel(entry) {
@@ -1799,19 +1899,28 @@
         '<div class="rank-badge">#' + entry.rank + '</div>' +
         '<div>' +
           '<div class="leader-name">' + escapeHtml(entry.username) + '</div>' +
-          '<div class="leader-meta">' + escapeHtml(entry.status) + ' &middot; HP ' + entry.hp + '/' + entry.max_hp + ' &middot; Max x' + entry.max_combo + '</div>' +
+          '<div class="leader-meta">' + escapeHtml(entry.status) + ' &middot; <span role="img" aria-label="Health: ' + Number(entry.hp) + ' of ' + Number(entry.max_hp) + '">' + renderHearts(entry) + '</span> &middot; Max x' + entry.max_combo + '</div>' +
         '</div>' +
         '<div class="leader-score">' +
-          '<strong>' + entry.damage_dealt + ' dmg</strong><br>' +
-          '<span class="' + comboClass.trim() + '">' + escapeHtml(comboLabel(entry)) + '</span>' +
+          '<strong>' + BATTLE_ICONS.attack + ' ' + entry.damage_dealt + '</strong><br>' +
+          '<span data-row-combo="' + Number(entry.current_combo) + '" title="' + escapeHtml(comboLabel(entry)) + '" class="' + comboClass.trim() + '">' + BATTLE_ICONS.combo + ' ' + Number(entry.current_combo) + '</span>' +
         '</div>' +
       '</div>';
     }).join('');
+    region.querySelectorAll('[data-row-combo]').forEach(function (row) {
+      updateComboIcon(row.querySelector('[data-combo-icon]'), Number(row.dataset.rowCombo));
+    });
   }
 
   function applyBossRushState(payload, fromSocket) {
     if (!payload || !payload.boss) return;
     if (applyLifecycleRedirect(payload, fromSocket)) return;
+    if (fromSocket && payload.boss.defeated && !INITIAL_BOSS_RUSH_STATE.boss.defeated) { window.location.reload(); return; }
+    const bank = payload.team_bank || {};
+    const bankNode = document.querySelector('[data-team-bank]');
+    const bankStatus = document.querySelector('[data-team-bank-status]');
+    if (bankNode) bankNode.textContent = bank.total || 0;
+    if (bankStatus) bankStatus.textContent = bank.status === 'unlocked' ? 'Unlocked by victory' : bank.status === 'expired' ? 'Team bank expired. Secured gold is kept.' : 'Team bank unlocks on victory. Secured gold is kept.';
     const bossHp = document.querySelectorAll('[data-boss-hp]');
     const bossMaxHp = document.querySelectorAll('[data-boss-max-hp]');
     const bossStatus = document.querySelectorAll('[data-boss-status]');
@@ -1825,6 +1934,12 @@
     const previousAbilityCount = latestAbilityState ? latestAbilityState.ability_count || 0 : lastShownAbilityCount;
     const current = currentPlayerFromPayload(payload);
     if (current) {
+      const secured = document.querySelector('[data-secured-gold]');
+      if (secured) secured.textContent = current.session_gold;
+      const nextSecured = document.querySelector('[data-next-secured]');
+      const nextBank = document.querySelector('[data-next-bank]');
+      if (nextSecured && current.next_attack_rewards) nextSecured.textContent = current.next_attack_rewards[0];
+      if (nextBank && current.next_attack_rewards) nextBank.textContent = current.next_attack_rewards[1];
       const hearts = document.querySelector('[data-player-hearts]');
       const damage = document.querySelector('[data-player-damage]');
       const combo = document.querySelector('[data-player-combo]');
@@ -1832,16 +1947,34 @@
       const maxCombo = document.querySelector('[data-player-max-combo]');
       const status = document.querySelector('[data-player-status]');
       const bonuses = document.querySelector('[data-active-bonuses]');
-      if (hearts) hearts.innerHTML = renderHearts(current);
+      if (hearts) {
+        hearts.innerHTML = renderHearts(current);
+        hearts.setAttribute('aria-label', 'Health: ' + current.hp + ' of ' + current.max_hp);
+      }
+      const fireShield = document.querySelector('[data-fire-shield]');
+      if (fireShield) {
+        const stacks = Number(current.fire_shield_stacks || 0);
+        fireShield.querySelector('[data-fire-shield-count]').textContent = stacks;
+        fireShield.classList.toggle('is-empty', stacks === 0);
+      }
       if (damage) damage.textContent = current.damage_dealt;
       if (combo) combo.textContent = current.current_combo;
-      if (comboBonus) comboBonus.textContent = current.combo_bonus && current.combo_bonus.active ? '(+' + current.combo_bonus.bonus_damage + ' dmg)' : '';
+      updateComboIcon(document.querySelector('.combo-primary [data-combo-icon]'), current.current_combo);
+      if (comboBonus) {
+        const bonus = current.combo_bonus && current.combo_bonus.active ? current.combo_bonus.bonus_damage : 0;
+        comboBonus.textContent = bonus ? '+' + bonus : '';
+        comboBonus.title = 'Extra attack damage: +' + bonus;
+        comboBonus.setAttribute('aria-label', comboBonus.title);
+      }
       if (maxCombo) maxCombo.textContent = current.max_combo;
       if (status) status.textContent = current.status;
       if (bonuses) {
         const active = current.active_bonuses || {};
         const items = active.items || [];
-        bonuses.textContent = items.length ? items.join(', ') : (active.placeholder || 'No active bonuses');
+        bonuses.innerHTML = items.length ? items.map(function (item) {
+          const shield = /^Fire Shield x(\d+)$/.exec(item);
+          return shield ? BATTLE_ICONS.shield + ' ' + shield[1] : escapeHtml(item);
+        }).join(', ') : escapeHtml(active.placeholder || 'No active bonuses');
       }
       if (fromSocket && current.active_bonuses && current.active_bonuses.personal_message) {
         const msg = current.active_bonuses.personal_message;

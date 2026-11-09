@@ -227,6 +227,31 @@ def set_player_body_variant(player, variant: str) -> str:
     return normalized
 
 
+def avatar_prefetch_urls(player):
+    """Warm nearby faces and both base bodies after the visible screen is ready."""
+    urls = []
+    current_variant = normalize_avatar_body_variant(getattr(player, 'avatar_body_variant', None))
+    for variant in (current_variant, 'f' if current_variant == 'm' else 'm'):
+        for name, slot in [('body_upper.png', GEAR_SLOT_CHEST), ('body_lower.png', GEAR_SLOT_BOOTS), ('off_hand_base.png', GEAR_SLOT_OFF_HAND)]:
+            urls.append(_resolve_body_layer(variant, name, slot))
+        keys = list_available_face_keys(variant)
+        current = get_valid_selected_face_key(getattr(player, 'selected_face_key', None), variant)
+        index = keys.index(current) if current in keys else 0
+        nearby = [keys[(index+offset) % len(keys)] for offset in (0, 1, -1, 2, -2)] if keys else []
+        from app.models.media import UploadedAsset
+        from app.services.uploaded_media import asset_url
+        for key in dict.fromkeys(nearby):
+            uploaded = UploadedAsset.query.filter_by(category='face_f' if variant == 'f' else 'face_m', asset_key=key).first()
+            if uploaded:
+                urls.append(asset_url(uploaded))
+                continue
+            for name in ([f'face_f_{key}.png'] if variant == 'f' else [f'face_{key}.png', f'face_m_{key}.png']):
+                if _slot_file_exists('face', name):
+                    urls.append(_avatar_static_path(AVATAR_FOLDERS['face'], name))
+                    break
+    return list(dict.fromkeys(urls))
+
+
 def _get_equipped_item(loadout, attr_name: str) -> GearItemDefinition | None:
     item_id = getattr(loadout, attr_name, None)
     if not item_id:
@@ -238,6 +263,7 @@ def _build_layer(label: str, static_path: str) -> dict:
     return {
         'label': label,
         'static_path': static_path,
+        'display_path': current_app.jinja_env.filters['ui_image'](static_path),
     }
 
 
@@ -386,6 +412,24 @@ def _resolve_single_layer(slot_type: str, item: GearItemDefinition | None, body_
     if _slot_file_exists(slot_type, legacy_name):
         return _build_legacy_slot_path(slot_type, legacy_name), key
     return None, None
+
+
+def build_packaged_gear_reference_layers(slot_type: str, asset_key: str, body_variant: str) -> dict:
+    """Resolve bundled workshop references with the same body/layer rules as play."""
+    from types import SimpleNamespace
+    item = SimpleNamespace(id=None, is_active=True, avatar_asset_key=asset_key, image_key=None)
+    if slot_type == GEAR_SLOT_HEAD:
+        back, front, _ = _resolve_head_layers(item, body_variant)
+        layers = {'head-back': back, 'head-front': front}
+    elif slot_type == GEAR_SLOT_CHEST:
+        underlay, front, _ = _resolve_chest_layers(item, body_variant)
+        layers = {'chest-underlay': underlay, 'chest': front}
+    elif slot_type in (GEAR_SLOT_BOOTS, GEAR_SLOT_MAIN_HAND, GEAR_SLOT_OFF_HAND):
+        front, _ = _resolve_single_layer(slot_type, item, body_variant)
+        layers = {slot_type.replace('_', '-'): front}
+    else:
+        return {}
+    return {name: path for name, path in layers.items() if path}
 
 
 def build_player_avatar_view(player, loadout) -> dict:

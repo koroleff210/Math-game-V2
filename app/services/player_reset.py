@@ -13,7 +13,7 @@ from app.models.progression import (
 )
 
 
-STARTING_DIAMONDS = 3
+STARTING_DIAMONDS = 0  # New progression uses saved gold; retain existing legacy balances.
 WELCOME_GIFT_REASON = 'welcome gift'
 
 
@@ -133,6 +133,13 @@ def reset_player_to_starting_state(
     else:
         progression.diamonds_balance = STARTING_DIAMONDS
         progression.updated_at = now
+
+    if progression.saved_gold:
+        from uuid import uuid4
+        from app.models.economy import GoldTransaction
+        db.session.add(GoldTransaction(player_id=player.id, event_key=f'reset:{uuid4()}',
+            amount_delta=-progression.saved_gold, balance_after=0, reason='admin_reset'))
+        progression.saved_gold = 0
 
     tx = DiamondTransaction(
         player_id=player.id,

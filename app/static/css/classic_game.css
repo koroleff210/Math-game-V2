@@ -1,0 +1,119 @@
+/* Classic fullscreen: compact resources, readable rules, bounded list scrolling.
+   Keep translucent materials so the scene remains visible through the rails. */
+.resource-icon{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;flex:0 0 28px;vertical-align:middle;color:#805522}
+.resource-icon img,.resource-icon svg{width:100%;height:100%;object-fit:contain}
+.action-button-content{display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap}
+.treasure-chest-slot.is-unclaimed .treasure-reveal-icon{opacity:.32;filter:grayscale(.65) brightness(.8)}
+.treasure-chest-slot.is-unclaimed .treasure-chest-image{opacity:.65}
+.visually-hidden{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
+#currency-bar>span{display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:10px;min-height:46px;padding:8px 10px}
+#currency-bar .resource-value,#streak-value{font-size:1.55rem;font-weight:750;line-height:1.1}
+#currency-bar .resource-value--tokens{gap:4px}
+#currency-bar .token-icon{width:28px;height:28px;font-size:1rem}
+#shield-token-meta{display:flex;flex-direction:row;align-items:center;gap:10px;min-width:0}
+#shield-token-meta strong{font-size:1.4rem}
+#shield-token-row{gap:10px;padding:10px}
+#shield-token-row .token-icon{width:30px;height:30px}
+#btn-activate-shield,#store-toggle{font-size:1rem;min-height:40px}
+#actions-panel,#player-status-panel{gap:8px}
+#actions-panel h3{display:none}
+#active-bonuses:empty,#shield-status-message:empty{display:none}
+#active-bonuses{margin:0;font-size:1rem}
+#round-summary-panel{gap:8px}
+.round-rules{display:flex;flex-direction:column;gap:12px;font-size:1.05rem;line-height:1.4;color:#372d22}
+.round-rule{display:flex;align-items:flex-start;gap:9px}
+.round-rule>span:last-child{min-width:0}
+.round-rule strong{font-weight:750}
+.round-rule .resource-icon{width:25px;height:25px;flex-basis:25px}
+.rule-extra{display:block;margin-top:4px;font-size:.95rem}
+.rule-extra .resource-icon{width:23px;height:23px;flex-basis:23px}
+.round-rule[hidden]{display:none}
+#bonus-summary-list{font-size:1rem}
+#round-summary-panel .support-subsection+.support-subsection{margin-top:6px;padding-top:10px}
+#player-status-panel,#round-summary-panel,#actions-panel{color:#372d22;text-shadow:0 1px 2px #fff8}
+#leaderboard{overflow:hidden}
+#lb-table{display:block;flex:1;min-height:0;width:100%;font-size:1rem;border-spacing:0}
+#lb-body{display:flex;flex-direction:column;gap:6px;overflow:auto;height:100%;max-height:none;scrollbar-gutter:stable}
+#lb-body tr{display:grid;grid-template-columns:24px minmax(0,1fr);gap:3px 7px;flex:0 0 auto;padding:9px;border-radius:10px;box-sizing:border-box}
+#lb-body td{display:block;padding:0;border:0;white-space:normal;min-width:0}
+#lb-body td:first-child,#lb-body td:last-child{border:0;border-radius:0}
+#lb-body tr:has(td[colspan]){display:block}
+.lb-rank{grid-row:1 / 3;font-weight:750;color:#80613a!important}
+.lb-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap!important;font-weight:700}
+.lb-resources{display:flex!important;align-items:center;flex-wrap:wrap;gap:5px 10px;font-variant-numeric:tabular-nums}
+.lb-resource{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.lb-resource .resource-icon,.lb-resources .token-icon{width:22px;height:22px;flex-basis:22px}
+#problem-body{font-size:1.25rem;line-height:1.5}
+.mc-option-label{font-size:1.1rem;line-height:1.35}
+.mc-option-row{min-height:50px}
+#attempts-display{font-size:1rem}
+#interaction-state-hint{font-size:1rem;line-height:1.35}
+#interaction-state-hint:empty{display:none}
+#interaction-state-title{font-size:1.1rem}
+#problem-stage-title,#interaction-state-kicker,#player-session-note{display:none}
+#leaderboard h3{padding-right:30px}
+#answer-input,#submit-btn,.mc-option-confirm{font-size:1rem}
+#reward-result{font-size:1.15rem}
+.reward-amount{display:inline-flex;align-items:center;gap:6px;font-size:1.4rem}
+.action-log-entry,.context-list{font-size:1rem;line-height:1.35}
+.context-list dt{font-size:.9rem;text-transform:none;letter-spacing:0}
+.rail-panel h3,#context-rail .rail-panel h3,#problem-selector-shell h3{font-size:1rem}
+#problem-body-frame{background:linear-gradient(180deg,#fff9ef40,#fff9ef20)}
+#problem-window{background:linear-gradient(180deg,#fff9ef60,#fff9ef30)}
+#problem-workspace{background:linear-gradient(180deg,#fff9ef55,#fff9ef28)}
+#problem-body{text-shadow:0 1px 2px #fff9}
+#problem-empty-state{background:linear-gradient(180deg,#fff9ef40,#fff9ef20)}
+@media(min-width:901px) and (orientation:landscape), (min-width:1181px){
+  #game-layout{grid-template-columns:clamp(240px,20vw,320px) minmax(0,1fr) clamp(240px,21vw,340px);height:100dvh;min-height:0;padding:10px;gap:10px;border-radius:14px}
+  #support-rail{overflow-y:auto;scrollbar-width:thin}
+  #support-rail>.rail-panel{flex-shrink:0;padding:12px}
+  #support-rail>#round-summary-panel{flex:1 0 auto;overflow:visible}
+  #problem-buttons{grid-template-columns:repeat(8,minmax(0,1fr))}
+  .prob-btn{font-size:1rem;min-height:38px;padding:5px}
+  #problem-workspace{padding:12px}
+  #problem-window{padding:12px}
+  #context-log-panel{max-height:22%;min-height:100px;display:flex;flex-direction:column}
+  #action-log-list{min-height:0;max-height:none;overflow:auto;flex:1}
+  #context-round-panel{padding:10px 12px}
+}
+@media(max-height:780px) and (min-width:901px) and (orientation:landscape){
+  #player-avatar-shell,#player-avatar-stage{width:56px}
+  #player-identity{grid-template-columns:56px minmax(0,1fr)}
+  #currency-bar>span{min-height:38px;padding:6px 8px}
+  #currency-bar .resource-value,#streak-value{font-size:1.35rem}
+  .round-rules{gap:8px;font-size:1rem}
+  #context-log-panel{max-height:20%}
+}
+@media(max-width:900px), ((max-width:1180px) and (orientation:portrait)){
+  #game-layout{min-height:0}
+  #lb-body tr{grid-template-columns:24px minmax(0,1fr)}
+  #problem-body{font-size:1.125rem}
+  #round-summary-panel{overflow:auto}
+}
+
+/* Keep the answer controls reachable when choices contain tall diagrams. */
+#interaction-shell {
+  flex: 0 0 auto;
+  min-height: 0;
+  max-height: 55%;
+  overflow-y: auto;
+}
+#interaction-shell > * {
+  flex-shrink: 0;
+}
+#mc-answer-section {
+  max-height: none;
+  overflow: visible;
+}
+@media (max-height: 900px) {
+  #problem-body img,
+  #mc-options-list img {
+    object-fit: contain;
+  }
+  #problem-body img {
+    max-height: min(32vh, 260px);
+  }
+  #mc-options-list img {
+    max-height: min(21vh, 155px);
+  }
+}

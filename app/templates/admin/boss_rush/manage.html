@@ -67,6 +67,7 @@
             <p><strong>Name:</strong> {{ config.boss_name if config else 'Missing' }}</p>
             <p><strong>HP:</strong> <span data-boss-hp>{{ battle_state.current_boss_hp if battle_state else '?' }}</span> / <span data-boss-max-hp>{{ config.boss_max_hp if config else '?' }}</span></p>
             <p><strong>Player HP:</strong> {{ config.player_max_hp if config else '?' }}</p>
+            {% if config and config.shared_bank_enabled %}<p><strong>Team bank:</strong> <span data-team-bank>{{ battle_state.team_bank_gold if battle_state else 0 }}</span> · <span data-team-bank-status>{{ "expired" if battle_state and battle_state.bank_expired_at else "unlocked" if battle_state and battle_state.rewards_finalized_at else "locked until victory" }}</span></p>{% endif %}
             <p><strong>Battle Status:</strong> <span data-boss-status>{{ battle_state.status if battle_state else 'Missing' }}</span></p>
             <p><strong>Ability:</strong> <span data-ability-name>{{ live_state_payload.ability.name if live_state_payload else 'Missing' }}</span></p>
             <p><strong>Next Ability:</strong> <span data-ability-timer>{% if live_state_payload and live_state_payload.ability.frozen %}Ability frozen{% elif live_state_payload and live_state_payload.ability.enabled %}{{ live_state_payload.ability.seconds_remaining or 0 }}s{% else %}Inactive{% endif %}</span></p>
@@ -131,7 +132,7 @@
 
     {% if battle_state and battle_state.is_defeated and not battle_state.rewards_finalized_at %}
     <form method="POST" action="{{ url_for('boss_rush_admin.finalize_rewards', session_id=game_session.id) }}"
-          onsubmit="return confirm('Finalize Boss Rush rewards? This awards Diamonds once.')">
+          onsubmit="return confirm('Finalize Boss Rush rewards? This awards rewards once.')">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="admin-btn admin-btn-primary" type="submit">Finalize Rewards</button>
     </form>
@@ -149,7 +150,7 @@
                 {% if battle_state.rewards_finalized_at %}
                     Finalized {{ battle_state.rewards_finalized_at.strftime('%Y-%m-%d %H:%M:%S') }}.
                 {% else %}
-                    Preview only. Diamonds are not awarded until Finalize Rewards is pressed.
+                    Preview only. Rewards are credited once when finalized.
                 {% endif %}
             </p>
         </div>
@@ -164,10 +165,8 @@
                     <th>Player</th>
                     <th>Damage</th>
                     <th>Max Combo</th>
-                    <th>Placement</th>
-                    <th>Other</th>
-                    <th>Combo</th>
-                    <th>Total Diamonds</th>
+                    {% if config.shared_bank_enabled %}<th>Team bank share</th><th>Victory bonus</th><th>Loot</th>{% else %}<th>Placement</th><th>Other</th><th>Combo</th>{% endif %}
+                    <th>{{ 'Defeat gold' if game_session.economy_version >= 2 else 'Diamonds' }}</th>
                 </tr>
             </thead>
             <tbody>
@@ -177,10 +176,8 @@
                     <td>{{ entry.username }}</td>
                     <td>{{ entry.damage_dealt }}</td>
                     <td>{{ entry.max_combo }}</td>
-                    <td>{{ entry.breakdown.placement }}</td>
-                    <td>{{ entry.breakdown.other_participant }}</td>
-                    <td>{{ entry.breakdown.highest_combo }}</td>
-                    <td><strong>{{ entry.total_diamonds }}</strong></td>
+                    {% if config.shared_bank_enabled %}<td>{{ entry.bank_share }}</td><td>{{ entry.defeat_gold }}</td><td>{{ entry.total_diamonds }} diamonds{% if entry.loot_received %} · {{ entry.loot_name }}{% elif entry.loot_fallback_gold %} · +{{ entry.loot_fallback_gold }} gold alternative{% endif %}</td>{% else %}<td>{{ entry.breakdown.placement }}</td><td>{{ entry.breakdown.other_participant }}</td><td>{{ entry.breakdown.highest_combo }}</td>{% endif %}
+                    <td><strong>{{ entry.total_gold if game_session.economy_version >= 2 else entry.total_diamonds }}</strong></td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -319,6 +316,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function applyBossRushState(payload) {
         if (!payload || !payload.boss) return;
+        if (payload.boss.defeated && INITIAL_BOSS_RUSH_STATE && !INITIAL_BOSS_RUSH_STATE.boss.defeated) { window.location.reload(); return; }
+        const bank = document.querySelector('[data-team-bank]');
+        const bankStatus = document.querySelector('[data-team-bank-status]');
+        if (bank && payload.team_bank) bank.textContent = payload.team_bank.total;
+        if (bankStatus && payload.team_bank) bankStatus.textContent = payload.team_bank.status;
         const bossHp = document.querySelector('[data-boss-hp]');
         const bossMaxHp = document.querySelector('[data-boss-max-hp]');
         const bossStatus = document.querySelector('[data-boss-status]');

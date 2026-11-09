@@ -11,15 +11,26 @@ from wtforms.validators import DataRequired, NumberRange, Length, Optional, Vali
 class ClassicConfigFieldsForm(FlaskForm):
     """Shared Classic round-config fields and cross-field validation."""
 
+    correct_answer_gold = IntegerField('Correct answer gold', default=5, validators=[NumberRange(min=0)])
+    combo_start = IntegerField('Combo starts at consecutive correct answer', default=3, validators=[NumberRange(min=1)])
+    combo_gold = IntegerField('Gold per correct answer after combo starts', default=2, validators=[NumberRange(min=0)])
+    treasure_pity_increment = FloatField('Treasure pity increment (0–1)', default=.10, validators=[NumberRange(min=0, max=1)])
+    treasure_pity_cap = FloatField('Treasure maximum chance (0–1)', default=.75, validators=[NumberRange(min=0, max=1)])
+    treasure_double_mine_chance = FloatField('Double Mine chest base chance (0–1)', default=.30, validators=[NumberRange(min=0, max=1)])
+    steal_attempt_limit = IntegerField('Steal attempts per session', default=2, validators=[NumberRange(min=0, max=20)])
+    active_bonus_limit = IntegerField('Maximum held temporary bonuses', default=3, validators=[NumberRange(min=1, max=10)])
+    permanent_bonus_cap = FloatField('Combined permanent earning advantage cap (0–0.10)', default=.10, validators=[NumberRange(min=0, max=.10)])
+    standardized_competition = BooleanField('Standardized competition: disable permanent bonuses', default=False)
+
     # Core settings
     mine_reward = IntegerField(
         'Mine Reward (gold)',
-        default=20,
+        default=5,
         validators=[NumberRange(min=0, message='Must be 0 or more.')],
     )
     treasure_search_reward = IntegerField(
         'Min Treasure Search Reward (gold)',
-        default=5,
+        default=2,
         validators=[NumberRange(min=0)],
     )
     attempts_per_problem = IntegerField(
@@ -36,19 +47,19 @@ class ClassicConfigFieldsForm(FlaskForm):
     # Timer bonus
     bonus_timer_duration = IntegerField(
         'Timer Bonus Duration (seconds, 0 = disabled)',
-        default=120,
+        default=0,
         validators=[NumberRange(min=0)],
     )
     bonus_timer_gold = IntegerField(
         'Timer Bonus Gold',
-        default=5,
+        default=0,
         validators=[NumberRange(min=0)],
     )
 
     # First-solver bonus
     first_solver_count = IntegerField(
         'First Solver Count (how many solvers get bonus)',
-        default=3,
+        default=0,
         validators=[NumberRange(min=0)],
     )
     first_solver_multiplier = IntegerField(
@@ -60,7 +71,7 @@ class ClassicConfigFieldsForm(FlaskForm):
     # Random rewards & gems
     treasure_search_max_reward = IntegerField(
         'Max Treasure Search Reward (gold)',
-        default=5,
+        default=2,
         validators=[NumberRange(min=0, message='Must be 0 or more.')],
     )
     gem_milestone_count = IntegerField(
@@ -70,44 +81,44 @@ class ClassicConfigFieldsForm(FlaskForm):
     )
     gem_streak_count = IntegerField(
         'Gem Streak (consecutive correct answers per +1 gem, 0 = disabled)',
-        default=3,
+        default=0,
         validators=[NumberRange(min=0, message='Must be 0 or more.')],
     )
     gem_treasure_chance = FloatField(
         'Gem Chest Fill Chance (0-1)',
-        default=0.5,
+        default=.10,
         validators=[NumberRange(min=0.0, max=1.0, message='Must be between 0 and 1.')],
     )
 
     # Steal system
     steal_percent = FloatField(
         'Steal Percent (0-1)',
-        default=0.10,
+        default=.12,
         validators=[NumberRange(min=0.0, max=1.0, message='Must be between 0 and 1.')],
     )
     steal_min_cap = IntegerField(
         'Steal Min Cap (gold)',
-        default=10,
+        default=0,
         validators=[NumberRange(min=0, message='Must be 0 or more.')],
     )
     steal_max_cap = IntegerField(
         'Steal Max Cap (gold, -1 = no cap)',
-        default=50,
+        default=15,
         validators=[NumberRange(min=-1, message='Use -1 for no cap or 0+.')],
     )
     steal_fallback_gold = IntegerField(
         'Stranger Steal Gold',
-        default=5,
+        default=0,
         validators=[NumberRange(min=0, message='Must be 0 or more.')],
     )
     steal_chest_count = IntegerField(
         'Mini-game Chest Count (0 = disabled)',
-        default=6,
+        default=7,
         validators=[NumberRange(min=0, message='Must be 0 or more.')],
     )
     steal_winning_chest_count = IntegerField(
         'Mini-game Winning Chests',
-        default=4,
+        default=3,
         validators=[NumberRange(min=1, message='Must be at least 1.')],
     )
     active_shield_duration = IntegerField(
@@ -122,17 +133,17 @@ class ClassicConfigFieldsForm(FlaskForm):
     )
     treasure_steal_token_chance = FloatField(
         'Steal Token Chest Fill Chance (0-1)',
-        default=0.6,
+        default=.30,
         validators=[NumberRange(min=0.0, max=1.0, message='Must be between 0 and 1.')],
     )
     treasure_active_shield_chance = FloatField(
         'Shield Token Chest Fill Chance (0-1)',
-        default=0.6,
+        default=.35,
         validators=[NumberRange(min=0.0, max=1.0, message='Must be between 0 and 1.')],
     )
     treasure_second_chance_chance = FloatField(
         'Second Chance Chest Fill Chance (0-1)',
-        default=0.5,
+        default=.35,
         validators=[NumberRange(min=0.0, max=1.0, message='Must be between 0 and 1.')],
     )
 
@@ -189,7 +200,7 @@ class StoreItemForm(FlaskForm):
     )
     cost = IntegerField(
         'Cost',
-        default=10,
+        default=1,
         validators=[NumberRange(min=1, message='Must be at least 1.')],
     )
     currency = SelectField(
@@ -198,7 +209,7 @@ class StoreItemForm(FlaskForm):
             ('gold', 'Gold 💰'),
             ('gems', 'Gems 💎'),
         ],
-        default='gold',
+        default='gems',
         validators=[DataRequired()],
     )
     bonus_type = SelectField(

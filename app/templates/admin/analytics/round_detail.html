@@ -22,6 +22,7 @@
 {%- endmacro %}
 
 {% block admin_content %}
+<p><a href="{{ url_for('learning.session_detail',session_id=analytics_round.session_id) }}">View complete session report and AI export</a></p>
 {% set title = "Analytics Round #" ~ analytics_round.id %}
 {% set eyebrow = analytics_round.mode %}
 {% set description = "Session #" ~ analytics_round.session_id ~ ", game round #" ~ analytics_round.round_id %}

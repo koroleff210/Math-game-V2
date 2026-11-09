@@ -1,0 +1,10 @@
+{% macro pct(value) -%}{{ (value*100)|round(1) ~ '%' if value is not none else '—' }}{%- endmacro %}
+{% macro metrics(m) %}
+<div class="lr-metrics">
+  <div class="lr-metric">First try correct<strong>{{ pct(m.first_accuracy) }}</strong><small>{{ m.first_correct }} / {{ m.first_known }} known first responses</small></div>
+  <div class="lr-metric">Eventually solved<strong>{{ pct(m.eventual_accuracy) }}</strong><small>{{ m.solved }} / {{ m.attempted }} attempted occurrences</small></div>
+  <div class="lr-metric">Coverage<strong>{{ m.presented }} presented</strong><small>{{ m.attempted }} attempted · {{ m.submissions }} submissions</small></div>
+  <div class="lr-metric">Attempt accuracy<strong>{{ pct(m.attempt_accuracy) }}</strong><small>{{ m.correct_submissions }} / {{ m.submissions }} submissions</small></div>
+</div>
+{% if m.incomplete %}<p class="lr-warning">{{ m.incomplete }} result(s) have incomplete answer evidence. Interpret these totals with care.</p>{% endif %}
+{% endmacro %}

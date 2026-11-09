@@ -5,6 +5,7 @@
 {% block admin_content %}
 <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
 <script src="{{ url_for('static', filename='js/problem_graph_renderer.js') }}"></script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
 <style>
   .problem-editor-form {
     width: 100%;
@@ -372,7 +373,7 @@
           <h3 style="margin:0;">Body Blocks</h3>
         </div>
         <p class="problem-subnote">
-          Build the question from top to bottom. Add the next block directly below the current one, or move blocks if you need to reorder later.
+          Build the question from top to bottom. Use <code>**bold**</code> for emphasis and <code>\(F = ma\)</code> for inline math.
         </p>
 
         {% if not problem.blocks %}
@@ -450,7 +451,7 @@
                 <button type="submit" formmethod="post" formaction="{{ url_for('admin.problem_graph_element_add', problem_id=problem.id, block_id=block.id, graph_element_type='equation') }}">Add Equation</button>
               </div>
             </div>
-            <p class="problem-subnote">Supported forms: linear, quadratic, exponential, sine, and cosine with required <code>y =</code> syntax.</p>
+            <p class="problem-subnote">Start with <code>y =</code>. Supported forms include constants, linear, quadratic, exponential, sine, and cosine.</p>
             {% if not graph_editor.equations %}
             <p class="problem-subnote">No saved equation rows yet. Add one to start plotting a function trace.</p>
             {% endif %}
@@ -594,7 +595,9 @@
       <div class="problem-editor-card" id="text-answer-section" {% if create_mode and answer_type_value != 'text_input' %}style="display:none;"{% endif %}>
         <h3 style="margin-top:0;">Accepted Answers</h3>
         <p class="problem-subnote">
-          Enter one accepted answer per line. Validation is case-insensitive and ignores extra spaces only.
+          Enter one accepted answer per line. Plain text ignores case and extra spaces. Use
+          <code>numeric:2</code> to accept equivalent numbers or <code>numeric:2 0.01</code>
+          to allow an absolute error of 0.01. Use plain text when the exact notation matters.
         </p>
         <p>
           <label for="accepted_answers_text">Accepted variants</label><br>

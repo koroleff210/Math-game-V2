@@ -73,6 +73,9 @@
     {{ form.avatar_asset_key(type='hidden') }}
 
     <p>
+        {{ form.gold_cost.label }}<br>{{ form.gold_cost() }}
+        {% for error in form.gold_cost.errors %}<span>{{ error }}</span>{% endfor %}
+    </p><p>
         {{ form.diamond_cost.label }}<br>
         {{ form.diamond_cost() }}
         {% if form.diamond_cost.errors %}

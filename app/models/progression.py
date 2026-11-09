@@ -37,6 +37,7 @@ class PlayerProgression(db.Model):
     )
 
     diamonds_balance = db.Column(db.Integer, nullable=False, default=0)
+    saved_gold = db.Column(db.Integer, nullable=False, default=0)
 
     created_at = db.Column(
         db.DateTime,

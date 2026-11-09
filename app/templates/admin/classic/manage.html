@@ -155,8 +155,21 @@
             </div>
         </div>
 
-        <form method="POST" action="{{ url_for('classic_admin.next_round', session_id=game_session.id) }}">
+        <form method="POST" action="{{ url_for('classic_admin.next_round', session_id=game_session.id) }}" data-classic-session-form>
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <script type="application/json" data-classic-presets>{{ presets|tojson }}</script>
+            <div class="admin-section-card">
+                <label for="classic-preset">Round preset</label>
+                <select id="classic-preset">
+                    <option value="">Custom settings</option>
+                    <option value="intro">Intro · solve and mine</option>
+                    <option value="easy">Easy · add treasure and bonuses</option>
+                    <option value="normal">Normal · all actions, mining favored</option>
+                    <option value="greedy">Hard / Greedy · bigger gold rewards and steals</option>
+                </select>
+                <button class="admin-btn" type="button" data-apply-classic-preset>Apply preset</button>
+                <p class="admin-help-text">This fills the next round settings. Choose its problem set and manage the session store separately.</p>
+            </div>
 
             <div class="admin-grid-two">
                 <div>
@@ -171,6 +184,7 @@
                         <div class="admin-details-body admin-form-stack">
                             {{ render_field(next_round_form.problem_set_id, hint='Switch problem sets here if the next round should use a different authored set.') }}
 
+                            {% if game_session.economy_version >= 2 %}<p class="admin-help-text">Gold and gems carry across every round. Gold is saved and gems expire when the session ends.</p>{% else %}
                             <p class="admin-field">
                                 <label for="{{ next_round_form.carry_over_gold.id }}">{{ next_round_form.carry_over_gold() }} Carry over gold</label>
                                 <span class="admin-help-text">Uncheck to reset all player gold to 0 before the round starts.</span>
@@ -180,6 +194,7 @@
                                 <label for="{{ next_round_form.carry_over_gems.id }}">{{ next_round_form.carry_over_gems() }} Carry over gems</label>
                                 <span class="admin-help-text">Uncheck to reset all player gems to 0 before the round starts.</span>
                             </p>
+                            {% endif %}
                         </div>
                     </details>
 
@@ -192,7 +207,17 @@
                             <span class="admin-details-summary-icon">v</span>
                         </summary>
                         <div class="admin-details-body admin-form-grid">
-                            {{ render_field(next_round_form.mine_reward, hint='Gold awarded for a successful mine.') }}
+                                                {{ render_field(next_round_form.correct_answer_gold) }}
+                    {{ render_field(next_round_form.combo_start) }}
+                    {{ render_field(next_round_form.combo_gold) }}
+                    {{ render_field(next_round_form.treasure_pity_increment) }}
+                    {{ render_field(next_round_form.treasure_pity_cap) }}
+                    {{ render_field(next_round_form.treasure_double_mine_chance) }}
+                    {{ render_field(next_round_form.steal_attempt_limit) }}
+                    {{ render_field(next_round_form.active_bonus_limit) }}
+                    {{ render_field(next_round_form.permanent_bonus_cap) }}
+                    {{ render_field(next_round_form.standardized_competition) }}
+                    {{ render_field(next_round_form.mine_reward, hint='Gold awarded for a successful mine.') }}
                             {{ render_field(next_round_form.treasure_search_reward, hint='Minimum gold from treasure search.') }}
                             {{ render_field(next_round_form.treasure_search_max_reward, hint='Maximum gold from treasure search.') }}
                             {{ render_field(next_round_form.attempts_per_problem, hint='Use -1 for unlimited attempts.') }}
@@ -397,6 +422,11 @@
 </table>
 {% endif %}
 
+<h2>Live Player Progress</h2>
+<div id="live-progress-region">
+    {% include 'admin/classic/_live_progress.html' %}
+</div>
+
 <h2>Solve Counts Per Problem</h2>
 <div id="solve-counts-region">
     {% include 'admin/classic/_solve_counts.html' %}
@@ -411,11 +441,12 @@
 
 {% block head %}
 <script src="/static/js/socket.io.min.js"></script>
+<script src="{{ url_for('static', filename='js/realtime.js', v='20261019-1') }}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const SESSION_ID = {{ game_session.id }};
 
-    const socket = io();
+    const socket = GameRealtime.connect();
 
     socket.on('connect', function () {
         socket.emit('classic_admin_watch', { session_id: SESSION_ID });
@@ -439,6 +470,10 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     socket.on('admin_summary_update', function (data) {
+        const progressRegion = document.getElementById('live-progress-region');
+        if (progressRegion && typeof data.progress_html === 'string') {
+            progressRegion.innerHTML = data.progress_html;
+        }
         const solveCountsRegion = document.getElementById('solve-counts-region');
         const stealHistoryRegion = document.getElementById('steal-history-region');
         if (solveCountsRegion && typeof data.solve_counts_html === 'string') {

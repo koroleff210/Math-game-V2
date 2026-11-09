@@ -1,0 +1,17 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const handlers = {};
+let connects = 0;
+let options;
+const socket = { io: { opts: {} }, on: (name, fn) => { handlers[name] = fn; }, connect: () => { connects++; } };
+const context = { window: {}, io: opts => { options = opts; return socket; } };
+vm.runInNewContext(fs.readFileSync('app/static/js/realtime.js', 'utf8'), context);
+assert.equal(context.window.GameRealtime.connect(), socket);
+assert.deepEqual(Array.from(options.transports), ['websocket']);
+handlers.connect_error();
+assert.deepEqual(Array.from(socket.io.opts.transports), ['polling', 'websocket']);
+assert.equal(connects, 1);
+handlers.connect_error();
+assert.equal(connects, 1, 'Failed polling must use normal backoff, not a tight retry loop');
+console.log('WebSocket-first and polling fallback checks passed.');

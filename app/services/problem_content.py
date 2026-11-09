@@ -2,6 +2,7 @@ import html
 import json
 import math
 import re
+from decimal import Decimal, InvalidOperation
 from uuid import uuid4
 from sqlalchemy import inspect as sa_inspect
 
@@ -148,6 +149,8 @@ def parse_graph_equation_text(equation_text: str) -> dict:
         raise ValueError('Equation must start with "y =".')
 
     expr = compact[2:]
+    if re.fullmatch(rf'[+-]?{_GRAPH_NUMBER_RE}', expr):
+        return {'element_type': 'function', 'family': 'linear', 'm': 0.0, 'b': float(expr)}
     linear_match = re.fullmatch(rf'(?P<m>[+-]?(?:{_GRAPH_NUMBER_RE})?)x(?P<b>[+-]{_GRAPH_NUMBER_RE})?', expr)
     if linear_match:
         return {
@@ -276,6 +279,8 @@ def _format_graph_number(value: float) -> str:
 
 
 def _format_linear_equation(m: float, b: float) -> str:
+    if m == 0:
+        return f'y = {_format_graph_number(b)}'
     if m == 1:
         base = 'x'
     elif m == -1:
@@ -803,7 +808,30 @@ def check_problem_text_input_answer(problem, submitted_text: str | None) -> bool
         for answer_text in get_problem_answer_variants(problem)
         if normalize_text_input_answer(answer_text)
     ]
-    return submitted in accepted
+    numeric_rules = [answer for answer in accepted if answer.startswith('numeric:')]
+    if submitted in accepted and submitted not in numeric_rules:
+        return True
+    number = _answer_decimal(submitted)
+    if number is None:
+        return False
+    for rule in numeric_rules:
+        values = rule.removeprefix('numeric:').split()
+        if len(values) not in (1, 2):
+            continue
+        expected = _answer_decimal(values[0])
+        tolerance = _answer_decimal(values[1]) if len(values) == 2 else Decimal(0)
+        if expected is not None and tolerance is not None and abs(number - expected) <= tolerance:
+            return True
+    return False
+
+
+def _answer_decimal(value):
+    if not re.fullmatch(rf'[+-]?{_GRAPH_NUMBER_RE}(?:e[+-]?\d{{1,3}})?', value):
+        return None
+    try:
+        return Decimal(value)
+    except InvalidOperation:
+        return None
 
 
 def check_problem_multiple_choice_answer(problem, submitted_option_id: int | None) -> bool:

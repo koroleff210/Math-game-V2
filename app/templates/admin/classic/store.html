@@ -120,6 +120,7 @@
 
 <!-- Push store to players -->
 <form method="POST" action="{{ url_for('classic_admin.push_store', session_id=game_session.id) }}"
+      id="push-store-form"
       style="margin-bottom:24px;">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <button type="submit" style="
@@ -130,6 +131,7 @@
         &#128722; Push Store to Players
     </button>
 </form>
+<p id="push-store-status" role="status" style="margin-top:-16px; color:#666;"></p>
 
 <!-- Add item form -->
 <h2>Add Item</h2>
@@ -159,4 +161,32 @@
 
     <p style="margin-top:12px;">{{ form.submit() }}</p>
 </form>
+{% endblock %}
+
+{% block head %}
+<script src="/static/js/socket.io.min.js"></script>
+<script src="{{ url_for('static', filename='js/realtime.js', v='20261019-1') }}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const socket = GameRealtime.connect();
+    const form = document.getElementById('push-store-form');
+    const status = document.getElementById('push-store-status');
+    const button = form.querySelector('button[type=submit]');
+    socket.on('connect', function () { status.textContent = 'Live connection ready.'; });
+    socket.on('disconnect', function () { status.textContent = 'Reconnecting…'; });
+    form.addEventListener('submit', function (event) {
+        // Retain the existing CSRF-protected form when a live connection is unavailable.
+        if (!socket.connected) return;
+        event.preventDefault();
+        button.disabled = true;
+        status.textContent = 'Sending store…';
+        socket.timeout(5000).emit('classic_push_store', { session_id: {{ game_session.id }} }, function (error, result) {
+            button.disabled = false;
+            status.textContent = error ? 'Delivery could not be confirmed. Please retry.' :
+                result && result.ok ? 'Store sent to connected players.' :
+                result && result.message || 'Store could not be sent.';
+        });
+    });
+});
+</script>
 {% endblock %}

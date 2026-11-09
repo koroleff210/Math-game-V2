@@ -1,3 +1,4 @@
+from app.services.economy import serialized_session
 # app/modes/classic/routes.py
 #
 # HTTP routes for Classic Mode.
@@ -38,12 +39,13 @@ from app.models.groups import PlayerGroup
 from app.models.history import RoundHistory, RoundPlayerResult, build_history_csv
 from app.models.analytics import AnalyticsRound
 from app.modes.classic.forms import ClassicSessionForm, StoreItemForm, NextRoundForm
-from app.modes.classic import state
+from app.modes.classic import engine, state
+from app.modes.classic.presets import PRESETS
 from app.modes.classic import store as classic_store
 from app.modes.classic.history_snapshot import freeze_round_history
 from app.modes.classic.admin_summary import (
     build_admin_supervision_summary_context,
-    render_admin_supervision_summary_payload,
+    render_admin_supervision_summary_payload, supervision_room,
 )
 from app.services.progression import ensure_session_participant_snapshot, ensure_all_session_participant_snapshots
 from app.services.avatar import build_player_avatar_view
@@ -59,6 +61,7 @@ from app.services.analytics import (
 # Config fields that map 1:1 between NextRoundForm and ClassicRoundConfig.
 # Used to pre-fill the next-round form and to build a new config from submitted data.
 _ROUND_CONFIG_FIELDS = (
+    'correct_answer_gold', 'combo_start', 'combo_gold', 'treasure_pity_increment', 'treasure_pity_cap', 'treasure_double_mine_chance', 'steal_attempt_limit', 'active_bonus_limit', 'permanent_bonus_cap', 'standardized_competition',
     'mine_reward', 'treasure_search_reward', 'attempts_per_problem',
     'wrong_answer_penalty', 'bonus_timer_duration', 'bonus_timer_gold',
     'first_solver_count', 'first_solver_multiplier',
@@ -226,6 +229,7 @@ def new_session():
         # 3. Create the ClassicRoundConfig
         config = ClassicRoundConfig(
             round_id=game_round.id,
+            **{f: getattr(form, f).data for f in ('correct_answer_gold', 'combo_start', 'combo_gold', 'treasure_pity_increment', 'treasure_pity_cap', 'treasure_double_mine_chance', 'steal_attempt_limit', 'active_bonus_limit', 'permanent_bonus_cap', 'standardized_competition')},
             mine_reward=form.mine_reward.data,
             treasure_search_reward=form.treasure_search_reward.data,
             attempts_per_problem=form.attempts_per_problem.data,
@@ -251,6 +255,8 @@ def new_session():
             treasure_second_chance_chance=form.treasure_second_chance_chance.data,
         )
         db.session.add(config)
+        from app.services.economy import seed_session_store
+        seed_session_store(game_session.id, config)
         ensure_analytics_round(game_round, 'classic', config=config)
         snapshot_classic_round_problem_set(game_round)
         db.session.commit()
@@ -261,7 +267,7 @@ def new_session():
         flash(f'Classic session #{game_session.id} created. Players can use the Hub Join flow when you are ready, then you can press Start.', 'success')
         return redirect(url_for('classic_admin.manage', session_id=game_session.id))
 
-    return render_template('admin/classic/new.html', form=form)
+    return render_template('admin/classic/new.html', form=form, presets=PRESETS)
 
 
 @classic_admin_bp.route('/<int:session_id>/manage')
@@ -326,8 +332,11 @@ def manage(session_id):
         wallet_bonus_counts=wallet_bonus_counts,
         enrolled=enrolled,
         solve_counts=summary_context['solve_counts'],
+        problem_labels=summary_context['problem_labels'],
+        progress_rows=summary_context['progress_rows'],
         steal_events=summary_context['steal_events'],
         next_round_form=next_round_form,
+        presets=PRESETS,
         history_count=history_count,
         broken_active_ended=broken_active_ended,
     )
@@ -386,7 +395,7 @@ def repair_waiting(session_id):
 
     room = f'classic_{session_id}'
     socketio.emit('return_to_lobby', {'session_id': session_id}, room=room)
-    socketio.emit('admin_summary_update', render_admin_supervision_summary_payload(session_id), room=room)
+    socketio.emit('admin_summary_update', render_admin_supervision_summary_payload(session_id), room=supervision_room(session_id))
 
     flash('Session recovered to waiting state. You can start the next round or end the session.', 'success')
     return redirect(url_for('classic_admin.manage', session_id=session_id))
@@ -438,7 +447,7 @@ def start_round(session_id):
         'round_id': game_round.id,
         'round_number': game_round.round_number,
     }, room=room)
-    socketio.emit('admin_summary_update', render_admin_supervision_summary_payload(session_id), room=room)
+    socketio.emit('admin_summary_update', render_admin_supervision_summary_payload(session_id), room=supervision_room(session_id))
 
     flash('Round started.', 'success')
     return redirect(url_for('classic_admin.manage', session_id=session_id))
@@ -447,6 +456,7 @@ def start_round(session_id):
 @classic_admin_bp.route('/<int:session_id>/end', methods=['POST'])
 @login_required
 @admin_required
+@serialized_session
 def end_round(session_id):
     """End the current round.  Session returns to 'waiting' (between-rounds lobby).
     Players are redirected back to the lobby. Admin can then start a new round
@@ -478,7 +488,7 @@ def end_round(session_id):
     # Send players back to the lobby.
     room = f'classic_{session_id}'
     socketio.emit('return_to_lobby', {'session_id': session_id}, room=room)
-    socketio.emit('admin_summary_update', render_admin_supervision_summary_payload(session_id), room=room)
+    socketio.emit('admin_summary_update', render_admin_supervision_summary_payload(session_id), room=supervision_room(session_id))
 
     flash('Round ended. Set carry-over options and start the next round, or end the session.', 'success')
     return redirect(url_for('classic_admin.manage', session_id=session_id))
@@ -487,6 +497,7 @@ def end_round(session_id):
 @classic_admin_bp.route('/<int:session_id>/end_session', methods=['POST'])
 @login_required
 @admin_required
+@serialized_session
 def end_session(session_id):
     """Permanently close the session (status → finished).
     Call this after end_round when no further rounds will be played."""
@@ -495,8 +506,15 @@ def end_session(session_id):
         abort(404)
 
     now = datetime.now(timezone.utc)
+    active_round = GameRound.query.filter_by(session_id=session_id, ended_at=None).first()
+    if active_round:
+        active_round.ended_at = now
+        freeze_round_history(active_round, game_session, now)
+        finalize_classic_round(active_round)
     game_session.status = 'finished'
     game_session.ended_at = now
+    from app.services.economy import settle_session
+    settle_session(game_session)
     db.session.commit()
 
     # clear_session is idempotent — safe even if already called from end_round
@@ -504,7 +522,7 @@ def end_session(session_id):
 
     room = f'classic_{session_id}'
     socketio.emit('round_ended', {'session_id': session_id}, room=room)
-    socketio.emit('admin_summary_update', render_admin_supervision_summary_payload(session_id), room=room)
+    socketio.emit('admin_summary_update', render_admin_supervision_summary_payload(session_id), room=supervision_room(session_id))
 
     flash('Session ended.', 'success')
     # Redirect to the new-session form rather than index() so that stale
@@ -516,6 +534,7 @@ def end_session(session_id):
 @classic_admin_bp.route('/<int:session_id>/next_round', methods=['POST'])
 @login_required
 @admin_required
+@serialized_session
 def next_round(session_id):
     """Start the next round in the same session.
 
@@ -571,6 +590,8 @@ def next_round(session_id):
     # Carry-over controls
     carry_over_gold = 'carry_over_gold' in request.form
     carry_over_gems = 'carry_over_gems' in request.form
+    if game_session.economy_version >= 2:
+        carry_over_gold = carry_over_gems = True
 
     # Optional problem set switch for the new round.
     new_ps_id = form.problem_set_id.data
@@ -623,7 +644,7 @@ def next_round(session_id):
         'round_id': new_round.id,
         'round_number': new_round.round_number,
     }, room=room)
-    socketio.emit('admin_summary_update', render_admin_supervision_summary_payload(session_id), room=room)
+    socketio.emit('admin_summary_update', render_admin_supervision_summary_payload(session_id), room=supervision_room(session_id))
 
     gold_msg = 'carried over' if carry_over_gold else 'reset to 0'
     gems_msg = 'carried over' if carry_over_gems else 'reset to 0'
@@ -877,12 +898,18 @@ def join_session():
         db.session.add(rp)
         db.session.flush()
 
+    game_round = GameRound.query.filter_by(
+        session_id=session_id, ended_at=None
+    ).order_by(GameRound.round_number.desc()).first()
+
     # 2. PlayerWallet (session gold/gems/steal_tokens)
     wallet = PlayerWallet.query.filter_by(
         player_id=current_user.id, session_id=session_id
     ).first()
     if not wallet:
-        wallet = PlayerWallet(player_id=current_user.id, session_id=session_id, gold=0, gems=0)
+        config = game_round.classic_config if game_round else None
+        wallet = PlayerWallet(player_id=current_user.id, session_id=session_id, gold=0, gems=0,
+                              steal_tokens=int(bool(config and config.steal_attempt_limit)))
         db.session.add(wallet)
         db.session.flush()
 
@@ -899,13 +926,18 @@ def join_session():
     #    This is the Step 4 runtime source of truth for upgrade-derived gameplay effects.
     #    Idempotent — safe to call even if the player re-submits the join form.
     ensure_session_participant_snapshot(session_id, current_user.id)
-    game_round = GameRound.query.filter_by(
-        session_id=session_id, ended_at=None
-    ).order_by(GameRound.round_number.desc()).first()
     if game_round:
         ensure_player_round(game_round, current_user, 'classic', wallet=wallet)
 
     db.session.commit()
+
+    # Notify watchers as soon as enrollment is committed. Do not wait for the
+    # redirected page, its network handshake, and the question bootstrap.
+    enrolled = RoundPlayer.query.filter_by(session_id=session_id).all()
+    socketio.emit('player_joined', {'players': [row.player.username for row in enrolled]},
+                  room=f'classic_{session_id}')
+    socketio.emit('admin_summary_update', render_admin_supervision_summary_payload(session_id),
+                  room=supervision_room(session_id))
 
     # Route to the correct in-session page.
     if game_session.status == 'active':
@@ -953,6 +985,10 @@ def lobby(session_id):
         flash('You are not enrolled in the group for this session.', 'danger')
         return redirect(url_for('player.dashboard'))
 
+    if not RoundPlayer.query.filter_by(session_id=session_id, player_id=current_user.id).first():
+        flash('Join the session from your Hub first.', 'info')
+        return redirect(url_for('player.dashboard'))
+
     # Round already finished — show final results.
     if game_session.status == 'finished':
         return redirect(url_for('classic_player.round_over', session_id=session_id))
@@ -961,20 +997,13 @@ def lobby(session_id):
     if game_session.status == 'active':
         return redirect(url_for('classic_player.game', session_id=session_id))
 
-    # Enrollment guard — player must have joined explicitly via POST /classic/join.
-    # Lobby is a participant-only waiting room; it no longer implicitly enrolls.
-    existing_rp = RoundPlayer.query.filter_by(
-        session_id=session_id, player_id=current_user.id
-    ).first()
-    if not existing_rp:
-        flash('Join the session from your Hub first.', 'info')
-        return redirect(url_for('player.dashboard'))
-
     enrolled = RoundPlayer.query.filter_by(session_id=session_id).all()
     return render_template(
         'player/classic/lobby.html',
         game_session=game_session,
         enrolled=enrolled,
+        overlay_assets=build_overlay_asset_payload(),
+        round_background_urls=_list_round_background_urls(),
     )
 
 
@@ -996,6 +1025,10 @@ def game(session_id):
     # Deny unauthorized users before any status-based redirect.
     if not player_in_session_group(current_user, game_session):
         flash('You are not enrolled in the group for this session.', 'danger')
+        return redirect(url_for('player.dashboard'))
+
+    if not RoundPlayer.query.filter_by(session_id=session_id, player_id=current_user.id).first():
+        flash('Join the session from your Hub first.', 'info')
         return redirect(url_for('player.dashboard'))
 
     # Round hasn't started yet — keep player in the waiting room.
@@ -1025,6 +1058,7 @@ def game(session_id):
         game_session=game_session,
         player=current_user,
         round_config=(game_round.classic_config if game_round else None),
+        treasure_enabled=engine.treasure_enabled(game_round.classic_config if game_round else None),
         game_round=game_round,
         gear_avatar=build_player_avatar_view(current_user, loadout),
         overlay_layouts=load_overlay_layouts(),
@@ -1045,6 +1079,11 @@ def round_over(session_id):
     game_session = db.session.get(GameSession, session_id)
     if not game_session or game_session.mode != 'classic':
         abort(404)
+
+    if (not player_in_session_group(current_user, game_session)
+            or not RoundPlayer.query.filter_by(session_id=session_id, player_id=current_user.id).first()):
+        flash('You are not enrolled in this session.', 'danger')
+        return redirect(url_for('player.dashboard'))
 
     # If the round isn't finished yet, route correctly.
     if game_session.status == 'waiting':

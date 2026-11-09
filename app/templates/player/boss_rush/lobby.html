@@ -10,6 +10,11 @@
 <main style="max-width:920px; margin:40px auto; padding:24px; background:#fff; border:1px solid #ddd; border-radius:10px;">
     <h1>Boss Rush Lobby</h1>
     <p>Session #{{ game_session.id }} · Status: <strong data-session-status>{{ game_session.status }}</strong></p>
+    {% if game_round and game_round.boss_rush_config and game_round.boss_rush_config.shared_bank_enabled and game_round.ended_at %}
+    {% set battle = game_round.boss_rush_battle_state %}
+    <p><strong>Gold secured: {{ wallet.gold if wallet else 0 }}</strong> · Saved gold: {{ saved_gold }}</p>
+    {% if battle and battle.bank_expired_at %}<p>The boss survived. Team bank {{ battle.team_bank_gold }} expired. Your secured gold is kept.</p>{% elif battle and battle.rewards_finalized_at %}<p>Boss defeated. The team bank and your victory rewards are secured.</p>{% endif %}
+    {% endif %}
     {% if game_session.status == 'finished' %}
         <p data-lobby-status>Boss Rush session ended. You can return to the Hub.</p>
         <p><a href="{{ url_for('player.dashboard') }}">Back to Hub</a></p>

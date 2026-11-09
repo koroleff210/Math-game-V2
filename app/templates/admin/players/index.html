@@ -111,7 +111,7 @@
                                 <button type="submit">Reset Password</button>
                             </form>
                             <form method="POST" action="{{ url_for('admin.player_reset', player_id=player.id) }}"
-                                  onsubmit="return confirm('Reset this player to first-login state? This clears character, gear, upgrades, and sets the welcome gift balance to 3 Diamonds.')">
+                                  onsubmit="return confirm('Reset this player? This clears character, gear, upgrades, saved gold, and diamonds.')">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit">Reset Player</button>
                             </form>

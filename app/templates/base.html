@@ -3,11 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% if ui_enhanced %}
+    <script>if(window.frameElement&&window.frameElement.id==='player-page-frame')document.documentElement.classList.add('ui-embedded');document.documentElement.classList.add('ui-loading');window.uiPageFallback=setTimeout(function(){document.documentElement.classList.remove('ui-loading');},10000);</script>
+    <link rel="stylesheet" href="{{ url_for('static',filename='css/player_ui.css',v='20261018-1') }}">
+    <script defer src="{{ url_for('static',filename='js/player_ui.js',v='20261018-1') }}"></script>
+    {% if ui_background %}<link rel="preload" as="image" href="{{ ui_background }}" fetchpriority="high">{% endif %}
+    {% endif %}
     <title>{% block title %}Math Game{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
     {% block head %}{% endblock %}
 </head>
 <body>
+    {% if ui_enhanced %}<button id="ui-fullscreen-toggle" type="button" class="ui-fullscreen-button ui-fullscreen-floating" data-ui-fullscreen aria-pressed="false" hidden>Fullscreen</button>{% endif %}
+    {% if ui_enhanced %}<div id="ui-page-loader" role="status" aria-live="polite"><div class="ui-loading-card"><span class="ui-loading-spinner" aria-hidden="true"></span>Preparing your screen…</div></div>{% endif %}
     {% block flash_messages %}
         {% include "admin/_flash_messages.html" %}
     {% endblock %}

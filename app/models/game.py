@@ -37,6 +37,8 @@ class GameSession(db.Model):
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     started_at = db.Column(db.DateTime, nullable=True)
     ended_at   = db.Column(db.DateTime, nullable=True)
+    economy_version = db.Column(db.Integer, nullable=False, default=2)
+    economy_settled_at = db.Column(db.DateTime, nullable=True)
 
     # Relationships
     rounds         = db.relationship('GameRound',   backref='session', lazy='dynamic', cascade='all, delete-orphan')

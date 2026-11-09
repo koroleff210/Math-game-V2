@@ -66,17 +66,33 @@
             <details class="admin-details" open>
                 <summary class="admin-details-summary">
                     <span class="admin-details-summary-text">
-                        <span class="admin-details-summary-title">3. Diamond Rewards</span>
-                        <span class="admin-details-summary-hint">Stored now; final award logic comes later.</span>
+                        <span class="admin-details-summary-title">3. Victory & Team Bank</span>
+                        <span class="admin-details-summary-hint">Keep secured gold on failure; unlock the team bank and optional loot on victory.</span>
                     </span>
                     <span class="admin-details-summary-icon">v</span>
                 </summary>
                 <div class="admin-details-body admin-form-grid">
-                    {{ render_field(form.first_place_diamonds) }}
+                    {{ render_field(form.attack_gold) }}
+<p class="admin-help-text">Recovery restores health and awards no gold.</p>
+{{ render_field(form.defeat_gold) }}
+{{ render_field(form.bank_gold) }}
+{{ render_field(form.reward_combo_start) }}
+{{ render_field(form.reward_combo_high) }}
+{{ render_field(form.combo_gold_low) }}
+{{ render_field(form.combo_gold_high) }}
+{{ render_field(form.bank_combo_low) }}
+{{ render_field(form.bank_combo_high) }}
+{{ render_field(form.bank_equal_percent) }}
+{{ render_field(form.defeat_diamonds) }}
+{{ render_field(form.defeat_gear_id) }}
+{{ render_field(form.defeat_gear_chance) }}
+{{ render_field(form.loot_duplicate_gold) }}
+<p class="admin-help-text">The remaining bank percentage follows correct attack contributions. At least one correct attack is required for bank shares and victory loot. Bonuses are flat tiers. The bank expires if the fight ends before victory.</p>
+<details><summary>Historical placement awards</summary>{{ render_field(form.first_place_diamonds) }}
                     {{ render_field(form.second_place_diamonds) }}
                     {{ render_field(form.third_place_diamonds) }}
                     {{ render_field(form.other_participant_diamonds) }}
-                    {{ render_field(form.highest_combo_diamonds) }}
+                    {{ render_field(form.highest_combo_diamonds) }}</details>
                 </div>
             </details>
 
@@ -84,7 +100,7 @@
                 <summary class="admin-details-summary">
                     <span class="admin-details-summary-text">
                         <span class="admin-details-summary-title">4. Combo Damage</span>
-                        <span class="admin-details-summary-hint">Schema foundation only; not active until battle logic lands.</span>
+                        <span class="admin-details-summary-hint">Longer correct-answer combos deal extra damage.</span>
                     </span>
                     <span class="admin-details-summary-icon">v</span>
                 </summary>

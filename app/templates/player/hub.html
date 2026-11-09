@@ -1,9 +1,24 @@
 {% extends 'base.html' %}
+{% from 'shared/_resource_icon.html' import resource_icon %}
+{% macro upgrade_effect(effect, kind) -%}
+  {% if kind in ['mine_bonus', 'treasure_bonus'] %}
+    {% set parts = effect.split(' gold', 1) %}{{ parts[0] }} {{ resource_icon('gold') }}{% if parts|length > 1 %}{{ parts[1] }}{% endif %}
+  {% elif kind == 'steal_token_cap' %}{{ resource_icon('steal_token') }} {{ effect|replace(' tokens', '') }}
+  {% elif kind == 'shield_bonus_pct' %}{{ resource_icon('shield') }} {{ effect|replace(' duration', '') }}
+  {% else %}{{ effect }}{% endif %}
+{%- endmacro %}
 
 {% block title %}Hub – Math Game{% endblock %}
 
 {% block head %}
 <style>
+  .resource-icon { display:inline-flex; align-items:center; vertical-align:middle; width:28px; height:28px; flex:0 0 28px; }
+  .resource-icon img,.resource-icon svg { width:100%; height:100%; object-fit:contain; }
+  .visually-hidden { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+  .diamonds-display { display:flex; align-items:center; gap:14px; }
+  .hub-balance { display:inline-flex; align-items:center; gap:6px; white-space:nowrap; }
+  .bonus-list li,.details-effects li { display:flex; align-items:center; gap:6px; font-size:1rem; }
+  .upgrade-row-effect .resource-icon,.upgrade-row-next .resource-icon { width:20px; height:20px; flex-basis:20px; }
   /* Hub background experiment: image + translucent structural washes only. */
   body {
     font-family: sans-serif;
@@ -13,7 +28,7 @@
     background:
       radial-gradient(circle at top, rgba(255, 248, 232, 0.42), transparent 38%),
       linear-gradient(180deg, rgba(244, 235, 219, 0.48) 0%, rgba(233, 220, 197, 0.42) 55%, rgba(226, 211, 187, 0.50) 100%),
-      url("{{ url_for('static', filename='classic_ui/player_ui/background_001.png') }}") center/cover no-repeat fixed;
+      url("{{ url_for('static', filename='classic_ui/player_ui/background_001.png')|ui_image }}") center/cover no-repeat fixed;
   }
   .flash-messages {
     display: grid;
@@ -1736,6 +1751,7 @@
   }
 </style>
 <script src="/static/js/socket.io.min.js"></script>
+<script src="{{ url_for('static', filename='js/realtime.js', v='20261019-1') }}"></script>
 {% endblock %}
 
 {% block flash_messages %}{% endblock %}
@@ -1768,9 +1784,9 @@
                   {% endif %}
                 </div>
               </div>
-              <div class="upgrade-row-effect">{{ u.current_effect }}</div>
+              <div class="upgrade-row-effect">{{ upgrade_effect(u.current_effect, u.upgrade_type) }}</div>
               {% if u.next_effect %}
-                <div class="upgrade-row-next">Next: {{ u.next_effect }}</div>
+                <div class="upgrade-row-next">Next: {{ upgrade_effect(u.next_effect, u.upgrade_type) }}</div>
               {% endif %}
             </div>
           {% endfor %}
@@ -1778,11 +1794,14 @@
       </div>
 
       <div class="hub-side-card hub-resource-card">
-        <h2>Diamonds / Blacksmith</h2>
+        <h2>Balances</h2>
         <div class="hub-resource-stack">
-          <p class="diamonds-display">💎 {{ balance }}</p>
+          <p class="diamonds-display">
+            <span class="hub-balance" title="Saved gold for permanent gear">{{ resource_icon('gold') }} {{ saved_gold }}</span>
+            <span class="hub-balance" title="Diamonds for upgrades">{{ resource_icon('diamond') }} {{ balance }}</span>
+          </p>
           <a href="{{ url_for('player.blacksmith') }}" class="btn btn-primary btn-block">Blacksmith</a>
-          <p class="hub-resource-note">Permanent upgrades and gear purchases live here.</p>
+          <p class="hub-resource-note">Session gold is saved here when the game ends. Gems expire.</p>
         </div>
       </div>
       <div class="hub-side-card hub-meta-card">
@@ -1806,7 +1825,7 @@
   }
 
   var groupIds = {{ group_ids | tojson }};
-  var socket = io();
+  var socket = GameRealtime.connect();
   var classicJoinSessionUrl = '{{ url_for('classic_player.join_session') }}';
   var bossRushJoinSessionUrl = '{{ url_for('boss_rush_player.join_entry') }}';
   var classicPlayUrl = '{{ url_for('classic_player.play') }}';
@@ -1860,6 +1879,7 @@
 })();
 
 (function() {
+  var shellBusy = false;
   function getCurrentShell() {
     return document.querySelector('[data-gear-shell]');
   }
@@ -1990,10 +2010,28 @@
     ];
   }
 
-  function applyScopedShellUpdate(html, selectors) {
+  async function applyScopedShellUpdate(html, selectors) {
     var currentShell = getCurrentShell();
     var nextShell = parseShell(html);
     if (!currentShell || !nextShell) return;
+
+    var replaceAll = currentShell.getAttribute('data-ui-shell-kind') !== nextShell.getAttribute('data-ui-shell-kind');
+    // Move parent regions once; moving a nested region first would remove it from its incoming parent.
+    selectors = selectors.filter(function(selector) {
+      var node = nextShell.querySelector(selector);
+      return !node || !selectors.some(function(other) {
+        var parent = other !== selector ? nextShell.querySelector(other) : null;
+        return parent && parent.contains(node);
+      });
+    });
+    var incoming = replaceAll ? [nextShell] : selectors.map(function(selector) { return nextShell.querySelector(selector); });
+    if (window.PlayerUI) await window.PlayerUI.prepareNodes(incoming);
+
+    if (replaceAll) {
+      currentShell.replaceWith(nextShell);
+      if (window.PlayerUI) window.PlayerUI.preloadFrom(nextShell);
+      return;
+    }
 
     currentShell.setAttribute(
       'data-gear-current-filter',
@@ -2003,6 +2041,7 @@
     selectors.forEach(function(selector) {
       replaceRegion(currentShell, nextShell, selector);
     });
+    if (window.PlayerUI) window.PlayerUI.preloadFrom(nextShell);
   }
 
   document.addEventListener('click', function(event) {
@@ -2013,12 +2052,17 @@
     if (!shell || !shell.contains(link)) return;
 
     event.preventDefault();
+    if (shellBusy) return;
     var shellUrl = link.getAttribute('data-gear-shell-url');
     if (!shellUrl) {
       window.location.href = link.href;
       return;
     }
 
+    shellBusy = true;
+    shell.setAttribute('aria-busy', 'true');
+    shell.setAttribute('inert', '');
+    if (window.PlayerUI) window.PlayerUI.setBusy(true);
     fetch(shellUrl, {
       headers: {
         'X-Requested-With': 'XMLHttpRequest'
@@ -2030,12 +2074,17 @@
         }
         return response.text();
       })
-      .then(function(html) {
-        applyScopedShellUpdate(html, shellSelectorsForLink(link));
+      .then(async function(html) {
+        await applyScopedShellUpdate(html, shellSelectorsForLink(link));
         window.history.replaceState({}, '', link.href);
       })
       .catch(function() {
         window.location.href = link.href;
+      }).finally(function() {
+        shellBusy = false;
+        var current = getCurrentShell();
+        if (current) { current.removeAttribute('aria-busy'); current.removeAttribute('inert'); }
+        if (window.PlayerUI) window.PlayerUI.setBusy(false);
       });
   });
 
@@ -2049,9 +2098,14 @@
     if (!shell || !shell.contains(form)) return;
 
     event.preventDefault();
+    if (shellBusy) return;
     var formData = new FormData(form);
     var selectors = shellSelectorsForForm(form);
 
+    shellBusy = true;
+    shell.setAttribute('aria-busy', 'true');
+    shell.setAttribute('inert', '');
+    if (window.PlayerUI) window.PlayerUI.setBusy(true);
     fetch(form.action, {
       method: (form.method || 'POST').toUpperCase(),
       body: formData,
@@ -2065,8 +2119,8 @@
         }
         return response.text();
       })
-      .then(function(html) {
-        applyScopedShellUpdate(html, selectors);
+      .then(async function(html) {
+        await applyScopedShellUpdate(html, selectors);
 
         var nextFilter = formData.get('gear_filter') || '';
         var nextSelectedItem = '';
@@ -2091,7 +2145,13 @@
         window.history.replaceState({}, '', nextUrl.toString());
       })
       .catch(function() {
-        form.submit();
+        // The server may have saved the choice already. Reload without replaying the POST.
+        window.location.reload();
+      }).finally(function() {
+        shellBusy = false;
+        var current = getCurrentShell();
+        if (current) { current.removeAttribute('aria-busy'); current.removeAttribute('inert'); }
+        if (window.PlayerUI) window.PlayerUI.setBusy(false);
       });
   }, true);
 })();

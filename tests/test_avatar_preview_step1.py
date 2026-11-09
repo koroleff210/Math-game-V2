@@ -39,6 +39,15 @@ failed = 0
 _IDS = {}
 
 
+def _display_path(path):
+    return flask_app.jinja_env.filters['ui_image']('/static/' + path)
+
+
+def _avatar_image_paths(html):
+    from bs4 import BeautifulSoup
+    return {img.get('src') for img in BeautifulSoup(html, 'html.parser').select('[data-gear-avatar-composite-region] img')}
+
+
 def check(label, condition, detail=''):
     global passed, failed
     if condition:
@@ -215,7 +224,7 @@ def test_hub_shell_avatar_and_face_actions():
             'AV-07: JS-enhanced face change updates the character-selection shell in place',
             r.status_code == 200
             and 'data-avatar-face-key="002"' in html
-            and '/gear/face/face_002.png' in html
+            and _display_path('gear/face/face_002.png') in _avatar_image_paths(html)
             and 'data-avatar-layer-region="face"' in html
         )
 
@@ -240,7 +249,7 @@ def test_hub_shell_avatar_and_face_actions():
             'AV-07C: repeated async next response updates face-only markers',
             r.status_code == 200
             and 'data-avatar-face-key="003"' in html
-            and '/gear/face/face_003.png' in html
+            and _display_path('gear/face/face_003.png') in _avatar_image_paths(html)
             and 'data-avatar-layer-region="face"' in html,
         )
 
@@ -288,7 +297,7 @@ def test_hub_shell_avatar_and_face_actions():
         html = r.get_data(as_text=True)
         check(
             'AV-08: equipping an item updates the avatar preview visually',
-            r.status_code == 200 and '/gear/boots/004/m/front.png' in html and '/avatars/bodies/m/body_lower.png' not in html,
+            r.status_code == 200 and _display_path('gear/boots/004/m/front.png') in _avatar_image_paths(html) and _display_path('avatars/bodies/m/body_lower.png') not in _avatar_image_paths(html),
         )
         check(
             'AV-09: selected-item panel still works after equip',
@@ -308,7 +317,7 @@ def test_hub_shell_avatar_and_face_actions():
         html = r.get_data(as_text=True)
         check(
             'AV-10: unequipping updates the avatar preview visually',
-            r.status_code == 200 and '/avatars/bodies/m/off_hand_base.png' in html and '/gear/off_hand/006/m/front.png' not in html,
+            r.status_code == 200 and _display_path('avatars/bodies/m/off_hand_base.png') in _avatar_image_paths(html) and _display_path('gear/off_hand/006/m/front.png') not in _avatar_image_paths(html),
         )
         check(
             'AV-11: equipped inventory markers remain coherent after avatar-driven shell updates',

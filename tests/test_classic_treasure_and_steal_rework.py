@@ -115,7 +115,8 @@ def _make_world(
     target = _make_player(f'__tr_target_{suffix}__') if include_target else None
     admin = _make_player(f'__tr_admin_{suffix}__', is_admin=True)
 
-    session = GameSession(mode='classic', status='active', problem_set_id=problem_set.id)
+    # Preserve coverage of the pre-redesign economy; v2 has its own integration suite.
+    session = GameSession(mode='classic', status='active', problem_set_id=problem_set.id, economy_version=1)
     db.session.add(session)
     db.session.flush()
 

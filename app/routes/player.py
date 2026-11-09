@@ -24,6 +24,7 @@ from app.services.gear import (
     build_player_gear_hub_view,
     equip_player_gear_item,
     list_blacksmith_gear_for_player,
+    list_owned_gear_comparison,
     purchase_blacksmith_gear,
     unequip_player_gear_slot,
 )
@@ -33,6 +34,7 @@ from app.services.avatar import (
     get_valid_selected_face_key,
     normalize_avatar_body_variant,
     set_player_body_variant,
+    avatar_prefetch_urls,
 )
 from app.services.upgrade_catalog import UPGRADE_CATALOG, UPGRADE_ORDER
 from app.services.analytics_reports import build_player_dashboard
@@ -118,6 +120,7 @@ def _build_player_gear_shell_context(
         'needs_gender_selection': needs_gender_selection,
         'avatar_body_variant': normalize_avatar_body_variant(getattr(current_user, 'avatar_body_variant', None)),
         'gear_shell_message': gear_shell_message,
+        'avatar_prefetch_urls': avatar_prefetch_urls(current_user),
     }
 
 
@@ -151,6 +154,7 @@ def dashboard():
 
     prog = PlayerProgression.query.filter_by(player_id=current_user.id).first()
     balance = prog.diamonds_balance if prog else 0
+    saved_gold = prog.saved_gold if prog else 0
 
     upgrade_map = get_player_upgrade_map(current_user.id)
     upgrades = []
@@ -205,6 +209,7 @@ def dashboard():
     return render_template(
         'player/hub.html',
         balance=balance,
+        saved_gold=saved_gold,
         upgrades=upgrades,
         group_ids=group_ids,
         **gear_context,
@@ -472,8 +477,11 @@ def blacksmith():
 
     prog = PlayerProgression.query.filter_by(player_id=current_user.id).first()
     balance = prog.diamonds_balance if prog else 0
+    saved_gold = prog.saved_gold if prog else 0
     upgrade_map = get_player_upgrade_map(current_user.id)
     gear_items = list_blacksmith_gear_for_player(current_user.id)
+    inventory_view = _build_player_gear_view_for_state('all', None)
+    inventory_view['comparison_items'] = list_owned_gear_comparison(current_user.id, inventory_view)
 
     # Build display rows in catalog order
     upgrades = []
@@ -500,16 +508,18 @@ def blacksmith():
             'maxed':         current_level >= defn.max_level,
         })
 
-    active_tab = (request.args.get('tab') or 'upgrades').strip().lower()
+    active_tab = (request.args.get('tab') or 'gear').strip().lower()
     if active_tab not in {'upgrades', 'gear'}:
         active_tab = 'upgrades'
 
     return render_template(
         'player/blacksmith.html',
         balance=balance,
+        saved_gold=saved_gold,
         upgrades=upgrades,
         gear_items=gear_items,
         active_tab=active_tab,
+        inventory_view=inventory_view,
     )
 
 
@@ -569,7 +579,7 @@ def blacksmith_buy_gear():
         db.session.commit()
         flash(
             f'{result["item_name"]} purchased! '
-            f'({result["cost"]} Diamond(s) spent — balance: {result["new_balance"]})',
+            f'({result["cost"]} saved gold spent — balance: {result["new_balance"]})',
             'success',
         )
     except ValueError as exc:
@@ -593,9 +603,11 @@ def performance():
 @player_bp.route('/progress')
 @login_required
 def progress():
+    from app.services.learning_reports import student_learning_sessions
     return render_template(
         'player/progress.html',
         dashboard=build_player_dashboard(current_user.id),
+        learning_sessions=student_learning_sessions(current_user.id),
     )
 
 

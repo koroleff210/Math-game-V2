@@ -85,6 +85,7 @@ def build_overlay_asset_payload() -> dict:
                 'shield_token': _static_overlay_url('classic_ui/icons/shield.png'),
                 'steal_token': _static_overlay_url('classic_ui/icons/steal_token.png'),
                 'second_chance': _static_overlay_url('classic_ui/icons/second_chance.png'),
+                'double_mine': _static_overlay_url('classic_ui/icons/double_mine.png'),
                 'empty': _static_overlay_url('classic_ui/icons/junk_01.png'),
             },
         },

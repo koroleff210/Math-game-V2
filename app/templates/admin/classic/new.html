@@ -27,6 +27,19 @@
 
 <form method="POST" action="{{ url_for('classic_admin.new_session') }}" data-classic-session-form>
     {{ form.hidden_tag() }}
+    <script type="application/json" data-classic-presets>{{ presets|tojson }}</script>
+    <div class="admin-section-card">
+        <label for="classic-preset">Round preset</label>
+        <select id="classic-preset">
+            <option value="">Custom settings</option>
+            <option value="intro">Intro · solve and mine</option>
+            <option value="easy">Easy · add treasure and bonuses</option>
+            <option value="normal">Normal · all actions, mining favored</option>
+            <option value="greedy">Hard / Greedy · bigger gold rewards and steals</option>
+        </select>
+        <button class="admin-btn" type="button" data-apply-classic-preset>Apply preset</button>
+        <p class="admin-help-text">Applying a preset fills the round settings below. You can adjust any value before creating the session.</p>
+    </div>
 
     <div class="admin-grid-two">
         <div>
@@ -54,6 +67,16 @@
                     <span class="admin-details-summary-icon">v</span>
                 </summary>
                 <div class="admin-details-body admin-form-grid">
+                                        {{ render_field(form.correct_answer_gold) }}
+                    {{ render_field(form.combo_start) }}
+                    {{ render_field(form.combo_gold) }}
+                    {{ render_field(form.treasure_pity_increment) }}
+                    {{ render_field(form.treasure_pity_cap) }}
+                    {{ render_field(form.treasure_double_mine_chance) }}
+                    {{ render_field(form.steal_attempt_limit) }}
+                    {{ render_field(form.active_bonus_limit) }}
+                    {{ render_field(form.permanent_bonus_cap) }}
+                    {{ render_field(form.standardized_competition) }}
                     {{ render_field(form.mine_reward, hint='Gold awarded for a successful mine.') }}
                     {{ render_field(form.treasure_search_reward, hint='Minimum gold from treasure search.') }}
                     {{ render_field(form.treasure_search_max_reward, hint='Maximum gold from treasure search.') }}

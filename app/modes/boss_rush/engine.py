@@ -29,6 +29,7 @@ from app.services.analytics import (
     record_boss_rush_battle_event,
 )
 from app.services.progression import award_diamonds_to_player
+from app.services import boss_rewards
 
 BOSS_RUSH_MODE = 'boss_rush'
 
@@ -688,6 +689,19 @@ def _record_attempt(state, problem, *, attempt_type, submitted_text, selected_op
     )
     db.session.add(attempt)
     db.session.flush()
+    from app.services.economy import is_new_economy, session_wallet
+    if is_correct and attempt_type == BOSS_RUSH_ATTEMPT_ATTACK and is_new_economy(state.round.session):
+        config = state.round.boss_rush_config
+        wallet = session_wallet(state.round.session_id, state.player_id)
+        secured, bank = config.attack_gold, 0
+        if boss_rewards.uses_shared_bank(config, state.round.session):
+            secured, bank = boss_rewards.attack_rewards(config, state.current_combo)
+            state.round.boss_rush_battle_state.team_bank_gold += bank
+        wallet.gold += secured
+        state.secured_gold += secured
+        state.bank_contributed += bank
+        attempt.secured_gold_delta = secured
+        attempt.bank_gold_delta = bank
     mode_context = 'boss_rush_attack' if attempt_type == BOSS_RUSH_ATTEMPT_ATTACK else 'boss_rush_recovery'
     action_context = 'boss_damage' if attempt_type == BOSS_RUSH_ATTEMPT_ATTACK else 'boss_recovery'
     analytics_attempt = record_answer_attempt(
@@ -708,6 +722,8 @@ def _record_attempt(state, problem, *, attempt_type, submitted_text, selected_op
             'combo_after': state.current_combo,
             'hp_before': hp_before,
             'hp_after': state.hp,
+            'secured_gold': attempt.secured_gold_delta,
+            'team_bank_gold': attempt.bank_gold_delta,
         },
     )
     attempt.analytics_answer_attempt = analytics_attempt
@@ -946,16 +962,21 @@ def submit_current_answer(state, config, battle_state, *, submitted_text=None, s
             submitted_text=submitted_text,
             selected_option_id=selected_option_id,
         )
-    return submit_attack_answer(
+    result = submit_attack_answer(
         state,
         config,
         battle_state,
         submitted_text=submitted_text,
         selected_option_id=selected_option_id,
     )
+    if result.get('ok') and battle_state.is_defeated and boss_rewards.uses_shared_bank(config, state.round.session):
+        finalize_boss_rush_rewards(state.round.session, state.round, config, battle_state)
+    return result
 
 
 def build_player_state_payload(state, config, battle_state, current_problem=None):
+    from app.models.classic import PlayerWallet
+    wallet = PlayerWallet.query.filter_by(session_id=state.round.session_id, player_id=state.player_id).first()
     attack_total = len(_problem_ids(config.attack_problem_set))
     recovery_total = len(_problem_ids(config.recovery_problem_set))
     solved = len(_as_int_list(state.attack_solved_ids))
@@ -964,6 +985,10 @@ def build_player_state_payload(state, config, battle_state, current_problem=None
         mode = 'defeated'
     return {
         'mode': mode,
+        'session_gold': wallet.gold if wallet else 0,
+        'team_bank': boss_rewards.bank_payload(config, battle_state, state.round.session),
+        'bank_contributed': state.bank_contributed,
+        'next_attack_rewards': boss_rewards.attack_rewards(config, state.current_combo + 1),
         'boss_hp': battle_state.current_boss_hp,
         'boss_max_hp': config.boss_max_hp,
         'boss_defeated': battle_state.is_defeated,
@@ -1078,12 +1103,16 @@ def _ability_state_payload(config, battle_state):
     }
 
 
-def _serialize_player_state_for_live(state, config, battle_state, rank):
+def _serialize_player_state_for_live(state, config, battle_state, rank, wallet_gold=0):
     recent_event = battle_state.last_ability_summary_json or {}
     refresh_ids = set(recent_event.get('problem_refresh_player_ids') or [])
     return {
         'rank': rank,
         'player_id': state.player_id,
+        'session_gold': wallet_gold,
+        'secured_gold': state.secured_gold,
+        'next_attack_rewards': boss_rewards.attack_rewards(config, state.current_combo + 1),
+        'bank_contributed': state.bank_contributed,
         'username': state.player.username if state.player else f'Player {state.player_id}',
         'damage_dealt': state.damage_dealt,
         'current_combo': state.current_combo,
@@ -1118,6 +1147,8 @@ def _rank_player_states(player_states):
 
 
 def build_admin_state_payload(game_round, config, battle_state):
+    from app.models.classic import PlayerWallet
+    balances = {w.player_id:w.gold for w in PlayerWallet.query.filter_by(session_id=game_round.session_id).all()}
     ranked_states = _rank_player_states(
         BossRushPlayerState.query
         .filter_by(round_id=game_round.id)
@@ -1130,7 +1161,7 @@ def build_admin_state_payload(game_round, config, battle_state):
         'status': battle_state.status,
         'players': ranked_states,
         'leaderboard': [
-            _serialize_player_state_for_live(state, config, battle_state, rank)
+            _serialize_player_state_for_live(state, config, battle_state, rank, balances.get(state.player_id,0))
             for rank, state in enumerate(ranked_states, start=1)
         ],
     }
@@ -1150,6 +1181,7 @@ def build_live_state_payload(game_session, game_round, config, battle_state):
         'session_id': game_session.id,
         'round_id': game_round.id,
         'mode': BOSS_RUSH_MODE,
+        'team_bank': boss_rewards.bank_payload(config, battle_state, game_session),
         'session': {
             'status': session_status,
             'round_number': game_round.round_number,
@@ -1301,7 +1333,25 @@ def get_final_reward_snapshot(game_round, config):
         .filter_by(round_id=game_round.id)
         .all()
     )
-    return calculate_final_rewards(player_states, config)
+    result = calculate_final_rewards(player_states, config)
+    from app.services.economy import is_new_economy
+    if is_new_economy(game_round.session):
+        by_player = {p.player_id: p for p in player_states}
+        shared = boss_rewards.uses_shared_bank(config, game_round.session)
+        shared_rewards = boss_rewards.reward_snapshot(config, game_round.boss_rush_battle_state, player_states) if shared else {}
+        for entry in result['entries']:
+            participant = by_player[entry['player_id']]
+            contributed = sum((participant.correct_count, participant.incorrect_count,
+                               participant.recovery_correct_count, participant.recovery_incorrect_count)) > 0
+            entry['total_gold'] = config.defeat_gold if contributed else 0
+            entry['total_diamonds'] = 0
+            entry['breakdown'] = _reward_breakdown_dict()
+            if shared:
+                entry.update(shared_rewards[entry['player_id']])
+        if shared:
+            result['team_bank_gold'] = game_round.boss_rush_battle_state.team_bank_gold
+            result['bank_equal_percent'] = config.bank_equal_percent
+    return result
 
 
 def get_reward_entry_for_player(battle_state, player_id):
@@ -1313,7 +1363,12 @@ def get_reward_entry_for_player(battle_state, player_id):
 
 
 def finalize_boss_rush_rewards(game_session, game_round, config, battle_state, *, admin_player_id=None):
-    """Finalize a defeated Boss Rush once and award diamonds through the ledger."""
+    """Unlock victory rewards once, in the caller's atomic transaction."""
+    from app.models.game import GameSession
+    game_session = GameSession.query.filter_by(id=game_session.id).with_for_update().populate_existing().one()
+    battle_state = BossRushBattleState.query.filter_by(id=battle_state.id).with_for_update().populate_existing().one()
+    if battle_state.bank_expired_at:
+        raise ValueError('This fight ended before victory; the team bank has expired.')
     if not battle_state.is_defeated or battle_state.current_boss_hp > 0:
         raise ValueError('Boss Rush rewards can only be finalized after the boss is defeated.')
     if battle_state.rewards_finalized_at:
@@ -1324,6 +1379,16 @@ def finalize_boss_rush_rewards(game_session, game_round, config, battle_state, *
         }
 
     snapshot = get_final_reward_snapshot(game_round, config)
+    from app.services.economy import is_new_economy, session_wallet
+    if is_new_economy(game_session):
+        for entry in sorted(snapshot['entries'], key=lambda e:int(e['player_id'])):
+            if boss_rewards.uses_shared_bank(config, game_session):
+                if entry.get('eligible'):
+                    from app.services.economy import gold_account
+                    gold_account(int(entry['player_id']))
+                boss_rewards.grant_gear_loot(entry, config, int(entry['player_id']))
+            if entry.get('total_gold', 0):
+                session_wallet(game_session.id, int(entry['player_id'])).gold += entry['total_gold']
     reason = f'boss_rush_reward:{game_round.id}'
     for entry in snapshot['entries']:
         amount = int(entry.get('total_diamonds') or 0)

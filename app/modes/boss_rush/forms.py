@@ -3,8 +3,8 @@
 # WTForms for Boss Rush admin setup.
 
 from flask_wtf import FlaskForm
-from wtforms import BooleanField, IntegerField, SelectField, StringField, SubmitField
-from wtforms.validators import DataRequired, NumberRange, Optional
+from wtforms import BooleanField, FloatField, IntegerField, SelectField, StringField, SubmitField
+from wtforms.validators import DataRequired, NumberRange, Optional, ValidationError
 
 from app.modes.boss_rush.engine import DEFAULT_BOSS_RUSH_SETTINGS, boss_type_choices
 
@@ -44,6 +44,25 @@ class BossRushSessionForm(FlaskForm):
         default=DEFAULT_BOSS_RUSH_SETTINGS['player_max_hp'],
         validators=[NumberRange(min=1, message='Player HP must be at least 1.')],
     )
+
+    attack_gold = IntegerField('Gold secured per correct attack', default=3, validators=[NumberRange(min=0)])
+    defeat_gold = IntegerField('Boss defeat participation gold', default=25, validators=[NumberRange(min=0)])
+    bank_gold = IntegerField('Team bank per correct attack', default=7, validators=[NumberRange(min=0)])
+    reward_combo_start = IntegerField('Reward combo starts at', default=3, validators=[NumberRange(min=2)])
+    reward_combo_high = IntegerField('Higher reward combo starts at', default=6, validators=[NumberRange(min=3)])
+    combo_gold_low = IntegerField('Secured combo bonus: first tier', default=1, validators=[NumberRange(min=0, max=10)])
+    combo_gold_high = IntegerField('Secured combo bonus: higher tier', default=2, validators=[NumberRange(min=0, max=10)])
+    bank_combo_low = IntegerField('Team bank combo bonus: first tier', default=1, validators=[NumberRange(min=0, max=10)])
+    bank_combo_high = IntegerField('Team bank combo bonus: higher tier', default=2, validators=[NumberRange(min=0, max=10)])
+    bank_equal_percent = IntegerField('Bank percentage shared equally', default=50, validators=[NumberRange(min=0, max=100)])
+    defeat_diamonds = IntegerField('Victory diamonds per eligible player', default=0, validators=[NumberRange(min=0)])
+    defeat_gear_id = SelectField('Victory gear (optional)', choices=[('', 'No gear loot')], validators=[Optional()])
+    defeat_gear_chance = FloatField('Gear loot chance per eligible player (0–1)', default=1, validators=[NumberRange(min=0, max=1)])
+    loot_duplicate_gold = IntegerField('Gold instead of duplicate or unavailable gear', default=150, validators=[NumberRange(min=0)])
+
+    def validate_reward_combo_high(self, field):
+        if field.data is not None and self.reward_combo_start.data is not None and field.data <= self.reward_combo_start.data:
+            raise ValidationError('Higher combo threshold must exceed the first reward threshold.')
 
     first_place_diamonds = IntegerField(
         '1st Place Diamonds',

@@ -22,6 +22,19 @@ def _utcnow():
     return datetime.now(timezone.utc)
 
 
+class AnalyticsSessionSettings(db.Model):
+    __tablename__ = 'analytics_session_settings'
+
+    session_id = db.Column(db.Integer, db.ForeignKey('game_session.id'), primary_key=True)
+    published_at = db.Column(db.DateTime, nullable=True)
+    include_in_progress = db.Column(db.Boolean, nullable=False, default=True, server_default=db.true())
+    exclusion_reason = db.Column(db.String(500), nullable=True)
+    teacher_notes = db.Column(db.Text, nullable=True)
+    student_feedback = db.Column(db.Text, nullable=True)
+    roster_snapshot_json = db.Column(db.JSON, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=_utcnow)
+
+
 class AnalyticsRound(db.Model):
     __tablename__ = 'analytics_round'
 
@@ -68,6 +81,7 @@ class AnalyticsRoundProblem(db.Model):
     problem_set_context = db.Column(db.JSON, nullable=True)
     source_metadata_json = db.Column(db.JSON, nullable=True)
     answer_key_snapshot_json = db.Column(db.JSON, nullable=True)
+    content_snapshot_json = db.Column(db.JSON, nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=_utcnow)
 
     analytics_round = db.relationship('AnalyticsRound', backref=db.backref('round_problems', lazy='dynamic'), lazy='select')

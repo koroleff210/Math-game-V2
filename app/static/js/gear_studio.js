@@ -1,4 +1,4 @@
-/* PNG fitting only. Avatar/reference layers never enter the exported image. */
+/* PNG fitting and pixel cleanup. References never enter the exported image. */
 (() => {
   'use strict';
   const root = document.getElementById('gear-studio');
@@ -9,9 +9,9 @@
   const attrs = ['x', 'y', 'width', 'rotation'];
   const state = {catalog: null, source: null, transform: null, revision: '', dirty: false,
     context: {slot: 'face', variant: 'm', target: 'new', layer: 'front'},
-    refs: {}, face: '', undo: [], redo: [], loading: true, saving: false};
+    refs: {}, face: '', tool: 'move', undo: [], redo: [], loading: true, saving: false};
   const images = new Map();
-  let loadVersion = 0, gesture = null;
+  let loadVersion = 0, gesture = null, cursorPoint = null;
   const copy = value => value ? {...value} : null;
 
   function message(text, kind = '') {
@@ -116,8 +116,8 @@
     }
     for (const key of slots) {
       const editing = slot === key;
-      const values = state.catalog.items.filter(item => item.slot === key &&
-        (Object.keys(item.layers[variant]).length || (editing && item.id === target)));
+      const values = (state.catalog.reference_items || state.catalog.items).filter(item => item.slot === key)
+        .map(item => ({...item, name:item.name + (Object.keys(item.layers[variant]).length ? '' : ' (no artwork for this body)')}));
       add(key, state.catalog.slots[key], values, editing ? (target === 'new' ? '' : target) : (state.refs[key] || ''), editing);
     }
   }
@@ -136,6 +136,13 @@
     for (const id of ['slot', 'variant', 'target', 'layer']) el(id).disabled = state.loading || state.saving;
     el('undo').disabled = !has || !state.undo.length;
     el('redo').disabled = !has || !state.redo.length;
+    for (const tool of ['move', 'erase']) {
+      el('tool-' + tool).disabled = !has;
+      el('tool-' + tool).setAttribute('aria-pressed', String(state.tool === tool));
+    }
+    el('brush').disabled = !has || state.tool !== 'erase';
+    el('brush-label').textContent = el('brush').value + ' px';
+    canvas.style.cursor = state.tool === 'erase' ? 'crosshair' : 'move';
     const isFace = state.context.slot === 'face', isNew = state.context.target === 'new';
     el('name').readOnly = !isFace && !isNew;
     el('name').maxLength = isFace ? 128 : 80;
@@ -162,7 +169,7 @@
     else if (slot !== 'face' && !state.face) delete map.face;
     if (el('show-gear').checked) {
       for (const key of slots) {
-        const item = state.catalog.items.find(item => item.id === state.refs[key]);
+        const item = (state.catalog.reference_items || state.catalog.items).find(item => item.id === state.refs[key]);
         if (item) Object.assign(map, item.layers[variant]);
       }
     }
@@ -205,7 +212,7 @@
       for (let y = 100; y < canvas.height; y += 100) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); ctx.stroke(); }
       ctx.restore();
     }
-    if (imported) {
+    if (imported && state.tool === 'move') {
       const points = corners(); ctx.save(); ctx.strokeStyle = '#227e93'; ctx.lineWidth = 1.5 * unit;
       ctx.setLineDash([5 * unit, 4 * unit]); ctx.beginPath(); ctx.moveTo(...points[0]);
       for (const point of points.slice(1)) ctx.lineTo(...point);
@@ -213,11 +220,45 @@
       ctx.fillStyle = '#fff'; ctx.fillRect(points[2][0] - 6 * unit, points[2][1] - 6 * unit, 12 * unit, 12 * unit);
       ctx.strokeRect(points[2][0] - 6 * unit, points[2][1] - 6 * unit, 12 * unit, 12 * unit); ctx.restore();
     }
+    if (imported && state.tool === 'erase' && cursorPoint) {
+      ctx.save(); ctx.beginPath(); ctx.arc(cursorPoint.x,cursorPoint.y,Number(el('brush').value)/2,0,Math.PI*2);
+      ctx.strokeStyle='#fff'; ctx.lineWidth=3*unit; ctx.stroke();
+      ctx.strokeStyle='#253c45'; ctx.lineWidth=unit; ctx.stroke(); ctx.restore();
+    }
   }
-  function checkpoint(before) {
-    if (!before || JSON.stringify(before) === JSON.stringify(state.transform)) return;
-    state.undo.push(before); if (state.undo.length > 60) state.undo.shift();
+  function snapshot() { return {transform:copy(state.transform), source:state.source}; }
+  function trimHistory() {
+    const bytes = () => Array.from(new Set([...state.undo,...state.redo].map(s=>s.source).concat(state.source)))
+      .reduce((sum,source)=>sum+(source ? source.width*source.height*4 : 0),0);
+    // Always retain the latest undo, even when a single imported image is large.
+    while (state.undo.length > 60 || (state.undo.length > 1 && bytes() > 64*1024*1024)) state.undo.shift();
+  }
+  function checkpoint(before, sourceBefore=state.source, pixelsChanged=false) {
+    if (!before || (!pixelsChanged && JSON.stringify(before) === JSON.stringify(state.transform))) return;
+    state.undo.push({transform:before,source:sourceBefore});
     state.redo = []; state.dirty = true; updateControls();
+    trimHistory(); updateControls();
+  }
+  function undoRedo(name) {
+    if (state.loading || state.saving || gesture) return;
+    const from=state[name],to=state[name==='undo'?'redo':'undo'];
+    if (!from.length) return;
+    to.push(snapshot()); const entry=from.pop(); state.transform=copy(entry.transform); state.source=entry.source;
+    state.dirty=true; trimHistory(); updateControls(); draw();
+  }
+  function sourcePoint(p) {
+    const t=state.transform, h=t.width*state.source.height/state.source.width;
+    const dx=p.x-t.x-t.width/2,dy=p.y-t.y-h/2,angle=t.rotation*Math.PI/180;
+    const scale=state.source.width/t.width;
+    return {x:(dx*Math.cos(angle)+dy*Math.sin(angle)+t.width/2)*scale,
+      y:(-dx*Math.sin(angle)+dy*Math.cos(angle)+h/2)*scale};
+  }
+  function erase(from,to) {
+    const a=sourcePoint(from),b=sourcePoint(to),brush=Number(el('brush').value)*state.source.width/state.transform.width;
+    const ink=state.source.getContext('2d'); ink.save(); ink.globalCompositeOperation='destination-out';
+    ink.lineWidth=brush; ink.lineCap='round'; ink.lineJoin='round';
+    ink.beginPath(); ink.moveTo(a.x,a.y); ink.lineTo(b.x,b.y); ink.stroke();
+    ink.beginPath(); ink.arc(b.x,b.y,brush/2,0,Math.PI*2); ink.fill(); ink.restore(); draw();
   }
   function apply(values) {
     if (!state.source) return;
@@ -234,13 +275,14 @@
     const height = width * state.source.height / state.source.width;
     apply({x:cx-width/2,y:cy-height/2,width,rotation:0});
   }
-  async function croppedSource(url) {
+  async function croppedSource(url, preserveFrame=false) {
     const node = new Image();
     await new Promise((resolve,reject) => { node.onload=resolve; node.onerror=() => reject(new Error('This image could not be opened. Choose a valid PNG.')); node.src=url; });
     const w=node.naturalWidth,h=node.naturalHeight;
     if (w>10000 || h>10000 || w*h>40000000) throw new Error('Use a PNG up to 40 megapixels and 10,000 pixels per side.');
     const raw=document.createElement('canvas'); raw.width=w; raw.height=h;
     const rawCtx=raw.getContext('2d',{willReadFrequently:true}); rawCtx.drawImage(node,0,0);
+    if (preserveFrame) return {canvas:raw,bounds:{x:0,y:0,width:w,rotation:0},aligned:w===1100 && h===1200};
     const pixels=rawCtx.getImageData(0,0,w,h).data;
     let left=w,top=h,right=-1,bottom=-1;
     for (let y=0;y<h;y++) for (let x=0;x<w;x++) if (pixels[(y*w+x)*4+3]) {
@@ -269,7 +311,7 @@
           state.catalog.items.find(item=>item.id===target)?.layers[variant][label];
         const url=editor.source_url || packaged;
         if (url) {
-          const loaded=await croppedSource(url);
+          const loaded=await croppedSource(url,editor.preserve_source_frame);
           if (version!==loadVersion) return;
           state.source=loaded.canvas;state.transform=editor.transform || loaded.bounds;
         }
@@ -308,7 +350,7 @@
       if (!blob) throw new Error('The image could not be prepared. Please import it again.');
       const data=new FormData();data.append('image',blob,'source.png');data.append('csrf_token',el('csrf').value);
       data.append('metadata',JSON.stringify({...state.context,name:el('name').value,price:el('price').value,
-        transform:state.transform,revision:state.revision}));
+        transform:state.transform,revision:state.revision,preserve_source_frame:true}));
       const result=await json(root.dataset.save,{method:'POST',body:data});
       state.revision=result.revision;state.context.target=result.target;state.dirty=false;
       state.catalog=await json(root.dataset.catalog);
@@ -340,10 +382,10 @@
   let sizeBefore=null;
   el('size').addEventListener('input',()=>{if(!sizeBefore) sizeBefore=copy(state.transform);apply({width:Number(el('size').value)});state.dirty=true;});
   el('size').addEventListener('change',()=>{checkpoint(sizeBefore);sizeBefore=null;});
-  for (const name of ['undo','redo']) el(name).addEventListener('click',()=>{
-    const from=state[name],to=state[name==='undo'?'redo':'undo'];
-    if(!from.length) return;to.push(copy(state.transform));state.transform=from.pop();state.dirty=true;updateControls();draw();
-  });
+  for (const name of ['undo','redo']) el(name).addEventListener('click',()=>undoRedo(name));
+  for (const tool of ['move','erase']) el('tool-'+tool).addEventListener('click',()=>{state.tool=tool;updateControls();draw();});
+  el('brush').addEventListener('input',()=>{updateControls();draw();});
+  el('zoom').addEventListener('input',()=>{canvas.style.width=el('zoom').value+'%';el('zoom-label').textContent=el('zoom').value+'%';draw();});
   el('save').addEventListener('click',save);
   el('name').addEventListener('input',()=>{if(state.source) state.dirty=true;});
   el('price').addEventListener('input',()=>{if(state.source) state.dirty=true;});
@@ -355,6 +397,12 @@
     if(!state.source || state.loading || state.saving || !el('show-art').checked) return;
     e.preventDefault();canvas.focus();canvas.setPointerCapture(e.pointerId);
     const p=point(e),corner=corners()[2],unit=canvas.width/canvas.clientWidth;
+    if (state.tool === 'erase') {
+      const beforeSource=state.source,work=document.createElement('canvas');
+      work.width=beforeSource.width;work.height=beforeSource.height;work.getContext('2d').drawImage(beforeSource,0,0);
+      state.source=work;gesture={mode:'erase',before:copy(state.transform),sourceBefore:beforeSource,last:p};
+      cursorPoint=p;erase(p,p);state.dirty=true;return;
+    }
     const h=state.transform.width*state.source.height/state.source.width;
     const center={x:state.transform.x+state.transform.width/2,y:state.transform.y+h/2};
     gesture={start:p,before:copy(state.transform),center,
@@ -362,7 +410,9 @@
       distance:Math.max(1,Math.hypot(p.x-center.x,p.y-center.y))};
   });
   canvas.addEventListener('pointermove',e=>{
-    if(!gesture) return;const p=point(e),g=gesture;
+    const p=point(e);cursorPoint=p;
+    if(!gesture) { if(state.tool==='erase') draw(); return; } const g=gesture;
+    if(g.mode==='erase') {erase(g.last,p);g.last=p;state.dirty=true;return;}
     if(g.mode==='move') apply({x:g.before.x+p.x-g.start.x,y:g.before.y+p.y-g.start.y});
     else {
       const width=Math.max(1,Math.min(maxWidth(),g.before.width*Math.hypot(p.x-g.center.x,p.y-g.center.y)/g.distance));
@@ -370,10 +420,12 @@
     }
     state.dirty=true;
   });
-  const finish=()=>{if(gesture) {const before=gesture.before;gesture=null;checkpoint(before);}};
+  const finish=()=>{if(gesture) {const g=gesture;gesture=null;checkpoint(g.before,g.sourceBefore || state.source,g.mode==='erase');}};
   canvas.addEventListener('pointerup',finish);canvas.addEventListener('pointercancel',finish);canvas.addEventListener('lostpointercapture',finish);
+  canvas.addEventListener('pointerleave',()=>{cursorPoint=null;draw();});
   canvas.addEventListener('keydown',e=>{
     if(!state.source || state.loading || state.saving) return;
+    if((e.ctrlKey || e.metaKey) && e.key.toLowerCase()==='z') {e.preventDefault();undoRedo(e.shiftKey?'redo':'undo');return;}
     const moves={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]};
     if(!moves[e.key]) return;e.preventDefault();const before=copy(state.transform),step=e.shiftKey?10:1;
     apply({x:state.transform.x+moves[e.key][0]*step,y:state.transform.y+moves[e.key][1]*step});checkpoint(before);
@@ -386,3 +438,6 @@
     catch(error) {message(error.message,'error');}
   })();
 })();
+
+/* Optional loading measurement panel. */
+if (new URLSearchParams(location.search).has('ui_measure')) { const timingScript = document.createElement('script'); timingScript.src = '/static/js/ui_measure.js?v=20261018-1'; document.head.appendChild(timingScript); }

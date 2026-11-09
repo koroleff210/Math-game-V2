@@ -1,8 +1,11 @@
+{% from 'shared/_resource_icon.html' import resource_icon %}
 <div
   id="gear-shell-container"
   data-gear-shell
   data-gear-current-filter="{{ gear_filter }}"
+  data-ui-shell-kind="{{ 'gender' if needs_gender_selection else 'character' if character_selection_required else 'gear' }}"
 >
+  <script type="application/json" data-ui-preloads>{{ ([url_for('static',filename='classic_ui/player_ui/blacksmith_bg.png')]+avatar_prefetch_urls)|map('ui_image')|list|tojson }}</script>
   <div data-gear-shell-message-region>
     {% if gear_shell_message %}
       <div class="notice notice-{{ gear_shell_message.category }}" data-gear-shell-message>
@@ -19,7 +22,7 @@
       </div>
 
       <div class="gender-choice-grid" aria-label="Choose your character type">
-        <form method="POST" action="{{ url_for('player.avatar_body') }}" class="gender-choice-form">
+        <form method="POST" action="{{ url_for('player.avatar_body') }}" class="gender-choice-form" data-gear-shell-form>
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="variant" value="m">
           <input type="hidden" name="gear_filter" value="{{ gear_filter }}">
@@ -28,7 +31,7 @@
             <span class="gender-choice-image-wrap">
               <img
                 class="gender-choice-image"
-                src="{{ url_for('static', filename='avatars/gender/male_silhouette.png') }}"
+                src="{{ url_for('static', filename='avatars/gender/male_silhouette.png')|ui_image }}"
                 alt=""
                 onerror="this.style.display='none';"
               >
@@ -38,7 +41,7 @@
           </button>
         </form>
 
-        <form method="POST" action="{{ url_for('player.avatar_body') }}" class="gender-choice-form">
+        <form method="POST" action="{{ url_for('player.avatar_body') }}" class="gender-choice-form" data-gear-shell-form>
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="variant" value="f">
           <input type="hidden" name="gear_filter" value="{{ gear_filter }}">
@@ -47,7 +50,7 @@
             <span class="gender-choice-image-wrap">
               <img
                 class="gender-choice-image"
-                src="{{ url_for('static', filename='avatars/gender/female_silhouette.png') }}"
+                src="{{ url_for('static', filename='avatars/gender/female_silhouette.png')|ui_image }}"
                 alt=""
                 onerror="this.style.display='none';"
               >
@@ -141,9 +144,9 @@
           {% endif %}
         </div>
         <ul class="bonus-list">
-          <li>Mine: {{ '%+d'|format(gear_active_bonus_summary.mine_gold_delta) }}</li>
-          <li>Steal: {{ '%+d'|format(gear_active_bonus_summary.steal_gold_delta) }}</li>
-          <li>Shield: {{ '%+d'|format(gear_active_bonus_summary.shield_duration_delta) }} s</li>
+          <li>Mine: <strong>{{ '%+d'|format(gear_active_bonus_summary.mine_gold_delta) }}</strong> {{ resource_icon('gold') }}</li>
+          <li>Steal: <strong>{{ '%+d'|format(gear_active_bonus_summary.steal_gold_delta) }}</strong> {{ resource_icon('gold') }}</li>
+          <li>{{ resource_icon('shield') }} <span class="visually-hidden">Shield:</span> <strong>{{ '%+d'|format(gear_active_bonus_summary.shield_duration_delta) }}</strong> s</li>
         </ul>
       </div>
     </div>
@@ -190,7 +193,7 @@
                   data-gear-shell-url="{{ url_for('player.gear_shell', gear_filter=gear_filter, selected_item=item.id) }}"
                   title="{{ item.name }} — {{ item.slot_label }}{% if item.is_equipped %} (Equipped in {{ item.equipped_slot_label }}){% endif %}"
                 >
-                  <img class="gear-thumb" src="{{ item.icon_static_path }}" alt="{{ item.name }}">
+                  <img class="gear-thumb" src="{{ item.icon_static_path|ui_image }}" alt="{{ item.name }}">
                   {% if item.is_equipped %}
                     <div class="status-badge" aria-label="Equipped in {{ item.equipped_slot_label }}">Equipped</div>
                   {% endif %}

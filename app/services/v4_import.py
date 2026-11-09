@@ -188,7 +188,8 @@ def _parse_record(raw, archive, files, prefix):
             'assets': assets, 'image_refs': image_refs, 'option_image_refs': option_image_refs, 'class_code': class_code,
             'difficulty': difficulty, 'hash': source_hash,
             'answer_hash': sha256((correct_label + '\0' + '\0'.join(options)).encode('utf-8')).hexdigest(),
-            'metadata': {'paper': raw.get('paper'), 'level': raw.get('level'), 'classes': classes}}
+            'metadata': {'paper': raw.get('paper'), 'level': raw.get('level'), 'classes': classes,
+                         'explanation_text': answer_text, 'raw_difficulty': raw_difficulty}}
 
 
 def inspect_archive(path):
@@ -259,6 +260,9 @@ def apply_import(path, subject_name):
                 metadata = ProblemSourceMetadata.query.filter_by(source_system=SOURCE_SYSTEM, canonical_id=row['id']).first()
                 if metadata:
                     problem = metadata.problem
+                    from app.services.learning_snapshots import question_in_unfinished_round
+                    if question_in_unfinished_round(problem.id):
+                        raise ValueError('Cannot update a question captured in an unfinished round. Finish the round first.')
                     problem.blocks.clear()
                     problem.choice_options.clear()
                     problem.accepted_answers.clear()

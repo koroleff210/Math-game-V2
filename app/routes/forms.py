@@ -188,6 +188,7 @@ class GearItemForm(FlaskForm):
         'Avatar Asset Key (optional)',
         validators=[Optional(), Length(max=16)],
     )
+    gold_cost = IntegerField('Saved gold cost', default=300, validators=[NumberRange(min=0)])
     diamond_cost = IntegerField(
         'Diamond Cost',
         validators=[InputRequired(), NumberRange(min=0, message='Diamond cost must be 0 or higher.')],

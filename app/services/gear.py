@@ -682,6 +682,7 @@ def build_admin_gear_item_view(item: GearItemDefinition) -> dict:
         'has_icon_m': has_icon_m,
         'has_icon_f': has_icon_f,
         'diamond_cost': item.diamond_cost,
+        'gold_cost': item.gold_cost,
         'mine_gold_delta': item.mine_gold_delta,
         'steal_gold_delta': item.steal_gold_delta,
         'shield_duration_delta': item.shield_duration_delta,
@@ -712,6 +713,7 @@ def _clean_gear_catalog_payload(payload: dict) -> dict:
         'image_key': image_key,
         'avatar_asset_key': derived_avatar_asset_key or avatar_asset_key,
         'diamond_cost': payload.get('diamond_cost'),
+        'gold_cost': payload.get('gold_cost', 300),
         'mine_gold_delta': payload.get('mine_gold_delta'),
         'steal_gold_delta': payload.get('steal_gold_delta'),
         'shield_duration_delta': payload.get('shield_duration_delta'),
@@ -753,11 +755,13 @@ def _validate_gear_catalog_payload(cleaned: dict, *, existing_item_id: str | Non
         if allowed_avatar_keys and cleaned['avatar_asset_key'] not in allowed_avatar_keys:
             raise ValueError('Invalid avatar asset key for that slot type.')
 
-    for key in ('diamond_cost', 'mine_gold_delta', 'steal_gold_delta', 'shield_duration_delta'):
+    for key in ('gold_cost', 'diamond_cost', 'mine_gold_delta', 'steal_gold_delta', 'shield_duration_delta'):
         value = cleaned[key]
         if not isinstance(value, int):
             raise ValueError(f'{key} must be an integer.')
 
+    if cleaned['gold_cost'] < 0:
+        raise ValueError('Gold cost must be 0 or higher.')
     if cleaned['diamond_cost'] < 0:
         raise ValueError('Diamond cost must be 0 or higher.')
 
@@ -778,6 +782,7 @@ def create_admin_gear_item(payload: dict) -> GearItemDefinition:
         description=cleaned['description'],
         image_key=cleaned['image_key'],
         avatar_asset_key=cleaned['avatar_asset_key'],
+        gold_cost=cleaned['gold_cost'],
         diamond_cost=cleaned['diamond_cost'],
         mine_gold_delta=cleaned['mine_gold_delta'],
         steal_gold_delta=cleaned['steal_gold_delta'],
@@ -807,6 +812,7 @@ def update_admin_gear_item(item_id: str, payload: dict) -> GearItemDefinition:
     item.description = cleaned['description']
     item.image_key = cleaned['image_key']
     item.avatar_asset_key = cleaned['avatar_asset_key']
+    item.gold_cost = cleaned['gold_cost']
     item.diamond_cost = cleaned['diamond_cost']
     item.mine_gold_delta = cleaned['mine_gold_delta']
     item.steal_gold_delta = cleaned['steal_gold_delta']
@@ -909,6 +915,7 @@ def list_blacksmith_gear_for_player(player_id: int) -> list:
             avatar_body_variant=player_variant,
         ),
         'diamond_cost': item.diamond_cost,
+        'gold_cost': item.gold_cost,
         'mine_gold_delta': item.mine_gold_delta,
         'steal_gold_delta': item.steal_gold_delta,
         'shield_duration_delta': item.shield_duration_delta,
@@ -916,8 +923,9 @@ def list_blacksmith_gear_for_player(player_id: int) -> list:
 
 
 def purchase_blacksmith_gear(*, player_id: int, item_id: str) -> dict:
-    """Spend Diamonds to buy one persistent gear item for a player."""
-    from app.services.progression import get_or_create_player_progression
+    """Spend saved gold; serialize ownership and balance checks per player."""
+    from app.services.economy import gold_account
+    prog = gold_account(player_id)
 
     item = db.session.get(GearItemDefinition, item_id)
     if item is None:
@@ -934,16 +942,15 @@ def purchase_blacksmith_gear(*, player_id: int, item_id: str) -> dict:
     if existing is not None:
         raise ValueError('You already own that gear item.')
 
-    if not isinstance(item.diamond_cost, int) or item.diamond_cost < 0:
-        raise ValueError('That gear item has an invalid Diamond cost.')
+    if not isinstance(item.gold_cost, int) or item.gold_cost < 0:
+        raise ValueError('That gear item has an invalid saved gold cost.')
 
-    prog = get_or_create_player_progression(player_id)
-    if prog.diamonds_balance < item.diamond_cost:
+    if prog.saved_gold < item.gold_cost:
         raise ValueError(
-            f'Not enough Diamonds. Need {item.diamond_cost}, have {prog.diamonds_balance}.'
+            f'Not enough saved gold. Need {item.gold_cost}, have {prog.saved_gold}.'
         )
 
-    prog.diamonds_balance -= item.diamond_cost
+    prog.saved_gold -= item.gold_cost
     prog.updated_at = datetime.now(timezone.utc)
     ownership = PlayerGearOwnership(
         player_id=player_id,
@@ -951,14 +958,15 @@ def purchase_blacksmith_gear(*, player_id: int, item_id: str) -> dict:
         created_at=datetime.now(timezone.utc),
     )
     db.session.add(ownership)
+    db.session.flush()
 
-    from app.models.progression import DiamondTransaction
-    tx = DiamondTransaction(
+    from app.models.economy import GoldTransaction
+    tx = GoldTransaction(
         player_id=player_id,
-        amount_delta=-item.diamond_cost,
-        balance_after=prog.diamonds_balance,
+        event_key=f'gear_purchase:{ownership.id}',
+        amount_delta=-item.gold_cost,
+        balance_after=prog.saved_gold,
         reason=f'gear_purchase:{item_id}',
-        admin_player_id=None,
         session_id=None,
         created_at=datetime.now(timezone.utc),
     )
@@ -968,8 +976,8 @@ def purchase_blacksmith_gear(*, player_id: int, item_id: str) -> dict:
     return {
         'item_id': item.id,
         'item_name': item.name,
-        'cost': item.diamond_cost,
-        'new_balance': prog.diamonds_balance,
+        'cost': item.gold_cost,
+        'new_balance': prog.saved_gold,
     }
 
 
@@ -1135,6 +1143,25 @@ def unequip_player_gear_slot(*, player_id: int, slot_key: str) -> dict:
         'normalized_changed': state['changed'],
         'loadout_created': state['created'],
     }
+
+
+def list_owned_gear_comparison(player_id, hub_view):
+    """All owned items for shopping comparison, including other character variants."""
+    from app.models.player import Player
+    player = db.session.get(Player, player_id)
+    variant = getattr(player, 'avatar_body_variant', 'm')
+    equipped = {row['item']['id'] for row in hub_view['slot_rows'] if row['item']}
+    rows = GearItemDefinition.query.join(PlayerGearOwnership, PlayerGearOwnership.item_id == GearItemDefinition.id).filter(
+        PlayerGearOwnership.player_id == player_id).order_by(GearItemDefinition.slot_type, GearItemDefinition.name).all()
+    return [{
+        'id': item.id, 'name': item.name, 'slot_label': GEAR_SLOT_LABELS.get(item.slot_type, item.slot_type),
+        'is_equipped': item.id in equipped, 'is_active': item.is_active,
+        'compatible': is_item_variant_compatible_for_player(item, variant),
+        'mine_gold_delta': item.mine_gold_delta, 'steal_gold_delta': item.steal_gold_delta,
+        'shield_duration_delta': item.shield_duration_delta,
+        'icon_static_path': resolve_gear_icon_static_path(item_id=item.id, slot_type=item.slot_type,
+            image_key=item.image_key, avatar_asset_key=item.avatar_asset_key, avatar_body_variant=variant),
+    } for item in rows]
 
 
 def build_player_gear_hub_view(

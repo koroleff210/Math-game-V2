@@ -25,18 +25,28 @@ class ClassicRoundConfig(db.Model):
     round_id = db.Column(db.Integer, db.ForeignKey('game_round.id'), unique=True, nullable=False)
 
     # Core economy
-    mine_reward            = db.Column(db.Integer, nullable=False, default=20)
-    treasure_search_reward = db.Column(db.Integer, nullable=False, default=5)
+    correct_answer_gold = db.Column(db.Integer, nullable=False, default=5)
+    combo_start = db.Column(db.Integer, nullable=False, default=3)
+    combo_gold = db.Column(db.Integer, nullable=False, default=2)
+    treasure_pity_increment = db.Column(db.Float, nullable=False, default=0.10)
+    treasure_pity_cap = db.Column(db.Float, nullable=False, default=0.75)
+    treasure_double_mine_chance = db.Column(db.Float, nullable=False, default=0.30)
+    steal_attempt_limit = db.Column(db.Integer, nullable=False, default=2)
+    active_bonus_limit = db.Column(db.Integer, nullable=False, default=3)
+    permanent_bonus_cap = db.Column(db.Float, nullable=False, default=0.10)
+    standardized_competition = db.Column(db.Boolean, nullable=False, default=False)
+    mine_reward            = db.Column(db.Integer, nullable=False, default=5)
+    treasure_search_reward = db.Column(db.Integer, nullable=False, default=2)
     attempts_per_problem   = db.Column(db.Integer, nullable=False, default=1)   # -1 = unlimited
     wrong_answer_penalty   = db.Column(db.Integer, nullable=False, default=0)
 
     # Timer bonus: any correct answer submitted within bonus_timer_duration seconds earns bonus_timer_gold
-    bonus_timer_duration   = db.Column(db.Integer, nullable=False, default=120)  # 0 = disabled
-    bonus_timer_gold       = db.Column(db.Integer, nullable=False, default=5)
+    bonus_timer_duration   = db.Column(db.Integer, nullable=False, default=0)  # 0 = disabled
+    bonus_timer_gold       = db.Column(db.Integer, nullable=False, default=0)
 
     # First-solver bonus
     # Formula: max(0, (first_solver_count - (solver_rank - 1)) * first_solver_multiplier)
-    first_solver_count      = db.Column(db.Integer, nullable=False, default=3)
+    first_solver_count      = db.Column(db.Integer, nullable=False, default=0)
     first_solver_multiplier = db.Column(db.Integer, nullable=False, default=2)
 
     # [Step C] Random Treasure Search gold and gem awards
@@ -45,29 +55,29 @@ class ClassicRoundConfig(db.Model):
     # gem_milestone_count: solved problems per round needed per +1 gem (0 = disabled)
     # gem_streak_count: consecutive correct answers per +1 gem (0 = disabled)
     # gem_treasure_chance: probability (0.0–1.0) that a Treasure Search awards 1 gem (0.0 = disabled)
-    treasure_search_max_reward = db.Column(db.Integer, nullable=False, default=5)
+    treasure_search_max_reward = db.Column(db.Integer, nullable=False, default=2)
     gem_milestone_count        = db.Column(db.Integer, nullable=False, default=5)
-    gem_streak_count           = db.Column(db.Integer, nullable=False, default=3)
-    gem_treasure_chance        = db.Column(db.Float,   nullable=False, default=0.5)
+    gem_streak_count           = db.Column(db.Integer, nullable=False, default=0)
+    gem_treasure_chance        = db.Column(db.Float,   nullable=False, default=0.10)
 
     # [Step D] Steal system config
-    steal_percent               = db.Column(db.Float,   nullable=False, default=0.10)
-    steal_min_cap               = db.Column(db.Integer, nullable=False, default=10)
-    steal_max_cap               = db.Column(db.Integer, nullable=False, default=50)   # -1 = no upper cap
-    steal_fallback_gold         = db.Column(db.Integer, nullable=False, default=5)
-    steal_chest_count           = db.Column(db.Integer, nullable=False, default=6)    # 0 = mini-game disabled
-    steal_winning_chest_count   = db.Column(db.Integer, nullable=False, default=4)
+    steal_percent               = db.Column(db.Float,   nullable=False, default=0.12)
+    steal_min_cap               = db.Column(db.Integer, nullable=False, default=0)
+    steal_max_cap               = db.Column(db.Integer, nullable=False, default=15)
+    steal_fallback_gold         = db.Column(db.Integer, nullable=False, default=0)
+    steal_chest_count           = db.Column(db.Integer, nullable=False, default=7)
+    steal_winning_chest_count   = db.Column(db.Integer, nullable=False, default=3)
     shield_duration              = db.Column(db.Integer, nullable=False, default=60)   # deprecated schema residue; runtime uses split fields below
     active_shield_duration       = db.Column(db.Integer, nullable=False, default=60)   # manual shield-token activation
     reactive_shield_duration     = db.Column(db.Integer, nullable=False, default=20)   # victim protection after steal
     # treasure_steal_token_chance: probability that a Treasure Search action awards a steal token.
     # Named under the treasure system because it is a treasure reward, not a steal mechanic.
-    treasure_steal_token_chance = db.Column(db.Float,   nullable=False, default=0.6)
+    treasure_steal_token_chance = db.Column(db.Float,   nullable=False, default=0.30)
 
     # Treasure chest fill chances. Each currently eligible reward type becomes one chest.
     # Each shown chest rolls filled/empty independently.
-    treasure_active_shield_chance = db.Column(db.Float, nullable=False, default=0.6)
-    treasure_second_chance_chance = db.Column(db.Float, nullable=False, default=0.5)
+    treasure_active_shield_chance = db.Column(db.Float, nullable=False, default=0.35)
+    treasure_second_chance_chance = db.Column(db.Float, nullable=False, default=0.35)
 
     round = db.relationship('GameRound', backref=db.backref('classic_config', uselist=False))
 
@@ -89,6 +99,11 @@ class PlayerWallet(db.Model):
     # Diamonds are player-scoped meta-progression currency; deferred to Step E.
     gold = db.Column(db.Integer, nullable=False, default=0)
     gems = db.Column(db.Integer, nullable=False, default=0)  # [Step C]
+    correct_answers = db.Column(db.Integer, nullable=False, default=0)
+    correct_streak = db.Column(db.Integer, nullable=False, default=0)
+    treasure_failures = db.Column(db.Integer, nullable=False, default=0)
+    steal_attempts = db.Column(db.Integer, nullable=False, default=0)
+    gear_bonus_remainder = db.Column(db.Float, nullable=False, default=0.0)
 
     # [Step D] steal_tokens: starts at 1 per wallet creation (cap = 1 for Step D).
     # shield_expires_at (steal protection) lives in PlayerClassicState, not here. See AD-27.

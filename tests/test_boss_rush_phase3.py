@@ -77,7 +77,7 @@ def _setup_defeated_round():
     db.session.add_all([attack_set, recovery_set])
     db.session.flush()
 
-    session = GameSession(mode='boss_rush', status='active', problem_set_id=attack_set.id)
+    session = GameSession(mode='boss_rush', status='active', problem_set_id=attack_set.id, economy_version=1)
     db.session.add(session)
     db.session.flush()
     game_round = GameRound(session_id=session.id, round_number=1)

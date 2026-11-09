@@ -28,7 +28,7 @@
             <img
               class="avatar-layer"
               data-avatar-layer-label="{{ layer.label }}"
-              src="{{ layer.static_path }}"
+              src="{{ layer.static_path|ui_image }}"
               alt="{{ layer.label }}"
             >
           {% endif %}

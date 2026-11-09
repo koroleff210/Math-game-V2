@@ -46,7 +46,11 @@ def _section(writer, title, headers=None):
 
 def _csv_text(write_func):
     buffer = io.StringIO(newline='')
-    writer = csv.writer(buffer)
+    raw_writer = csv.writer(buffer)
+    class SafeWriter:
+        def writerow(self, row):
+            raw_writer.writerow([("'" + value) if isinstance(value, str) and value.lstrip().startswith(('=', '+', '-', '@', '\t', '\r', '\n')) else value for value in row])
+    writer = SafeWriter()
     write_func(writer)
     return '\ufeff' + buffer.getvalue()
 

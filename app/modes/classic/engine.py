@@ -207,6 +207,15 @@ def calc_treasure_gem_award(config) -> dict:
     return {'gems': 0, 'won': False}
 
 
+def treasure_enabled(config) -> bool:
+    return config is not None and any(getattr(config, field, 0) > 0 for field in (
+        'treasure_search_reward', 'treasure_search_max_reward',
+        'treasure_double_mine_chance', 'gem_treasure_chance',
+        'treasure_steal_token_chance', 'treasure_active_shield_chance',
+        'treasure_second_chance_chance',
+    ))
+
+
 def build_treasure_chest_candidates(config, eligibility: dict | None = None) -> list[dict]:
     """Return the currently visible Treasure chest candidates.
 
@@ -218,6 +227,7 @@ def build_treasure_chest_candidates(config, eligibility: dict | None = None) -> 
     eligibility = eligibility or {}
     reward_specs = [
         ('gem', getattr(config, 'gem_treasure_chance', 0.0)),
+        ('double_mine', getattr(config, 'treasure_double_mine_chance', 0.0)),
         ('steal_token', getattr(config, 'treasure_steal_token_chance', 0.0)),
         ('shield_token', getattr(config, 'treasure_active_shield_chance', 0.0)),
         ('second_chance', getattr(config, 'treasure_second_chance_chance', 0.0)),
@@ -249,6 +259,10 @@ def roll_treasure_chests(candidates: list[dict]) -> list[dict]:
     for idx, chest in enumerate(chests, start=1):
         chest['index'] = idx
     return chests
+
+
+def treasure_success_chance(base, failures, increment=.10, cap=.75):
+    return min(cap, max(0.0, base) + max(0, failures) * increment)
 
 
 # ── [Step D] Steal system helpers ─────────────────────────────────────────────

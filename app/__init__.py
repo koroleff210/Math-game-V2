@@ -50,6 +50,8 @@ def create_app(config_class=Config):
     socketio.init_app(flask_app, **socketio_options)
     # csrf must be initialized AFTER secret key is set so it can sign tokens.
     csrf.init_app(flask_app)
+    from app.services.ui_images import register_ui_images
+    register_ui_images(flask_app)
 
     # ── Register blueprints ───────────────────────────────────────────────────
     # Import models so Flask-Migrate can detect all tables for migrations.
@@ -62,6 +64,8 @@ def create_app(config_class=Config):
     flask_app.register_blueprint(auth_bp)
     flask_app.register_blueprint(admin_bp)
     flask_app.register_blueprint(player_bp)
+    from app.routes.learning import learning_bp
+    flask_app.register_blueprint(learning_bp)
     from app.routes.media import media_bp
     flask_app.register_blueprint(media_bp)
     from app.routes.content_import import import_bp

@@ -11,6 +11,7 @@
 {%- endmacro %}
 
 {% block head %}
+<link rel="stylesheet" href="{{ url_for('static',filename='css/learning.css') }}">
 <style>
   body {
     font-family: sans-serif;
@@ -18,7 +19,7 @@
     color: #2f2a22;
     background:
       linear-gradient(180deg, rgba(244, 235, 219, 0.72), rgba(226, 211, 187, 0.70)),
-      url("{{ url_for('static', filename='classic_ui/player_ui/background_001.png') }}") center/cover no-repeat fixed;
+      url("{{ url_for('static', filename='classic_ui/player_ui/background_001.png')|ui_image }}") center/cover no-repeat fixed;
   }
   .progress-page {
     max-width: 1120px;
@@ -151,6 +152,15 @@
     </div>
     <a class="back-link" href="{{ url_for('player.dashboard') }}">Back to Hub</a>
   </header>
+
+  <section class="panel learning">
+    <h2>Your session reports</h2>
+    <p class="muted">New session results appear after your teacher publishes them. First try means first response within a round and context.</p>
+    {% for r in learning_sessions %}
+      <div class="lr-chart-row"><a href="{{ url_for('learning.student_session',session_id=r.session.id) }}">{{ r.session.display_label }}</a><div class="lr-track"><div class="lr-bar" style="width:{{ ((r.metrics.first_accuracy or 0)*100)|round(1) }}%"></div></div><span>{{ r.metrics.first_correct }}/{{ r.metrics.first_known }} first try</span></div>
+      {% if r.settings and not r.settings.include_in_progress %}<small>Review only · excluded from progress</small>{% endif %}
+    {% else %}<p>No published session reports yet.</p>{% endfor %}
+  </section>
 
   <section class="panel">
     <h2>Overview</h2>

@@ -1,6 +1,7 @@
+{% from 'shared/_resource_icon.html' import resource_icon %}
 {% if gear_selected_item %}
   <div class="details-header" data-gear-selected-item="{{ gear_selected_item.id }}" data-gear-details-header-region>
-    <img class="gear-thumb" src="{{ gear_selected_item.icon_static_path }}" alt="{{ gear_selected_item.name }}">
+    <img class="gear-thumb" src="{{ gear_selected_item.icon_static_path|ui_image }}" alt="{{ gear_selected_item.name }}">
     <div>
       <h3 style="margin: 0 0 6px;">{{ gear_selected_item.name }}</h3>
       <div class="gear-meta">{{ gear_selected_item.slot_label }}</div>
@@ -21,9 +22,9 @@
     {% endif %}
 
     <ul class="details-effects">
-      <li>Mine gold: {{ '%+d'|format(gear_selected_item.mine_gold_delta) }}</li>
-      <li>Steal gold: {{ '%+d'|format(gear_selected_item.steal_gold_delta) }}</li>
-      <li>Shield duration: {{ '%+d'|format(gear_selected_item.shield_duration_delta) }}s</li>
+      <li>Mine: <strong>{{ '%+d'|format(gear_selected_item.mine_gold_delta) }}</strong> {{ resource_icon('gold') }}</li>
+      <li>Steal: <strong>{{ '%+d'|format(gear_selected_item.steal_gold_delta) }}</strong> {{ resource_icon('gold') }}</li>
+      <li>{{ resource_icon('shield') }} <span class="visually-hidden">Shield duration:</span> <strong>{{ '%+d'|format(gear_selected_item.shield_duration_delta) }}</strong>s</li>
     </ul>
 
     <div class="gear-actions">

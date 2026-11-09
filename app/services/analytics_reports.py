@@ -28,7 +28,8 @@ def parse_date_filter(value, *, end=False):
 
 
 def _filtered_round_query(group_id, *, subject_id=None, mode=None, date_from=None, date_to=None):
-    q = AnalyticsRound.query.filter_by(group_id=group_id)
+    from app.services.learning_reports import eligible_round_query
+    q = AnalyticsRound.query.filter_by(group_id=group_id).filter(AnalyticsRound.round_id.in_(eligible_round_query()))
     if mode in ('classic', 'boss_rush'):
         q = q.filter_by(mode=mode)
     if date_from is not None:
@@ -42,8 +43,8 @@ def _filtered_round_query(group_id, *, subject_id=None, mode=None, date_from=Non
             | ((AnalyticsRound.ended_at.is_(None)) & (AnalyticsRound.started_at <= date_to))
         )
     if subject_id:
-        q = q.join(AnalyticsRoundProblem, AnalyticsRoundProblem.analytics_round_id == AnalyticsRound.id)
-        q = q.filter(AnalyticsRoundProblem.subject_id == subject_id).distinct()
+        matching = AnalyticsRoundProblem.query.with_entities(AnalyticsRoundProblem.analytics_round_id).filter_by(subject_id=subject_id)
+        q = q.filter(AnalyticsRound.id.in_(matching))
     return q
 
 
@@ -415,9 +416,12 @@ def build_class_dashboard(group_id, *, subject_id=None, mode=None, date_from=Non
 
 
 def build_player_dashboard(player_id, *, limit_recent_rounds=10, limit_missed=8):
+    from app.services.learning_reports import eligible_round_query
+    eligible = eligible_round_query(student=True)
     player_rounds = (
         AnalyticsPlayerRound.query
         .filter_by(player_id=player_id)
+        .filter(AnalyticsPlayerRound.round_id.in_(eligible))
         .join(AnalyticsRound, AnalyticsRound.id == AnalyticsPlayerRound.analytics_round_id)
         .order_by(AnalyticsRound.ended_at.desc().nullslast(), AnalyticsRound.started_at.desc().nullslast(), AnalyticsPlayerRound.id.desc())
         .all()
@@ -428,12 +432,14 @@ def build_player_dashboard(player_id, *, limit_recent_rounds=10, limit_missed=8)
     attempts = (
         AnalyticsAnswerAttempt.query
         .filter_by(player_id=player_id)
+        .filter(AnalyticsAnswerAttempt.round_id.in_(eligible))
         .order_by(AnalyticsAnswerAttempt.submitted_at.desc(), AnalyticsAnswerAttempt.id.desc())
         .all()
     )
     player_problems = (
         AnalyticsPlayerProblem.query
         .filter_by(player_id=player_id)
+        .filter(AnalyticsPlayerProblem.round_id.in_(eligible))
         .order_by(AnalyticsPlayerProblem.completed_at.desc().nullslast(), AnalyticsPlayerProblem.first_seen_at.desc().nullslast(), AnalyticsPlayerProblem.id.desc())
         .all()
     )
@@ -577,8 +583,8 @@ def build_player_dashboard(player_id, *, limit_recent_rounds=10, limit_missed=8)
         if len(recent_missed) >= limit_missed:
             break
 
-    classic_events = AnalyticsClassicEconomyEvent.query.filter_by(actor_player_id=player_id).all()
-    target_classic_events = AnalyticsClassicEconomyEvent.query.filter_by(target_player_id=player_id).all()
+    classic_events = AnalyticsClassicEconomyEvent.query.filter_by(actor_player_id=player_id).filter(AnalyticsClassicEconomyEvent.round_id.in_(eligible)).all()
+    target_classic_events = AnalyticsClassicEconomyEvent.query.filter_by(target_player_id=player_id).filter(AnalyticsClassicEconomyEvent.round_id.in_(eligible)).all()
     classic_records = {
         'total_gold_net': sum((row.gold_net if row.gold_net is not None else ((row.gold_end - row.gold_start) if row.gold_start is not None and row.gold_end is not None else 0)) for row in player_rounds if (row.analytics_round and row.analytics_round.mode == 'classic')),
         'best_final_gold': max([row.gold_end for row in player_rounds if row.analytics_round and row.analytics_round.mode == 'classic' and row.gold_end is not None] or [None]),
@@ -590,7 +596,7 @@ def build_player_dashboard(player_id, *, limit_recent_rounds=10, limit_missed=8)
     }
 
     boss_rows = [row for row in player_rounds if row.analytics_round and row.analytics_round.mode == 'boss_rush']
-    boss_events = AnalyticsBossRushBattleEvent.query.filter_by(player_id=player_id).all()
+    boss_events = AnalyticsBossRushBattleEvent.query.filter_by(player_id=player_id).filter(AnalyticsBossRushBattleEvent.round_id.in_(eligible)).all()
     bosses_fought = sorted({event.boss_type for event in boss_events if event.boss_type})
     boss_records = {
         'total_damage': sum(row.damage_dealt or 0 for row in boss_rows),

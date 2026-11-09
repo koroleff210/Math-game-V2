@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KorePhysics</title>
+  <link rel="stylesheet" href="{{ url_for('static',filename='css/player_ui.css',v='20261018-1') }}">
+  <script defer src="{{ url_for('static',filename='js/player_screen.js',v='20261017-3') }}"></script>
+  <script defer src="{{ url_for('static',filename='js/player_ui.js',v='20261018-1') }}"></script>
+</head>
+<body class="ui-player-screen">
+  <header class="ui-player-toolbar" aria-label="Screen controls">
+    <button id="ui-fullscreen-toggle" type="button" class="ui-fullscreen-button ui-fullscreen-floating" data-ui-fullscreen aria-pressed="false" hidden>Fullscreen</button>
+  </header>
+  <iframe id="player-page-frame" title="KorePhysics player screen" src="{{ frame_url }}" allow="fullscreen"></iframe>
+</body>
+</html>

@@ -24,11 +24,14 @@
 #   is_closed).  This deviation is documented in docs/dev_log.md.
 
 import random
+from functools import wraps
+from app.services import economy
 from types import SimpleNamespace
 
 from flask import render_template
 from flask_socketio import emit, join_room
 from flask_login import current_user
+from sqlalchemy.orm import selectinload, joinedload
 from datetime import datetime, timezone
 
 from app.extensions import db
@@ -49,7 +52,7 @@ from app.services.problem_content import (
     build_problem_body_view,
     build_problem_choice_view,
 )
-from app.modes.classic.admin_summary import render_admin_supervision_summary_payload
+from app.modes.classic.admin_summary import render_admin_supervision_summary_payload, supervision_room
 from app.services.progression import get_session_player_modifiers
 from app.services.avatar import build_player_avatar_view
 from app.models.analytics import (
@@ -69,12 +72,20 @@ from app.services.analytics import (
 )
 
 
+def _serialized_economy(fn):
+    @wraps(fn)
+    def wrapped(data):
+        with economy.session_lock(int((data or {}).get('session_id', 0))):
+            return fn(data)
+    return wrapped
+
+
 def _manual_shield_base_duration(config) -> int:
-    return getattr(config, 'active_shield_duration', 60) or 60
+    return getattr(config, 'active_shield_duration', 60)
 
 
 def _reactive_shield_base_duration(config) -> int:
-    return getattr(config, 'reactive_shield_duration', 60) or 60
+    return getattr(config, 'reactive_shield_duration', 20)
 
 
 def _render_problem_body_html(problem) -> str:
@@ -138,17 +149,24 @@ def _has_second_chance_capacity(player_id: int, session_id: int) -> bool:
 
 
 def _build_treasure_eligibility(config, player_id: int, session_id: int, wallet, token_cap: int) -> dict:
+    modern = economy.is_new_economy(db.session.get(GameSession, session_id))
+    counts = classic_store.get_active_counts(player_id, session_id) if modern else {}
+    def allowed(effect):
+        return not modern or (counts.get(effect, 0) < 1 and sum(counts.values()) < config.active_bonus_limit)
     return {
+        'double_mine': modern and config.treasure_double_mine_chance > 0 and allowed('x2_mine'),
         'gem': getattr(config, 'gem_treasure_chance', 0.0) > 0.0,
         'steal_token': (
             getattr(config, 'treasure_steal_token_chance', 0.0) > 0.0
             and wallet is not None
             and wallet.steal_tokens < token_cap
+            and (not modern or wallet.steal_attempts < config.steal_attempt_limit)
         ),
-        'shield_token': getattr(config, 'treasure_active_shield_chance', 0.0) > 0.0,
+        'shield_token': (config.active_shield_duration > 0
+                         and config.treasure_active_shield_chance > 0 and allowed('steal_shield')),
         'second_chance': (
             getattr(config, 'treasure_second_chance_chance', 0.0) > 0.0
-            and _has_second_chance_capacity(player_id, session_id)
+            and _has_second_chance_capacity(player_id, session_id) and allowed('shield')
         ),
     }
 
@@ -159,6 +177,7 @@ def _treasure_reward_label(reward_type: str) -> str:
         'steal_token': 'Steal Token',
         'shield_token': 'Shield Token',
         'second_chance': 'Second Chance',
+        'double_mine': 'Double Mine',
     }.get(reward_type, reward_type.replace('_', ' ').title())
 
 
@@ -215,6 +234,7 @@ def _serialize_pending_treasure(payload: dict | None) -> dict | None:
     if not payload:
         return None
     result = {
+        'problem_id': payload.get('problem_id'),
         'phase': payload.get('phase', 'selecting'),
         'selected_chest': payload.get('selected_chest'),
         'chests': _serialize_treasure_chests(
@@ -231,6 +251,7 @@ def _serialize_pending_steal(payload: dict | None) -> dict | None:
     if not payload:
         return None
     result = {
+        'problem_id': payload.get('problem_id'),
         'phase': payload.get('phase', 'selecting'),
         'selected_chest': payload.get('selected_chest'),
         'chest_count': payload.get('chest_count', 0),
@@ -284,6 +305,7 @@ def _serialize_pending_steal_targets(*, player_id: int, session_id: int, intent:
     all_pcs = PlayerClassicState.query.filter_by(session_id=session_id).all()
     states_map = {p.player_id: p for p in all_pcs}
     targets = engine.build_steal_targets(all_wallets, states_map, player_id)
+    intent['target_ids'] = {target['player_id'] for target in targets}
 
     return {
         'problem_id': intent.get('problem_id'),
@@ -304,7 +326,16 @@ def _grant_treasure_reward(reward_type: str, *, player, session_id: int, wallet,
         'grant_message': '',
     }
 
-    if reward_type == 'gem':
+    modern = economy.is_new_economy(db.session.get(GameSession, session_id))
+    effect = {'shield_token':'steal_shield', 'second_chance':'shield', 'double_mine':'x2_mine'}.get(reward_type)
+    if modern and effect and not economy.bonus_capacity(player.id, session_id, effect):
+        return {**details, 'granted': False, 'grant_message': 'Bonus capacity reached.'}
+    if reward_type == 'double_mine':
+        sys_item = classic_store.get_or_create_system_double_mine(session_id)
+        db.session.add(PlayerInventory(player_id=player.id, session_id=session_id, item_id=sys_item.id, purchased_at=datetime.now(timezone.utc)))
+        granted = True
+        details['grant_message'] = 'Selected chest granted Double Mine.'
+    elif reward_type == 'gem':
         wallet.gems += 1
         granted = True
         details['gems_gained'] = 1
@@ -354,6 +385,22 @@ def _grant_treasure_reward(reward_type: str, *, player, session_id: int, wallet,
 
 
 def register_classic_handlers(socketio):
+    @socketio.on('classic_push_store')
+    def handle_push_store(data):
+        """Send store changes over the already established admin connection."""
+        if not current_user.is_authenticated or not current_user.is_admin:
+            return {'ok': False, 'message': 'Administrator access required.'}
+        try:
+            session_id = int((data or {}).get('session_id', 0))
+        except (TypeError, ValueError):
+            return {'ok': False, 'message': 'Invalid session.'}
+        game_session = db.session.get(GameSession, session_id)
+        if not game_session or game_session.mode != 'classic':
+            return {'ok': False, 'message': 'Session not found.'}
+        socketio.emit('store_updated', {'store_items': classic_store.store_items_for(session_id)},
+                      room=f'classic_{session_id}')
+        return {'ok': True}
+
     """Bind all Classic Mode Socket.IO events to the socketio instance."""
 
     # ── classic_join ──────────────────────────────────────────────────────────
@@ -427,12 +474,29 @@ def register_classic_handlers(socketio):
             session_id=session_id, ended_at=None
         ).order_by(GameRound.round_number.desc()).first()
 
+        if data.get('view') == 'lobby' or game_session.status != 'active':
+            # The lobby needs admission and round status, not rendered questions,
+            # answer state or analytics writes for every problem in the set.
+            if game_session.status == 'finished':
+                round_status = 'finished'
+            elif game_session.status == 'active':
+                round_status = 'active'
+            else:
+                round_status = 'not_started' if game_round else 'between_rounds'
+            enrolled = RoundPlayer.query.filter_by(session_id=session_id).options(
+                joinedload(RoundPlayer.player)).all()
+            socketio.emit('player_joined', {'players': [row.player.username for row in enrolled]}, room=room)
+            emit('join_ack', {'player_id': player.id, 'round_status': round_status})
+            return
+
         # Build problem list from the session's problem set
         problem_list = []
         if game_round and game_session.problem_set:
             config = game_round.classic_config
             ensure_player_round(game_round, player, 'classic', wallet=wallet)
-            problems = game_session.problem_set.problems.all()
+            problems = game_session.problem_set.problems.order_by(Problem.id).options(
+                selectinload(Problem.blocks), selectinload(Problem.choice_options),
+                selectinload(Problem.accepted_answers)).all()
 
             for problem_index, prob in enumerate(problems, start=1):
                 # Get or create PlayerProblemState for this player+round+problem.
@@ -536,7 +600,7 @@ def register_classic_handlers(socketio):
 
         # A1-4: include streak so page refresh doesn't reset the displayed counter.
         # A1-7: include frozen token cap so client shows current/max correctly.
-        current_streak = state.get_streak(player.id, game_round.id) if game_round else 0
+        current_streak = (wallet.correct_streak if economy.is_new_economy(game_session) else state.get_streak(player.id, game_round.id)) if game_round else 0
         steal_token_max_cap = 1
         if game_round:
             _join_mods = get_session_player_modifiers(session_id, player.id)
@@ -584,6 +648,7 @@ def register_classic_handlers(socketio):
     # ── classic_submit_answer ─────────────────────────────────────────────────
 
     @socketio.on('classic_submit_answer')
+    @_serialized_economy
     def handle_submit_answer(data):
         """
         Player submits an answer for a problem.
@@ -613,7 +678,9 @@ def register_classic_handlers(socketio):
         # ── Guards ────────────────────────────────────────────────────────────
 
         game_session = db.session.get(GameSession, session_id)
-        if not game_session or game_session.status != 'active':
+        if (not game_session or game_session.mode != 'classic'
+                or not player_in_session_group(current_user, game_session)
+                or game_session.status != 'active'):
             emit('error', {'msg': 'session not active'})
             return
 
@@ -692,6 +759,19 @@ def register_classic_handlers(socketio):
             completed_at=datetime.now(timezone.utc) if pps.is_closed or pps.is_solved else None,
             extra_json={'classic_attempts_used': pps.attempts_used},
         )
+        if economy.is_new_economy(game_session):
+            answer_wallet = economy.session_wallet(session_id, player.id)
+            if is_correct:
+                answer_wallet.correct_answers += 1
+                answer_wallet.correct_streak += 1
+                combo = config.combo_gold if answer_wallet.correct_streak >= config.combo_start else 0
+                answer_gold = config.correct_answer_gold + combo
+                answer_wallet.gold += answer_gold
+                gem_award = engine.calc_gem_award(answer_wallet.correct_answers, config.gem_milestone_count, answer_wallet.correct_streak, config.gem_streak_count)
+                answer_wallet.gems += gem_award['gems']
+                record_classic_economy_event(game_round, event_type='correct_answer', actor_player=player, linked_answer_attempt=analytics_attempt, linked_problem_id=problem_id, action_context='answer', gold_delta_actor=answer_gold, gems_delta_actor=gem_award['gems'], actor_gold_after=answer_wallet.gold, problem_id=problem_id, event_key=classic_economy_event_key(game_round, player.id, problem_id, 'correct_answer'), details_json={'base_gold': config.correct_answer_gold, 'combo_gold': combo})
+            else:
+                answer_wallet.correct_streak = 0
         db.session.commit()
 
         # ── Incorrect branch ──────────────────────────────────────────────────
@@ -756,6 +836,7 @@ def register_classic_handlers(socketio):
                 'second_chance_used': second_chance_used,
                 'streak_reset':      True,
             })
+            _emit_admin_summary_update(socketio, session_id)
             return
 
         # ── Correct branch ─────────────────────────────────────────────────────
@@ -789,7 +870,7 @@ def register_classic_handlers(socketio):
         steal_wallet = PlayerWallet.query.filter_by(
             player_id=player.id, session_id=session_id
         ).first()
-        steal_available = bool(steal_wallet and steal_wallet.steal_tokens >= 1)
+        steal_available = bool(steal_wallet and steal_wallet.steal_tokens >= 1 and (not economy.is_new_economy(game_session) or steal_wallet.steal_attempts < config.steal_attempt_limit))
         prompt_payload = _build_choose_action_prompt_payload(
             problem_id=problem_id,
             solver_rank=solver_rank,
@@ -810,11 +891,15 @@ def register_classic_handlers(socketio):
             steal_available=steal_available,
         )
 
+        if economy.is_new_economy(game_session):
+            prompt_payload.update(new_balance=steal_wallet.gold, new_gems=steal_wallet.gems, streak=steal_wallet.correct_streak, answer_gold=answer_gold, gems_gained=gem_award['gems'])
+            _emit_leaderboard(socketio, session_id)
         emit('choose_action_prompt', prompt_payload)
 
     # ── classic_choose_action ─────────────────────────────────────────────────
 
     @socketio.on('classic_choose_action')
+    @_serialized_economy
     def handle_choose_action(data):
         """
         Player selects Mine or Treasure Search after a correct answer.
@@ -842,7 +927,9 @@ def register_classic_handlers(socketio):
         # ── Guards ────────────────────────────────────────────────────────────
 
         game_session = db.session.get(GameSession, session_id)
-        if not game_session or game_session.status != 'active':
+        if (not game_session or game_session.mode != 'classic'
+                or not player_in_session_group(current_user, game_session)
+                or game_session.status != 'active'):
             emit('error', {'msg': 'session not active'})
             return
 
@@ -864,6 +951,10 @@ def register_classic_handlers(socketio):
             emit('error', {'msg': 'round config missing'})
             return
 
+        if action == 'treasure_search' and not engine.treasure_enabled(config):
+            emit('error', {'msg': 'Treasure Search is disabled for this round'})
+            return
+
         # Contract #1: Mine/TS is blocked while a steal intent is open for this session.
         # (steal_targets has been sent but the player has not yet picked a target or cancelled)
         if action in ('mine', 'treasure_search'):
@@ -882,7 +973,7 @@ def register_classic_handlers(socketio):
             ).first()
 
             # Guard: must have at least one steal token
-            if not wallet or wallet.steal_tokens < 1:
+            if not wallet or wallet.steal_tokens < 1 or (economy.is_new_economy(game_session) and wallet.steal_attempts >= config.steal_attempt_limit):
                 emit('error', {'msg': 'no steal tokens'})
                 return
 
@@ -897,6 +988,7 @@ def register_classic_handlers(socketio):
                 # No valid targets — consume token, forfeit action slot immediately
                 state.clear_pending_action(player.id, game_round.id, problem_id)
                 wallet.steal_tokens -= 1
+                if economy.is_new_economy(game_session): wallet.steal_attempts += 1
                 wallet.gold = max(0, wallet.gold + config.steal_fallback_gold)
 
                 evt = StealEvent(
@@ -950,7 +1042,8 @@ def register_classic_handlers(socketio):
                 return
 
             # Valid targets exist — register intent; action slot preserved for cancel
-            state.set_steal_intent(player.id, session_id, game_round.id, problem_id)
+            state.set_steal_intent(player.id, session_id, game_round.id, problem_id,
+                                   target_ids={target['player_id'] for target in targets})
             emit('steal_targets', {'targets': targets})
             return
 
@@ -972,7 +1065,11 @@ def register_classic_handlers(socketio):
             # Consume an x2_mine item if the player has one
             x2_inv = classic_store.consume_item(player.id, session_id, 'x2_mine')
             if x2_inv:
-                result = engine.apply_x2_mine(result)
+                if economy.is_new_economy(game_session):
+                    result['gold'] += config.mine_reward
+                    result['breakdown'].append(f'Double Mine: +{config.mine_reward}')
+                else:
+                    result = engine.apply_x2_mine(result)
                 x2_active = True
         else:
             result = engine.calc_treasure_search_reward(config, solver_rank, timer_active)
@@ -983,7 +1080,13 @@ def register_classic_handlers(socketio):
 
         # D4: apply frozen upgrade bonus to the reward
         mods = get_session_player_modifiers(session_id, player.id)
-        if action == 'mine':
+        if economy.is_new_economy(game_session):
+            reward_wallet = economy.session_wallet(session_id, player.id)
+            requested = (mods.effective_mine_bonus + mods.effective_gear_mine_gold_delta) if action == 'mine' else mods.effective_treasure_bonus
+            permanent_gold = economy.capped_permanent_bonus(reward_wallet, config, requested, config.correct_answer_gold + (config.mine_reward if action == 'mine' else treasure_roll))
+            gold_gained += permanent_gold
+            if permanent_gold: breakdown.append(f'permanent bonus (capped): +{permanent_gold}')
+        elif action == 'mine':
             if mods.effective_mine_bonus != 0:
                 gold_gained += mods.effective_mine_bonus
                 breakdown.append(f'upgrade bonus: {mods.effective_mine_bonus:+d}')
@@ -1019,6 +1122,7 @@ def register_classic_handlers(socketio):
             solved_count, config.gem_milestone_count,
             current_streak, config.gem_streak_count,
         )
+        if economy.is_new_economy(game_session): gem_result = {'gems': 0, 'reason': None}
         gems_gained = gem_result['gems']
         gem_reason  = gem_result['reason']
 
@@ -1152,6 +1256,7 @@ def register_classic_handlers(socketio):
     # ── classic_buy_item ──────────────────────────────────────────────────────
 
     @socketio.on('classic_buy_item')
+    @_serialized_economy
     def handle_buy_item(data):
         """
         Player purchases a store item using gold.
@@ -1170,7 +1275,9 @@ def register_classic_handlers(socketio):
         player     = current_user
 
         game_session = db.session.get(GameSession, session_id)
-        if not game_session or game_session.status != 'active':
+        if (not game_session or game_session.mode != 'classic'
+                or not player_in_session_group(current_user, game_session)
+                or game_session.status != 'active'):
             emit('error', {'msg': 'session not active'})
             return
 
@@ -1235,6 +1342,7 @@ def register_classic_handlers(socketio):
     # ── classic_steal_pick_target ─────────────────────────────────────────────
 
     @socketio.on('classic_steal_pick_target')
+    @_serialized_economy
     def handle_steal_pick_target(data):
         """
         Player confirms which target they want to steal from.
@@ -1268,7 +1376,9 @@ def register_classic_handlers(socketio):
         problem_id = intent['problem_id']   # preserved for clear_pending_action calls
 
         game_session = db.session.get(GameSession, session_id)
-        if not game_session or game_session.status != 'active':
+        if (not game_session or game_session.mode != 'classic'
+                or not player_in_session_group(current_user, game_session)
+                or game_session.status != 'active'):
             state.clear_steal_intent(player.id)
             emit('error', {'msg': 'session not active'})
             return
@@ -1290,6 +1400,9 @@ def register_classic_handlers(socketio):
         actor_wallet = PlayerWallet.query.filter_by(
             player_id=player.id, session_id=session_id
         ).first()
+        if not actor_wallet or actor_wallet.steal_tokens < 1 or (economy.is_new_economy(game_session) and actor_wallet.steal_attempts >= config.steal_attempt_limit):
+            emit('error', {'msg': 'steal attempt limit reached or no tokens'})
+            return
         actor_mods = get_session_player_modifiers(session_id, player.id)
         target_wallet = PlayerWallet.query.filter_by(
             player_id=target_player_id, session_id=session_id
@@ -1305,8 +1418,16 @@ def register_classic_handlers(socketio):
             and (target_pcs is None or not engine.is_steal_shield_active(target_pcs))
         )
 
-        if not target_valid:
+        offered = intent.get('target_ids')
+        if target_player_id == player.id or (offered is not None and target_player_id not in offered):
+            emit('error', {'msg': 'Choose an enrolled opponent'})
+            return
+
+        # With a mini-game, the target's protection is evaluated when the
+        # thief confirms their hiding spot. Instant steals resolve here.
+        if not target_valid and (not target_wallet or config.steal_chest_count == 0):
             actor_wallet.steal_tokens -= 1
+            if economy.is_new_economy(game_session): actor_wallet.steal_attempts += 1
             state.clear_steal_intent(player.id)
             state.clear_pending_action(player.id, game_round.id, problem_id)
             _resolve_stranger_steal(
@@ -1324,6 +1445,7 @@ def register_classic_handlers(socketio):
 
         # ── Consume token (AD-28) ─────────────────────────────────────────────
         actor_wallet.steal_tokens -= 1
+        if economy.is_new_economy(game_session): actor_wallet.steal_attempts += 1
         state.clear_steal_intent(player.id)
         state.clear_pending_action(player.id, game_round.id, problem_id)
 
@@ -1332,7 +1454,7 @@ def register_classic_handlers(socketio):
             config.steal_percent,
             config.steal_min_cap,
             config.steal_max_cap,
-            actor_mods.effective_gear_steal_gold_delta,
+            0 if economy.is_new_economy(game_session) else actor_mods.effective_gear_steal_gold_delta,
         )
 
         if config.steal_chest_count == 0:
@@ -1416,7 +1538,9 @@ def register_classic_handlers(socketio):
         state.clear_steal_intent(player.id)   # token NOT consumed
 
         game_session = db.session.get(GameSession, session_id)
-        if not game_session or game_session.status != 'active':
+        if (not game_session or game_session.mode != 'classic'
+                or not player_in_session_group(current_user, game_session)
+                or game_session.status != 'active'):
             emit('error', {'msg': 'session not active'})
             return
 
@@ -1449,6 +1573,7 @@ def register_classic_handlers(socketio):
         ))
 
     @socketio.on('classic_treasure_select_chest')
+    @_serialized_economy
     def handle_treasure_select_chest(data):
         if not current_user.is_authenticated:
             emit('error', {'msg': 'not authenticated'})
@@ -1469,6 +1594,7 @@ def register_classic_handlers(socketio):
         )
 
     @socketio.on('classic_steal_select_container')
+    @_serialized_economy
     def handle_steal_select_container(data):
         if not current_user.is_authenticated:
             emit('error', {'msg': 'not authenticated'})
@@ -1491,6 +1617,7 @@ def register_classic_handlers(socketio):
     # ── classic_steal_mini_game_pick ──────────────────────────────────────────
 
     @socketio.on('classic_steal_mini_game_pick')
+    @_serialized_economy
     def handle_steal_mini_game_pick(data):
         """
         Player picks a chest index during the steal mini-game.
@@ -1518,7 +1645,9 @@ def register_classic_handlers(socketio):
             return
 
         game_session = db.session.get(GameSession, session_id)
-        if not game_session or game_session.status != 'active':
+        if (not game_session or game_session.mode != 'classic'
+                or not player_in_session_group(current_user, game_session)
+                or game_session.status != 'active'):
             state.clear_steal_minigame(player.id)
             emit('error', {'msg': 'session not active'})
             return
@@ -1558,6 +1687,10 @@ def register_classic_handlers(socketio):
             and (target_pcs is None or not engine.is_steal_shield_active(target_pcs))
         )
 
+        if not 1 <= chest_index <= config.steal_chest_count:
+            emit('error', {'msg': 'invalid hiding spot'})
+            return
+
         won_chest = chest_index in winning_chests
         state.update_steal_minigame(
             player.id,
@@ -1574,6 +1707,8 @@ def register_classic_handlers(socketio):
         )
 
         if won_chest and target_still_valid:
+            if economy.is_new_economy(game_session):
+                steal_amount = engine.calc_steal_amount(target_wallet.gold, config.steal_percent, config.steal_min_cap, config.steal_max_cap)
             _resolve_steal_success(
                 socketio, session_id, game_round.id,
                 player, actor_wallet,
@@ -1608,6 +1743,7 @@ def register_classic_handlers(socketio):
             )
 
     @socketio.on('classic_treasure_pick_chest')
+    @_serialized_economy
     def handle_treasure_pick_chest(data):
         if not current_user.is_authenticated:
             emit('error', {'msg': 'not authenticated'})
@@ -1638,6 +1774,12 @@ def register_classic_handlers(socketio):
             emit('error', {'msg': 'invalid chest selection'})
             return
 
+        modern = economy.is_new_economy(db.session.get(GameSession, session_id))
+        if modern:
+            config = economy.current_config(session_id)
+            # Only the selected chest gets pity. Other reveals keep their base roll.
+            chance = engine.treasure_success_chance(selected['fill_chance'], wallet.treasure_failures, config.treasure_pity_increment, config.treasure_pity_cap)
+            selected['filled'] = random.random() < chance
         reward_details = None
         if selected['filled']:
             reward_details = _grant_treasure_reward(
@@ -1648,6 +1790,8 @@ def register_classic_handlers(socketio):
                 steal_token_cap=pending['steal_token_cap'],
             )
 
+        if modern:
+            wallet.treasure_failures = 0 if reward_details and reward_details.get('granted') else wallet.treasure_failures + 1
         game_round = db.session.get(GameRound, pending.get('round_id'))
         if game_round:
             problem_id = pending.get('problem_id')
@@ -1739,6 +1883,7 @@ def register_classic_handlers(socketio):
         _emit_leaderboard(socketio, session_id)
 
     @socketio.on('classic_stage_event_closed')
+    @_serialized_economy
     def handle_stage_event_closed(data):
         if not current_user.is_authenticated:
             emit('error', {'msg': 'not authenticated'})
@@ -1781,7 +1926,9 @@ def register_classic_handlers(socketio):
         player     = current_user
 
         game_session = db.session.get(GameSession, session_id)
-        if not game_session or game_session.status != 'active':
+        if (not game_session or game_session.mode != 'classic'
+                or not player_in_session_group(current_user, game_session)
+                or game_session.status != 'active'):
             emit('error', {'msg': 'session not active'})
             return
 
@@ -1806,6 +1953,9 @@ def register_classic_handlers(socketio):
             return
 
         # Clarification E-2: single atomic commit for consume + grant
+        if not _manual_shield_base_duration(config):
+            emit('error', {'msg': 'Shield Tokens are disabled for this round'})
+            return
         with state.get_lock(session_id):
             pcs = PlayerClassicState.query.filter_by(
                 player_id=player.id, session_id=session_id
@@ -1897,23 +2047,34 @@ def register_classic_handlers(socketio):
             emit('error', {'message': 'session_id required'})
             return
 
+        game_session = db.session.get(GameSession, session_id)
+        if not game_session or game_session.mode != 'classic':
+            emit('error', {'message': 'Session not found'})
+            return
         join_room(f'classic_{session_id}')
+        join_room(supervision_room(session_id))
         emit('admin_watch_ack', {'session_id': session_id})
+        # Recover events missed while this admin tab was disconnected.
+        enrolled = RoundPlayer.query.filter_by(session_id=session_id).options(
+            joinedload(RoundPlayer.player)).all()
+        emit('player_joined', {'players': [row.player.username for row in enrolled]})
+        emit('leaderboard_update', {'leaderboard': _leaderboard_rows(session_id)})
+        emit('admin_summary_update', render_admin_supervision_summary_payload(session_id))
 
     # end register_classic_handlers
 
 
 # ── Module-level helper (not a socket handler) ────────────────────────────────
 
-def _emit_leaderboard(socketio, session_id: int) -> None:
-    """Broadcast the current gold leaderboard to the classic session room."""
+def _leaderboard_rows(session_id: int) -> list[dict]:
     wallets = (
         PlayerWallet.query
         .filter_by(session_id=session_id)
+        .options(joinedload(PlayerWallet.player))
         .order_by(PlayerWallet.gold.desc())
         .all()
     )
-    leaderboard = [
+    return [
         {
             'username': w.player.username,
             'gold': w.gold,
@@ -1922,13 +2083,17 @@ def _emit_leaderboard(socketio, session_id: int) -> None:
         }
         for w in wallets
     ]
-    socketio.emit('leaderboard_update', {'leaderboard': leaderboard},
+
+
+def _emit_leaderboard(socketio, session_id: int) -> None:
+    """Broadcast authoritative balances after the game transaction commits."""
+    socketio.emit('leaderboard_update', {'leaderboard': _leaderboard_rows(session_id)},
                   room=f'classic_{session_id}')
 
 
 def _emit_admin_summary_update(socketio, session_id: int) -> None:
     payload = render_admin_supervision_summary_payload(session_id)
-    socketio.emit('admin_summary_update', payload, room=f'classic_{session_id}')
+    socketio.emit('admin_summary_update', payload, room=supervision_room(session_id))
 
 
 def _resolve_stranger_steal(
@@ -1986,6 +2151,7 @@ def _resolve_stranger_steal(
     state.append_action_log(actor_player.id, session_id, log_entry)
     result_payload = {
         'outcome': outcome,
+        'successful': outcome == 'stranger_target_invalid',
         'gold_gained': gold_amount,
         'new_balance': actor_wallet.gold,
         'new_tokens': actor_wallet.steal_tokens,

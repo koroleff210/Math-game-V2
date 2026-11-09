@@ -284,6 +284,13 @@ def get_session_player_modifiers(session_id: int, player_id: int):
     values so gameplay is not broken.  Absence should not normally occur
     (join creates the snapshot; round-start is a safety net).
     """
+    from app.services.economy import current_config, is_new_economy
+    from app.models.game import GameSession
+    session = db.session.get(GameSession, session_id)
+    if is_new_economy(session):
+        config = current_config(session_id)
+        if config and config.standardized_competition:
+            return _DefaultModifiers()
     row = SessionParticipantSnapshot.query.filter_by(
         session_id=session_id,
         player_id=player_id,

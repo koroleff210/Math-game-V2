@@ -3,19 +3,22 @@ from io import BytesIO
 import math
 from types import SimpleNamespace
 from uuid import uuid4
+from pathlib import Path
 
-from flask import url_for
+from flask import current_app, url_for
 from PIL import Image
 
 from app.extensions import db
 from app.models.gear import GearItemDefinition
 from app.models.media import UploadedAsset
-from app.services.avatar import build_player_avatar_view, list_available_face_keys
+from app.services.avatar import (build_player_avatar_view, list_available_face_keys,
+                                list_available_avatar_asset_keys, build_packaged_gear_reference_layers,
+                                AVATAR_FOLDERS)
 from app.services.gear import resolve_gear_icon_static_path
 from app.services.uploaded_media import asset_url, remove_image, validate_image, write_image
 
 CANVAS = (1100, 1200)
-SLOTS = {'face': 'Face', 'head': 'Headgear', 'chest': 'Chest', 'boots': 'Boots',
+SLOTS = {'face': 'Face', 'head': 'Headgear', 'chest': 'Chest', 'boots': 'Boots / legs',
          'main_hand': 'Main hand', 'off_hand': 'Off hand'}
 LAYER_NAMES = {'face': {'front': 'face'}, 'head': {'front': 'head-front', 'back': 'head-back'},
                'chest': {'front': 'chest', 'underlay': 'chest-underlay'},
@@ -69,8 +72,27 @@ def catalog():
                           active=item.is_active, price=item.diamond_cost,
                           icon=resolve_gear_icon_static_path(item_id=item.id, slot_type=item.slot_type,
                                image_key=item.image_key, avatar_asset_key=item.avatar_asset_key)))
+    references = list(items)
+    signatures = {(item['slot'], str(item['layers'])) for item in items}
+    for slot in SLOTS:
+        if slot == 'face':
+            continue
+        keys = set(list_available_avatar_asset_keys(slot))
+        folder = Path(current_app.static_folder) / 'avatars' / AVATAR_FOLDERS[slot]
+        if folder.is_dir():
+            keys.update(path.name for path in folder.iterdir() if path.is_dir()
+                        and any((path / body / 'front.png').is_file() for body in ('m', 'f', 'shared')))
+        for key in sorted(keys):
+            layers = {body: {label: versioned(path) for label, path in
+                            build_packaged_gear_reference_layers(slot, key, body).items()} for body in ('m', 'f')}
+            signature = (slot, str(layers))
+            if not any(layers.values()) or signature in signatures:
+                continue
+            signatures.add(signature)
+            references.append(dict(id=f'packaged:{slot}:{key}', name=f'Bundled {SLOTS[slot]} {key}',
+                                   slot=slot, layers=layers, active=True, reference_only=True))
     return dict(width=CANVAS[0], height=CANVAS[1], slots=SLOTS, layer_names=LAYER_NAMES,
-                order=ORDER, base=base, faces=faces, items=items)
+                order=ORDER, base=base, faces=faces, items=items, reference_items=references)
 
 
 def target_asset(slot, target, variant, layer, *, lock=False):
@@ -107,7 +129,8 @@ def editor_view(slot, target, variant, layer):
     state = asset.editor_state or {}
     return dict(revision=asset.sha256, source_url=url_for('gear_studio.source', asset_id=asset.id)
                 if state.get('source_name') else asset_url(asset) + '?v=' + asset.sha256[:16],
-                transform=state.get('transform'), name=asset.display_name)
+                transform=state.get('transform'), name=asset.display_name,
+                preserve_source_frame=bool(state.get('preserve_source_frame')))
 
 
 def _number(data, key, minimum, maximum):
@@ -120,7 +143,7 @@ def _number(data, key, minimum, maximum):
     return value
 
 
-def render_layer(data, transform):
+def render_layer(data, transform, *, preserve_source_frame=False):
     cleaned, extension, _mime, _w, _h = validate_image(data)
     if extension != 'png':
         raise ValueError('Import a PNG image.')
@@ -129,7 +152,8 @@ def render_layer(data, transform):
         bounds = image.getchannel('A').getbbox()
         if bounds is None:
             raise ValueError('This PNG is completely transparent. Choose visible artwork.')
-        image = image.crop(bounds)
+        if not preserve_source_frame:
+            image = image.crop(bounds)
         x, y = (_number(transform, key, -4400, 4400) for key in ('x', 'y'))
         width = _number(transform, 'width', 1, 4400)
         angle = _number(transform, 'rotation', -180, 180)
@@ -167,7 +191,9 @@ def save_element(data, png):
     name = str(data.get('name') or '').strip()
     if not 1 <= len(name) <= (128 if slot == 'face' else 80):
         raise ValueError('Enter a name of 1–' + ('128' if slot == 'face' else '80') + ' characters.')
-    source, exported, icon_bytes, transform = render_layer(png, data.get('transform') or {})
+    preserve_frame = data.get('preserve_source_frame') is True
+    source, exported, icon_bytes, transform = render_layer(png, data.get('transform') or {},
+                                                        preserve_source_frame=preserve_frame)
     if target == 'new' and slot != 'face':
         try:
             price = int(data.get('price', 0))
@@ -201,7 +227,9 @@ def save_element(data, png):
         for key in ('storage_name', 'media_type', 'sha256'):
             setattr(asset, key, saved_layer[key])
         asset.display_name = name
-        asset.editor_state = dict(version=1, source_name=saved_source['storage_name'], transform=transform)
+        asset.editor_state = dict(version=2 if preserve_frame else 1,
+                                 preserve_source_frame=preserve_frame,
+                                 source_name=saved_source['storage_name'], transform=transform)
         if slot != 'face' and layer == 'front':
             icon = UploadedAsset.query.filter_by(category='gear_icon', gear_item_id=item.id,
                                                  variant=variant, layer='icon').first()

@@ -1,0 +1,21 @@
+.blacksmith-page{display:flex;justify-content:space-between;align-items:flex-start;gap:clamp(20px,4vw,80px)}
+.blacksmith-layout{flex:0 1 680px;min-width:500px;width:54%}
+.smith-comparison{flex:0 1 380px;min-width:280px;max-width:380px;color:#30281f;box-sizing:border-box}
+.smith-inventory-details{box-sizing:border-box;background:rgba(255,246,225,.83);border:1px solid rgba(100,77,44,.3);border-radius:16px;box-shadow:0 10px 28px rgba(25,15,7,.16);backdrop-filter:blur(9px);overflow:hidden}
+.smith-inventory-details>summary{box-sizing:border-box;padding:16px 18px;cursor:pointer;font-size:1.08rem;font-weight:800}
+.smith-inventory-details>summary span{font-size:.9em;color:#675643}
+.smith-inventory-details[open]>summary{border-bottom:1px solid rgba(117,91,55,.2)}
+.smith-inventory-content{box-sizing:border-box;padding:12px 14px 16px;max-height:max(120px,calc(50dvh - 88px));overflow-y:auto;scrollbar-width:thin}
+.smith-inventory-details:not([open])>.smith-inventory-content{display:none}
+.smith-inventory-hint{font-size:.8rem;line-height:1.45;color:#675643}
+.smith-owned-list{list-style:none;padding:0;margin:0;display:grid;gap:9px}
+.smith-owned-item{display:flex;align-items:center;gap:11px;padding:10px;border:1px solid rgba(117,91,55,.13);border-radius:12px;background:rgba(255,253,247,.54);font-size:.85rem}
+.smith-owned-item>div{min-width:0;overflow-wrap:anywhere}
+.smith-owned-item.is-equipped{background:rgba(213,234,215,.8);border-color:#91b29b;box-shadow:inset 0 0 0 1px #ffffff6b}
+.smith-gear-icon{position:relative;display:grid;place-items:center;width:55px;height:55px;flex:0 0 55px;border:1px solid #b8af9e4d;border-radius:13px;background:rgba(255,253,249,.88)}
+.smith-gear-icon img{width:48px;height:48px;object-fit:contain}
+.is-equipped .smith-gear-icon::after{content:'';position:absolute;right:-4px;bottom:-4px;width:10px;height:10px;border:3px solid #f7faf1;border-radius:50%;background:#63996b}
+.smith-owned-list small{display:block;font-size:.73rem;line-height:1.5;color:#645641}
+.smith-inventory-link{display:inline-block;margin-top:16px;font-size:.82rem;color:#315c65;font-weight:700}
+@media(max-width:1100px) and (min-width:981px){.blacksmith-page{gap:18px;padding-left:16px;padding-right:16px}.blacksmith-layout{min-width:0;flex:1 1 60%}.smith-comparison{min-width:260px;flex:0 1 310px}}
+@media(max-width:980px){.blacksmith-page{display:flex;flex-direction:column;gap:16px}.blacksmith-layout{width:100%;flex:auto;min-width:0;max-width:680px}.smith-comparison{order:-1;width:100%;max-width:680px;min-width:0;flex:none}.smith-inventory-content{max-height:max(120px,calc(50dvh - 88px))}}

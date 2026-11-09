@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% from 'shared/_learning_macros.html' import pct, metrics %}
+{% block title %}My Session Results{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static',filename='css/learning.css') }}">{% endblock %}
+{% block content %}<main class="learning">
+{% if preview %}<p class="lr-warning">Teacher preview of this student's report. Publication controls access for students.</p><a href="{{ url_for('learning.session_detail',session_id=report.session.id) }}">← Teacher report</a>{% else %}<a href="{{ url_for('player.progress') }}">← My Progress</a>{% endif %}
+<h1>{{ report.session.display_label }}</h1><p>Your results · {{ report.session.mode }} · {{ report.rounds|length }} rounds</p>
+{{ metrics(report.metrics) }}
+{% if report.feedback %}<section class="lr-panel"><h2>Teacher feedback</h2><pre>{{ report.feedback }}</pre></section>{% endif %}
+{% if report.settings and not report.settings.include_in_progress %}<p class="lr-warning">This session is available for review and does not count toward your progress totals.</p>{% endif %}
+<section class="lr-panel"><h2>Topic evidence</h2>{% for t in report.topics %}<div class="lr-chart-row"><span>{{ t.topic }}</span><div class="lr-track"><div class="lr-bar" style="width:{{ ((t.metrics.first_accuracy or 0)*100)|round(1) }}%"></div></div><span>{{ t.metrics.first_correct }}/{{ t.metrics.first_known }} first try</span></div>{% endfor %}<p class="muted"><small>These are practice results. Repeated questions and success after retries do not establish long-term retention.</small></p></section>
+<section class="lr-panel"><h2>Review your questions</h2><div class="lr-table-scroll"><table><thead><tr><th>Question</th><th>Context</th><th>Your result</th><th>Review</th></tr></thead><tbody>{% for r in report.students %}{% for c in r.cells %}{% set q=report.questions[loop.index0] %}<tr><td>{{ q.title }}<br><small>Round {{ q.round_number }} · {{ q.topic }}</small></td><td>{{ q.context }}</td><td>{{ c.label }}</td><td>{% if preview %}<a href="{{ url_for('learning.result_detail',session_id=report.session.id,question_id=q.id,player_id=r.player_id) }}">Teacher question review</a>{% else %}<a href="{{ url_for('learning.student_result',session_id=report.session.id,question_id=q.id) }}">Question &amp; answers</a>{% endif %}</td></tr>{% endfor %}{% endfor %}</tbody></table></div></section>
+</main>{% endblock %}

@@ -15,6 +15,18 @@ from datetime import datetime, timezone
 
 from app.extensions import db
 from app.models.classic import StoreItem, PlayerInventory, PlayerWallet
+from app.models.game import GameSession
+from app.services import economy
+
+
+def get_or_create_system_double_mine(session_id):
+    item = StoreItem.query.filter_by(session_id=session_id, bonus_type='x2_mine', is_system=True).first()
+    if item is None:
+        item = StoreItem(session_id=session_id, name='Treasure Double Mine', cost=0,
+                         currency='gems', bonus_type='x2_mine', is_system=True)
+        db.session.add(item)
+        db.session.flush()
+    return item
 
 
 def get_or_create_system_sc(session_id: int) -> StoreItem:
@@ -93,6 +105,14 @@ def purchase_item(player_id: int, session_id: int, item_id: int,
         player_id=player_id, session_id=session_id
     ).first()
     current_gold = wallet.gold if wallet else 0
+    modern = economy.is_new_economy(db.session.get(GameSession, session_id))
+    if modern:
+        config = economy.current_config(session_id)
+        if item.bonus_type == 'steal_token':
+            if wallet.steal_attempts >= config.steal_attempt_limit:
+                return False, 'session steal attempt limit reached', current_gold
+        elif not economy.bonus_capacity(player_id, session_id, item.bonus_type):
+            return False, 'bonus capacity reached (one charge per type)', current_gold
 
     # Currency-aware affordability check
     currency = getattr(item, 'currency', 'gold') or 'gold'

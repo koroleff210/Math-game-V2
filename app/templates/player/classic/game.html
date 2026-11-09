@@ -1,11 +1,13 @@
 {% extends "base.html" %}
+{% from "shared/_resource_icon.html" import resource_icon, combo_preloads %}
 
 {% block title %}Classic Game — Session #{{ game_session.id }}{% endblock %}
 
 {% block head %}
+{{ combo_preloads() }}
 <script src="/static/js/socket.io.min.js"></script>
-<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
-<script src="{{ url_for('static', filename='js/problem_graph_renderer.js') }}"></script>
+<script src="{{ url_for('static', filename='js/realtime.js', v='20261019-economy-1') }}"></script>
+<script src="{{ url_for('static', filename='js/problem_graph_renderer.js', v='20261018') }}"></script>
 <script>
     window.MathJax = {
         tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
@@ -298,7 +300,7 @@
         --player-ui-rust: #8f3f2c;
         --player-ui-teal: #2f6f78;
         --player-ui-iron: #5d5f63;
-        --round-bg-image: {% if current_round_background_url %}url("{{ current_round_background_url }}"){% else %}none{% endif %};
+        --round-bg-image: {% if current_round_background_url %}url("{{ current_round_background_url|ui_image }}"){% else %}none{% endif %};
         margin: 0;
         position: relative;
         isolation: isolate;
@@ -385,7 +387,7 @@
         padding: 12px 14px;
         background-image:
             linear-gradient(180deg, rgba(255, 252, 245, 0.54), rgba(244, 236, 224, 0.36)),
-            url("{{ url_for('static', filename='classic_ui/player_ui/panel_texture.png') }}");
+            url("{{ url_for('static', filename='classic_ui/player_ui/panel_texture.png')|ui_image }}");
         background-repeat: no-repeat, repeat;
         background-position: center, center;
         background-size: auto, 240px 240px;
@@ -495,7 +497,7 @@
         background-image:
             linear-gradient(180deg, rgba(255, 252, 244, 0.80), rgba(242, 230, 210, 0.70)),
             radial-gradient(circle at top right, rgba(205, 165, 94, 0.14), transparent 34%),
-            url("{{ url_for('static', filename='classic_ui/player_ui/panel_texture.png') }}");
+            url("{{ url_for('static', filename='classic_ui/player_ui/panel_texture.png')|ui_image }}");
         border-color: rgba(124, 95, 43, 0.28);
         box-shadow:
             inset 0 1px 0 rgba(255, 251, 240, 0.9),
@@ -510,7 +512,7 @@
         background-image:
             linear-gradient(180deg, rgba(245, 241, 232, 0.80), rgba(232, 224, 210, 0.72)),
             radial-gradient(circle at top left, rgba(61, 113, 121, 0.10), transparent 36%),
-            url("{{ url_for('static', filename='classic_ui/player_ui/panel_texture.png') }}");
+            url("{{ url_for('static', filename='classic_ui/player_ui/panel_texture.png')|ui_image }}");
         border-color: rgba(86, 103, 106, 0.22);
     }
 
@@ -518,7 +520,7 @@
     #store-slot-panel {
         background-image:
             linear-gradient(180deg, rgba(244, 239, 230, 0.80), rgba(236, 228, 214, 0.72)),
-            url("{{ url_for('static', filename='classic_ui/player_ui/panel_texture.png') }}");
+            url("{{ url_for('static', filename='classic_ui/player_ui/panel_texture.png')|ui_image }}");
         border-color: rgba(104, 85, 56, 0.16);
         box-shadow:
             inset 0 1px 0 rgba(255, 250, 241, 0.62),
@@ -1031,7 +1033,7 @@
         padding: 10px 12px 8px;
         background:
             linear-gradient(180deg, rgba(248, 241, 228, 0.74), rgba(239, 229, 211, 0.64)),
-            url("{{ url_for('static', filename='classic_ui/player_ui/panel_texture.png') }}");
+            url("{{ url_for('static', filename='classic_ui/player_ui/panel_texture.png')|ui_image }}");
         border: 1px solid rgba(110, 91, 61, 0.12);
         box-shadow:
             inset 0 1px 0 rgba(255, 251, 243, 0.72),
@@ -3075,7 +3077,7 @@
                                 {% if layer %}
                                     <img
                                         class="player-avatar-layer"
-                                        src="{{ layer.static_path }}"
+                                        src="{{ layer.static_path|ui_image }}"
                                         alt=""
                                     >
                                 {% endif %}
@@ -3093,77 +3095,56 @@
                     </div>
                 </div>
                 <div id="currency-bar">
-                    <span id="gold-display"><span class="resource-label">Gold</span><span class="resource-value"><span id="gold-amount">0</span></span></span>
-                    <span id="gems-display"><span class="resource-label">Gems</span><span class="resource-value"><span id="gems-amount">0</span></span></span>
-                    <span id="steal-tokens-display"><span class="resource-label">Steal Tokens</span><span class="resource-value resource-value--tokens"><span id="steal-token-icon-slot"></span><span id="steal-tokens-amount">0</span>/<span id="steal-tokens-max">1</span></span></span>
-                    <span id="streak-display"><span class="resource-label">Streak</span><span class="resource-value"><span id="streak-value">x0</span></span></span>
+                    <span id="gold-display">{{ resource_icon('gold') }}<span class="visually-hidden">Gold</span><span class="resource-value"><span id="gold-amount">0</span></span></span>
+                    <span id="gems-display">{{ resource_icon('gem') }}<span class="visually-hidden">Gems</span><span class="resource-value"><span id="gems-amount">0</span></span></span>
+                    <span id="steal-tokens-display"{% if round_config and not round_config.steal_attempt_limit %} style="display:none"{% endif %}><span class="visually-hidden">Steal tokens</span><span class="resource-value resource-value--tokens"><span id="steal-token-icon-slot"></span><span id="steal-tokens-amount">0</span>/<span id="steal-tokens-max">1</span></span></span>
+                    <span id="streak-display" title="Consecutive correct answers">{{ resource_icon('streak', round_config.combo_start|default(3), (round_config.combo_start|default(3)) * 2) }}<span class="visually-hidden">Consecutive correct answers</span><span class="resource-value"><span id="streak-value">0</span></span></span>
                 </div>
             </section>
 
             <section class="rail-panel" id="actions-panel">
                 <h3>Actions</h3>
-                <div id="shield-token-row">
+                <div id="shield-token-row"{% if round_config and not round_config.active_shield_duration %} style="display:none"{% endif %}>
                     <div id="shield-token-meta">
-                        <span class="support-subtle token-status-label"><span id="shield-token-icon-slot"></span> Shield Token</span>
+                        <span class="support-subtle token-status-label" title="Shield tokens"><span id="shield-token-icon-slot"></span><span class="visually-hidden">Shield tokens</span></span>
                         <strong id="shield-token-count">0</strong>
                     </div>
                     <button id="btn-activate-shield" type="button" onclick="activateShield()" disabled>Activate</button>
                 </div>
                 <div id="active-bonuses"></div>
                 <div id="shield-status-message" aria-live="polite"></div>
-                <button id="store-toggle" type="button" onclick="toggleStore()">Open Store</button>
+                <button id="store-toggle" type="button" onclick="toggleStore()">Store</button>
             </section>
 
         <section class="rail-panel support-lower-slot-panel" id="round-summary-panel">
             <h3>This Round</h3>
-            <div class="support-subsection">
-                <h4>Total Bonuses</h4>
+            <div class="round-rules">
+                {% if game_session.economy_version|default(1) >= 2 %}<div class="round-rule"><span>Correct: +<strong>{{ round_config.correct_answer_gold }}</strong> {{ resource_icon('gold') }} · combo +{{ round_config.combo_gold }} from {{ round_config.combo_start }}</span></div>{% endif %}
+                <div class="round-rule"><span>Mine: earn <strong>{{ round_config.mine_reward if round_config else '?' }}</strong> {{ resource_icon('gold') }}</span></div>
+                {% if treasure_enabled %}<div class="round-rule"><span>Treasure: earn <strong>{% if round_config %}{{ round_config.treasure_search_reward }}{% if round_config.treasure_search_max_reward != round_config.treasure_search_reward %}–{{ round_config.treasure_search_max_reward }}{% endif %}{% else %}?{% endif %}</strong> {{ resource_icon('gold') }}
+                {% if round_config and (round_config.gem_treasure_chance > 0 or round_config.treasure_steal_token_chance > 0 or round_config.treasure_active_shield_chance > 0 or round_config.treasure_second_chance_chance > 0 or (game_session.economy_version|default(1) >= 2 and round_config.treasure_double_mine_chance > 0)) %}
+                <span class="rule-extra">Chance of
+                  {% if round_config.gem_treasure_chance > 0 %}{{ resource_icon('gem') }}{% endif %}
+                  {% if round_config.treasure_steal_token_chance > 0 %}{{ resource_icon('steal_token') }}{% endif %}
+                  {% if round_config.treasure_active_shield_chance > 0 %}{{ resource_icon('shield') }}{% endif %}
+                  {% if round_config.treasure_second_chance_chance > 0 %}{{ resource_icon('second_chance') }}{% endif %}
+                  {% if game_session.economy_version|default(1) >= 2 and round_config.treasure_double_mine_chance > 0 %}{{ resource_icon('double_mine') }}{% endif %}
+                </span>{% endif %}</span></div>{% endif %}
+                <div class="round-rule"><span>{% if round_config and round_config.attempts_per_problem == -1 %}Unlimited attempts{% elif round_config %}<strong>{{ round_config.attempts_per_problem }}</strong> {{ 'attempt' if round_config.attempts_per_problem == 1 else 'attempts' }}{% else %}? attempts{% endif %} per problem</span></div>
+                {% if game_session.economy_version|default(1) >= 2 and round_config.gem_milestone_count > 0 %}<div class="round-rule"><span>Every {{ round_config.gem_milestone_count }} correct: +1 {{ resource_icon('gem') }}</span></div>{% endif %}
+                <div class="round-rule"><span>Wrong answer: lose <strong>{{ round_config.wrong_answer_penalty if round_config else '?' }}</strong> {{ resource_icon('gold') }}</span></div>
+                <div class="round-rule" id="timer-bonus-row" hidden>{{ resource_icon('timer') }}<span>Mine or search: <strong>+{{ round_config.bonus_timer_gold if round_config else 0 }}</strong> {{ resource_icon('gold') }}<br><span id="timer-bonus-display"
+                    data-bonus-duration="{{ round_config.bonus_timer_duration if round_config else 0 }}"
+                    data-bonus-gold="{{ round_config.bonus_timer_gold if round_config else 0 }}"
+                    data-round-started-at="{{ game_round.started_at.isoformat() if game_round and game_round.started_at else '' }}"></span></span></div>
+            </div>
+            <details class="support-subsection">
+                <summary>Bonus inventory</summary>
                 <dl id="bonus-summary-list">
-                    <dt><span id="summary-mine-icon-slot"></span> Mine Bonus</dt>
-                    <dd id="bonus-summary-mine">0</dd>
-                    <dt><span id="summary-second-chance-icon-slot"></span> Second Chance</dt>
-                    <dd id="bonus-summary-shield">0</dd>
+                    <dt><span id="summary-mine-icon-slot"></span> Double mine</dt><dd id="bonus-summary-mine">0</dd>
+                    <dt><span id="summary-second-chance-icon-slot"></span> Second chance</dt><dd id="bonus-summary-shield">0</dd>
                 </dl>
-            </div>
-
-            <div class="support-subsection">
-                        <h4>Round Rules</h4>
-                        <dl class="rules-list">
-                            <dt>Mine reward</dt>
-                            <dd>{{ round_config.mine_reward if round_config else '?' }}</dd>
-                            <dt>Treasure range</dt>
-                            <dd>
-                                {% if round_config %}
-                                    {{ round_config.treasure_search_reward }}–{{ round_config.treasure_search_max_reward }}
-                                {% else %}
-                                    ?
-                                {% endif %}
-                            </dd>
-                            <dt>Attempts per Problem</dt>
-                            <dd>
-                                {% if round_config %}
-                                    {% if round_config.attempts_per_problem == -1 %}Unlimited{% else %}{{ round_config.attempts_per_problem }}{% endif %}
-                                {% else %}
-                                    ?
-                                {% endif %}
-                            </dd>
-                            <dt>Wrong penalty</dt>
-                            <dd>{% if round_config %}{{ round_config.wrong_answer_penalty }}{% else %}?{% endif %}</dd>
-                            <dt>Timer bonus</dt>
-                            <dd
-                                id="timer-bonus-display"
-                                data-bonus-duration="{% if round_config %}{{ round_config.bonus_timer_duration }}{% else %}0{% endif %}"
-                                data-bonus-gold="{% if round_config %}{{ round_config.bonus_timer_gold }}{% else %}0{% endif %}"
-                                data-round-started-at="{% if game_round and game_round.started_at %}{{ game_round.started_at.isoformat() }}{% else %}{% endif %}"
-                            >
-                                {% if round_config and round_config.bonus_timer_duration > 0 %}
-                                    +{{ round_config.bonus_timer_gold }} for {{ round_config.bonus_timer_duration }}s
-                                {% else %}
-                                    Off
-                                {% endif %}
-                            </dd>
-                        </dl>
-            </div>
+            </details>
         </section>
 
         <section class="rail-panel support-lower-slot-panel" id="store-slot-panel" hidden>
@@ -3183,7 +3164,6 @@
                 <div id="problem-selector-actions">
                     <button type="button" id="mobile-player-toggle" class="selector-utility-btn" onclick="togglePlayerDrawer()" aria-expanded="false" aria-controls="support-rail">Player</button>
                     <button type="button" id="mobile-info-toggle" class="selector-utility-btn" onclick="toggleInfoDrawer()" aria-expanded="false" aria-controls="context-rail">Round Info</button>
-                    <button type="button" id="game-fullscreen-toggle" class="selector-utility-btn" onclick="toggleGameplayFullscreen()" hidden aria-pressed="false">Fullscreen</button>
                 </div>
             </div>
             <div id="problem-chip-pager-row">
@@ -3194,7 +3174,7 @@
         </section>
 
         <section id="problem-workspace">
-            <div id="problem-empty-state">Choose a problem to start working. The lower interaction area stays stable while solve, reward, and steal states change.</div>
+            <div id="problem-empty-state">Choose a problem to begin.</div>
 
             <div id="problem-detail">
                 <div id="problem-stage">
@@ -3254,7 +3234,7 @@
                         <div id="interaction-shell-header">
                             <div id="interaction-state-kicker">Current Step</div>
                             <h3 id="interaction-state-title">Solve the current problem</h3>
-                            <p id="interaction-state-hint">Submit an answer below. When you solve it, this same panel will advance to the reward step.</p>
+                            <p id="interaction-state-hint">Answer correctly to choose a reward.</p>
                         </div>
 
                         <div id="solve-panel" class="interaction-region is-active">
@@ -3274,9 +3254,9 @@
 
                         <div id="action-panel" class="interaction-region">
                             <h3>Choose your action:</h3>
-                            <button id="btn-mine" onclick="chooseAction('mine')">Mine</button>
-                            <button id="btn-treasure-search" onclick="chooseAction('treasure_search')">Treasure Search</button>
-                            <button id="btn-steal" onclick="chooseAction('steal')" style="display:none;">Steal</button>
+                            <button id="btn-mine" onclick="chooseAction('mine')" title="Additional mining reward; bonuses may increase it"><span class="action-button-content">Mine <strong>{{ round_config.mine_reward if round_config else '?' }}</strong> {{ resource_icon('gold') }}</span></button>
+                            <button id="btn-treasure-search" onclick="chooseAction('treasure_search')"{% if not treasure_enabled %} style="display:none"{% endif %}><span class="action-button-content">Treasure Search{% if game_session.economy_version|default(1) >= 2 %} <strong>+{{ round_config.treasure_search_reward }}{% if round_config.treasure_search_max_reward != round_config.treasure_search_reward %}–{{ round_config.treasure_search_max_reward }}{% endif %}</strong> {{ resource_icon('gold') }}{% endif %} <span class="resource-icon" role="img" aria-label="chest"><img src="{{ url_for('static', filename='classic_ui/treasure/containers/chest_01_closed.png')|ui_image }}" alt="" width="28" height="28" decoding="async"></span></span></button>
+                            <button id="btn-steal" onclick="chooseAction('steal')" style="display:none;"><span class="action-button-content">Steal <strong>{{ '%g'|format(round_config.steal_percent * 100) if round_config else '?' }}%</strong></span></button>
                         </div>
 
                         <div id="steal-targets-panel" class="interaction-region">
@@ -3341,7 +3321,7 @@
 const SESSION_ID = {{ game_session.id }};
     const INITIAL_ROUND_ID = {{ (game_round.id if game_round else none) | tojson }};
     const INITIAL_ROUND_NUMBER = {{ (game_round.round_number if game_round else none) | tojson }};
-    const ROUND_BACKGROUND_URLS = {{ round_background_urls | tojson }};
+    const ROUND_BACKGROUND_URLS = {{ round_background_urls | map('ui_image') | list | tojson }};
 
     // Problem data indexed by id
     const problems = {};
@@ -3351,6 +3331,7 @@ const SESSION_ID = {{ game_session.id }};
     let currentStreak = 0;  // local mirror of server streak — reset on wrong, incremented on correct prompt
     let stealTokens = 0;    // local mirror of wallet.steal_tokens
     let tokenMaxCap = 1;           // round steal-token cap from frozen modifiers
+    const draftKey = 'classic-draft:{{ player.id }}:{{ game_round.id if game_round else 0 }}';
     let shieldExpiryTimer = null;  // handle for auto-hiding the shield badge
     let shieldCountdownInterval = null;
     let shieldMessageTimer = null;
@@ -3365,8 +3346,14 @@ const SESSION_ID = {{ game_session.id }};
     const timerBonusEl = document.getElementById('timer-bonus-display');
     let roundStartedAtIso = timerBonusEl && timerBonusEl.dataset ? timerBonusEl.dataset.roundStartedAt || '' : '';
     let timerBonusCountdownInterval = null;
-    const OVERLAY_ASSETS = {{ overlay_assets | tojson }};
+    const OVERLAY_ASSETS = {{ overlay_assets | ui_image_tree | tojson }};
     const DEBUG_OVERLAY_LAYOUTS = new URLSearchParams(window.location.search).get('overlay_debug') === '1';
+    function assetUrls(value) {
+        if (typeof value === 'string') return value.startsWith('/static/') ? [value] : [];
+        return value && typeof value === 'object' ? Object.values(value).flatMap(assetUrls) : [];
+    }
+    window.UIBackgroundPreloads = ROUND_BACKGROUND_URLS.concat(assetUrls(OVERLAY_ASSETS));
+    const RESOURCE_ICONS = {{ {'gold': resource_icon('gold'), 'gem': resource_icon('gem')} | tojson }};
     const TREASURE_BG_URLS = OVERLAY_ASSETS.treasure.backgrounds;
     const OVERLAY_LAYOUTS = {{ overlay_layouts | tojson }};
     const TREASURE_SLOT_LAYOUTS = OVERLAY_LAYOUTS.treasure.slot_layouts;
@@ -3385,21 +3372,22 @@ const SESSION_ID = {{ game_session.id }};
     const TOKEN_ICON_DEFS = {
         steal_shield: {
             label: 'Shield Token',
-            src: '{{ url_for("static", filename="classic_ui/icons/shield.png") }}',
+            src: '{{ url_for("static", filename="classic_ui/icons/shield.png")|ui_image }}',
             fallback: 'SH'
         },
         steal_token: {
             label: 'Steal Token',
-            src: '{{ url_for("static", filename="classic_ui/icons/steal_token.png") }}',
+            src: '{{ url_for("static", filename="classic_ui/icons/steal_token.png")|ui_image }}',
             fallback: 'ST'
         },
         second_chance: {
             label: 'Second Chance',
-            src: '{{ url_for("static", filename="classic_ui/icons/second_chance.png") }}',
+            src: '{{ url_for("static", filename="classic_ui/icons/second_chance.png")|ui_image }}',
             fallback: '2nd'
         },
         x2_mine: {
             label: 'x2 Mine',
+            src: '{{ url_for("static", filename="classic_ui/icons/double_mine.png")|ui_image }}',
             fallback: 'x2M'
         },
         x2_steal: {
@@ -3493,9 +3481,15 @@ const SESSION_ID = {{ game_session.id }};
         return index >= 0 ? ROUND_BACKGROUND_URLS[index] : '';
     }
 
+    let roundBackgroundRevision = 0;
     function applyRoundBackground(roundId, roundNumber) {
         const url = getRoundBackgroundUrl(roundId, roundNumber);
-        document.body.style.setProperty('--round-bg-image', url ? 'url(\"' + url + '\")' : 'none');
+        const revision = ++roundBackgroundRevision;
+        const apply = function () {
+            if (revision === roundBackgroundRevision) document.body.style.setProperty('--round-bg-image', url ? 'url("' + url + '")' : 'none');
+        };
+        if (url && window.PlayerUI) window.PlayerUI.imageReady(url).then(apply).catch(function () {});
+        else apply();
     }
     const STEAL_REVEAL_ICONS = OVERLAY_ASSETS.steal.reveal_icons;
     const STEAL_AVATAR_LAYOUT = {
@@ -3506,7 +3500,7 @@ const SESSION_ID = {{ game_session.id }};
         name: OVERLAY_LAYOUTS.steal.avatar.name || 'avatar',
     };
 
-    const socket = io();
+    const socket = GameRealtime.connect();
 
     function fullscreenTargetElement() {
         return document.getElementById('game-layout');
@@ -3707,7 +3701,7 @@ const SESSION_ID = {{ game_session.id }};
     function updateFullscreenToggleLabel() {
         const button = fullscreenToggleButton();
         if (!button) return;
-        const isActive = currentFullscreenElement() === fullscreenTargetElement();
+        const isActive = Boolean(currentFullscreenElement());
         button.textContent = isActive ? 'Exit Fullscreen' : 'Fullscreen';
         button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
     }
@@ -3811,7 +3805,8 @@ const SESSION_ID = {{ game_session.id }};
     function renderStreakCard() {
         const streakValueEl = document.getElementById('streak-value');
         if (!streakValueEl) return;
-        streakValueEl.textContent = 'x' + currentStreak;
+        streakValueEl.textContent = currentStreak;
+        updateComboIcon(document.querySelector('#streak-display [data-combo-icon]'), currentStreak);
     }
 
     function parseAspectRatio(value, fallback) {
@@ -3908,7 +3903,14 @@ const SESSION_ID = {{ game_session.id }};
         artboard.className = 'overlay-scene-artboard';
         artboard.style.width = roundPixelValue(artboardWidth) + 'px';
         artboard.style.height = roundPixelValue(artboardHeight) + 'px';
-        artboard.style.backgroundImage = config.backgroundUrl ? 'url("' + config.backgroundUrl + '")' : '';
+        if (config.backgroundUrl && window.PlayerUI) {
+            artboard.classList.add('ui-overlay-loading');
+            window.PlayerUI.imageReady(config.backgroundUrl).then(function () {
+                if (artboard.isConnected) artboard.style.backgroundImage = 'url("' + config.backgroundUrl + '")';
+            }).catch(function () {}).finally(function () { artboard.classList.remove('ui-overlay-loading'); });
+        } else {
+            artboard.style.backgroundImage = config.backgroundUrl ? 'url("' + config.backgroundUrl + '")' : '';
+        }
         if (config.backgroundColor) {
             artboard.style.backgroundColor = config.backgroundColor;
         }
@@ -3935,7 +3937,7 @@ const SESSION_ID = {{ game_session.id }};
     }
 
     function treasureBackgroundUrl(layoutCount) {
-        return TREASURE_BG_URLS[String(layoutCount)] || TREASURE_BG_URLS['1'] || '';
+        return TREASURE_BG_URLS[String(layoutCount)] || TREASURE_BG_URLS['4'] || TREASURE_BG_URLS['1'] || '';
     }
 
     function stealBackgroundUrl() {
@@ -3994,7 +3996,7 @@ const SESSION_ID = {{ game_session.id }};
         const source = overlayObject(chest);
         const explicitSlot = overlayObject(source.slot);
         const slotName = firstDefined(explicitSlot.name, source.slot_name, source.slotName, fallbackSlot && fallbackSlot.name) || ('slot_' + String(index + 1));
-        const slotLayout = getTreasureSlotLayout(count, slotName) || explicitSlot || fallbackSlot || {
+        const slotLayout = getTreasureSlotLayout(count, slotName) || (source.slot ? explicitSlot : fallbackSlot) || {
             name: slotName,
             x: 50,
             y: 50,
@@ -4025,6 +4027,7 @@ const SESSION_ID = {{ game_session.id }};
             return {
                 label: firstDefined(item.label, item.name, ''),
                 static_path: firstDefined(item.static_path, item.staticPath, item.path, ''),
+                display_path: firstDefined(item.display_path, item.static_path, item.staticPath, item.path, ''),
             };
         }).filter(function (layer) {
             return !!layer.static_path;
@@ -4104,8 +4107,8 @@ const SESSION_ID = {{ game_session.id }};
     }
 
     function buildTreasureOverlayModel(chests) {
-        const shownChests = overlayArray(chests).slice(0, 4);
-        const count = Math.max(1, Math.min(4, shownChests.length || 1));
+        const shownChests = overlayArray(chests);
+        const count = shownChests.length || 1;
         const slotLayout = (TREASURE_SLOT_LAYOUTS[count] || []).map(function (slot) {
             return getTreasureSlotLayout(count, slot.name) || slot;
         });
@@ -4116,7 +4119,8 @@ const SESSION_ID = {{ game_session.id }};
             awaitingReveal: false,
             selectedChestIndex: null,
             chests: shownChests.map(function (chest, index) {
-                return normalizeTreasureChest(chest, index, count, slotLayout[index]);
+                const fallback = {name: 'slot_' + (index + 1), x: (index + .5) * 100 / count, y: 62, scale: .72};
+                return normalizeTreasureChest(chest, index, count, slotLayout[index] || fallback);
             }),
         };
     }
@@ -4143,7 +4147,7 @@ const SESSION_ID = {{ game_session.id }};
             return;
         }
 
-        const count = Math.max(1, Math.min(4, Number(firstDefined(treasureOverlayData.chestCount, overlayArray(treasureOverlayData.chests).length, 1)) || 1));
+        const count = treasureOverlayData.chestCount;
         const fallbackSlots = overlayArray(TREASURE_SLOT_LAYOUTS[count]);
         const renderedChests = overlayArray(treasureOverlayData.chests).map(function (chest, index) {
             return normalizeTreasureChest(chest, index, count, fallbackSlots[index]);
@@ -4189,6 +4193,7 @@ const SESSION_ID = {{ game_session.id }};
             if (chest.revealed) {
                 slotEl.classList.add('is-revealed');
                 slotEl.classList.add(chest.filled ? 'is-filled' : 'is-empty');
+                if (!chest.selected) slotEl.classList.add('is-unclaimed');
             }
 
             if (chest.selected) {
@@ -4202,7 +4207,7 @@ const SESSION_ID = {{ game_session.id }};
             btn.type = 'button';
             btn.className = 'treasure-chest-button';
             btn.disabled = treasureOverlayState === 'revealing' || !!treasureOverlayData.awaitingReveal;
-            btn.setAttribute('aria-label', 'Treasure chest ' + chest.index);
+            btn.setAttribute('aria-label', 'Treasure chest ' + chest.index + (chest.revealed ? (chest.selected ? ', your reward' : ', not received') : ''));
             btn.onclick = function () {
                 selectTreasureChest(chest.index);
             };
@@ -4343,6 +4348,7 @@ const SESSION_ID = {{ game_session.id }};
 
     function hydratePendingTreasure(data) {
         if (!data || !data.chests || !data.chests.length) return;
+        restorePendingProblemContext(data.problem_id);
         currentChestPhase = 'treasure';
         hideStealOverlayImmediate();
         treasureOverlayData = buildTreasureOverlayModel(data.chests || []);
@@ -4510,7 +4516,7 @@ const SESSION_ID = {{ game_session.id }};
                 const img = document.createElement('img');
                 img.className = 'steal-avatar-layer';
                 img.alt = '';
-                img.src = layer.static_path;
+                img.src = layer.display_path || layer.static_path;
                 img.dataset.layer = layer.label;
                 avatarStage.appendChild(img);
             });
@@ -4668,7 +4674,7 @@ const SESSION_ID = {{ game_session.id }};
     function revealStealOverlay(resultData) {
         if (!stealOverlayData) return;
         const winningChests = new Set(resultData.winning_chests || []);
-        const selectedPositive = resultData.resolved_outcome === 'targeted_success' || resultData.outcome === 'success';
+        const selectedPositive = resultData.successful || resultData.resolved_outcome === 'targeted_success' || resultData.outcome === 'success';
         stealOverlayData.awaitingReveal = false;
         stealOverlayData.selectedChestIndex = resultData.selected_chest;
         stealOverlayData.selectedPositive = selectedPositive;
@@ -4693,6 +4699,7 @@ const SESSION_ID = {{ game_session.id }};
     }
 
     function hydratePendingSteal(data) {
+        restorePendingProblemContext(data && data.problem_id);
         if (!data || !data.containers || !data.containers.length) return;
         currentChestPhase = 'steal';
         hideTreasureOverlayImmediate();
@@ -4722,23 +4729,13 @@ const SESSION_ID = {{ game_session.id }};
 
     function renderTimerBonusDisplay() {
         const el = document.getElementById('timer-bonus-display');
-        if (!el) return;
+        const row = document.getElementById('timer-bonus-row');
+        if (!el || !row) return;
         const duration = Number(el.dataset.bonusDuration || 0);
         const gold = Number(el.dataset.bonusGold || 0);
-        if (duration <= 0 || gold <= 0) {
-            el.textContent = 'Off';
-            return;
-        }
         const remaining = timerBonusSecondsRemaining();
-        if (remaining === null) {
-            el.textContent = '+' + gold + ' in first ' + duration + 's';
-            return;
-        }
-        if (remaining > 0) {
-            el.textContent = '+' + gold + ' (' + remaining + 's left)';
-            return;
-        }
-        el.textContent = '+' + gold + ' window closed';
+        row.hidden = !roundActive || duration <= 0 || gold <= 0 || remaining === null || remaining <= 0;
+        if (!row.hidden) el.textContent = Math.floor(remaining / 60) + ':' + String(remaining % 60).padStart(2, '0') + ' left';
     }
 
     function syncTimerBonusCountdown() {
@@ -4816,6 +4813,8 @@ const SESSION_ID = {{ game_session.id }};
 
     function showChooseActionPrompt(data, options) {
         const config = options || {};
+        if (data.new_balance !== undefined) document.getElementById('gold-amount').textContent = data.new_balance;
+        if (data.new_gems !== undefined) document.getElementById('gems-amount').textContent = data.new_gems;
         if (config.restoreProblem !== false) {
             restorePendingProblemContext(data.problem_id);
         }
@@ -4827,7 +4826,7 @@ const SESSION_ID = {{ game_session.id }};
         const fb = document.getElementById('feedback');
         fb.className = 'correct';
         fb.style.display = 'block';
-        fb.textContent = 'Correct. You were solver #' + data.solver_rank +
+        fb.textContent = (data.answer_gold !== undefined ? 'Correct! +' + data.answer_gold + ' gold. ' : 'Correct. ') + 'You were solver #' + data.solver_rank +
             (data.timer_active ? ' (timer bonus active)' : '') +
             '. Choose your action:';
 
@@ -4848,7 +4847,7 @@ const SESSION_ID = {{ game_session.id }};
         document.getElementById('btn-treasure-search').disabled = false;
 
         if (!config.skipStreakIncrement) {
-            currentStreak++;
+            currentStreak = data.streak !== undefined ? data.streak : currentStreak + 1;
             renderStreakCard();
         }
     }
@@ -4896,6 +4895,14 @@ const SESSION_ID = {{ game_session.id }};
     applyRoundBackground(INITIAL_ROUND_ID, INITIAL_ROUND_NUMBER);
 
     socket.on('join_ack', function (data) {
+        if (data.round_status === 'finished') {
+            window.location.href = '/classic/round_over/' + SESSION_ID;
+            return;
+        }
+        if (data.round_status === 'between_rounds' || data.round_status === 'not_started') {
+            window.location.href = '/classic/lobby/' + SESSION_ID;
+            return;
+        }
         applyRoundBackground(INITIAL_ROUND_ID, INITIAL_ROUND_NUMBER);
         document.getElementById('gold-amount').textContent = data.gold;
         document.getElementById('gems-amount').textContent = data.gems || 0;
@@ -4955,6 +4962,8 @@ const SESSION_ID = {{ game_session.id }};
                 restoreProblem: true,
                 skipStreakIncrement: true,
             });
+        } else {
+            restoreDraft();
         }
     });
 
@@ -4971,8 +4980,7 @@ const SESSION_ID = {{ game_session.id }};
                 applyProblemButtonState(btn, problems[problemId], String(selectedProblemId) === String(problemId));
             }
         });
-        const activateBtn = document.getElementById('btn-activate-shield');
-        if (activateBtn) activateBtn.disabled = false;
+        syncShieldActivationButton();
     });
 
     socket.on('round_ended', function () {
@@ -5033,12 +5041,41 @@ const SESSION_ID = {{ game_session.id }};
         if (p.attempts_left === -1) {
             atDisplay.textContent = '(unlimited attempts)';
         } else {
-            atDisplay.textContent = p.attempts_left + ' attempt(s) left';
+            atDisplay.textContent = p.attempts_left + (p.attempts_left === 1 ? ' attempt left' : ' attempts left');
         }
 
         const submitBtn = document.getElementById('submit-btn');
         submitBtn.disabled = p.is_closed || !roundActive;
     };
+
+    function restoreDraft() {
+        let draft;
+        try {
+            draft = JSON.parse(sessionStorage.getItem(draftKey));
+        } catch {
+            return;
+        }
+        if (!draft || !problems[draft.problemId] || problems[draft.problemId].is_closed) return;
+        window.selectProblem(draft.problemId);
+        document.getElementById('answer-input').value = draft.answer;
+        if (draft.choice) window.selectMcOption(draft.choice);
+    }
+
+    window.addEventListener('pagehide', function () {
+        try {
+            if (selectedProblemId === null) {
+                sessionStorage.removeItem(draftKey);
+                return;
+            }
+            sessionStorage.setItem(draftKey, JSON.stringify({
+                problemId: selectedProblemId,
+                answer: document.getElementById('answer-input').value,
+                choice: selectedMcOptionId,
+            }));
+        } catch {
+            // Session storage can be disabled by the browser.
+        }
+    });
 
     // ── Answer submission ────────────────────────────────────────────────────
 
@@ -5111,7 +5148,7 @@ const SESSION_ID = {{ game_session.id }};
                 : ('Wrong answer. ' +
                     (data.attempts_left === -1
                         ? 'Unlimited attempts remaining.'
-                        : data.attempts_left + ' attempt(s) left.'));
+                        : data.attempts_left + (data.attempts_left === 1 ? ' attempt left.' : ' attempts left.')));
             if (data.second_chance_used && !isFinalWrongAttempt) {
                 wrongMsg += ' Second Chance used - no penalty, attempt preserved.';
             }
@@ -5158,7 +5195,7 @@ const SESSION_ID = {{ game_session.id }};
         const atDisplay = document.getElementById('attempts-display');
         const p = problems[selectedProblemId];
         if (p && p.attempts_left !== -1) {
-            atDisplay.textContent = data.attempts_left + ' attempt(s) left';
+            atDisplay.textContent = data.attempts_left + (data.attempts_left === 1 ? ' attempt left' : ' attempts left');
         }
         document.getElementById('answer-input').value = '';
     });
@@ -5196,8 +5233,8 @@ const SESSION_ID = {{ game_session.id }};
 
     socket.on('reward_applied', function (data) {
         setInteractionState('result', {
-            title: 'Reward applied',
-            hint: 'Your reward has been added. Pick another problem when you are ready.',
+            title: 'Choose another problem',
+            hint: '',
         });
         currentChestPhase = null;
         document.getElementById('gold-amount').textContent = data.new_balance;
@@ -5224,9 +5261,10 @@ const SESSION_ID = {{ game_session.id }};
             itemLine = 'Treasure chest phase skipped: no eligible rewards.';
         }
 
-        msg.innerHTML = '<strong>' + goldLabel + '</strong>' +
-            (gemLabel ? '<br><span style="color:#1a7f3c; font-weight:bold;">Gems ' + gemLabel + '</span>' : '') +
-            (itemLine ? '<br><span style="color:#1d5f9c; font-weight:bold;">' + itemLine + '</span>' : '');
+        msg.innerHTML = '<strong class="reward-amount">+' + escapeHtml(data.gold_gained) + ' ' + RESOURCE_ICONS.gold + '</strong>' +
+            (data.x2_active ? ' · Double mine' : '') +
+            (gemLabel ? '<br><span class="reward-amount">+' + escapeHtml(data.gems_gained) + ' ' + RESOURCE_ICONS.gem + '</span>' : '') +
+            (data.treasure_phase === 'skipped_no_eligible_rewards' ? '<br>No bonus items available.' : '');
         document.getElementById('steal-result-msg').style.display = 'none';
         document.getElementById('steal-notification').style.display = 'none';
         pendingActionProblemId = null;
@@ -5264,10 +5302,11 @@ const SESSION_ID = {{ game_session.id }};
         }
         rows.forEach(function (entry, i) {
             const row = document.createElement('tr');
-            row.innerHTML = '<td>' + (i + 1) + '. ' + escapeHtml(entry.username) + '</td>' +
-                            '<td>Gold ' + entry.gold + '</td>' +
-                            '<td style="color:#1a7f3c;">Gems ' + (entry.gems || 0) + '</td>' +
-                            '<td>' + tokenBadgeHtml('steal_token', entry.steal_tokens || 0, { compact: true, size: 'small' }) + '</td>';
+            row.innerHTML = '<td class="lb-rank">' + (i + 1) + '</td>' +
+                '<td class="lb-name" title="' + escapeHtml(entry.username) + '">' + escapeHtml(entry.username) + '</td>' +
+                '<td class="lb-resources"><span class="lb-resource">' + RESOURCE_ICONS.gold + escapeHtml(entry.gold) + '</span>' +
+                '<span class="lb-resource">' + RESOURCE_ICONS.gem + escapeHtml(entry.gems || 0) + '</span>' +
+                tokenBadgeHtml('steal_token', entry.steal_tokens || 0, { compact: true, size: 'small' }) + '</td>';
             tbody.appendChild(row);
         });
     }
@@ -5324,7 +5363,7 @@ const SESSION_ID = {{ game_session.id }};
         const defaults = {
             solve: {
                 title: 'Solve the current problem',
-                hint: 'Submit an answer below. When you solve it, this same panel will advance to the reward step.',
+                hint: 'Answer correctly to choose a reward.',
             },
             action: {
                 title: 'Choose your action',
@@ -5452,8 +5491,7 @@ const SESSION_ID = {{ game_session.id }};
     socket.on('error', function (data) {
         console.error('Socket error:', data.msg);
         // Re-enable activate button if a shield activation was rejected
-        const activateBtn = document.getElementById('btn-activate-shield');
-        if (activateBtn) activateBtn.disabled = false;
+        syncShieldActivationButton();
         if (currentChestPhase === 'treasure' && treasureOverlayData && treasureOverlayData.awaitingReveal) {
             treasureOverlayData.awaitingReveal = false;
             treasureOverlayState = 'selected_pending_confirm';
@@ -5497,6 +5535,7 @@ const SESSION_ID = {{ game_session.id }};
 
     function renderStore(items) {
         const container = document.getElementById('store-items-list');
+        document.getElementById('store-toggle').style.display = items && items.length ? '' : 'none';
         if (!items || items.length === 0) {
             container.innerHTML = '<p style="color:#666;">No items available.</p>';
             return;
@@ -5579,7 +5618,6 @@ const SESSION_ID = {{ game_session.id }};
         const mineSummary = document.getElementById('bonus-summary-mine');
         const shieldSummary = document.getElementById('bonus-summary-shield');
         const shieldTokenCountEl = document.getElementById('shield-token-count');
-        const activateBtn = document.getElementById('btn-activate-shield');
         const parts = [];
         if (bonuses.x2_mine) {
             parts.push(tokenBadgeHtml('x2_mine', bonuses.x2_mine, { compact: false, size: 'small' }));
@@ -5588,11 +5626,17 @@ const SESSION_ID = {{ game_session.id }};
             parts.push(tokenBadgeHtml('second_chance', bonuses.shield, { compact: false, size: 'small' }));
         }
         const shieldTokenCount = bonuses.steal_shield || 0;
-        el.innerHTML = parts.length ? ('Active bonuses: ' + parts.join(' ')) : 'No active bonuses.';
+        el.innerHTML = parts.join(' ');
         if (shieldTokenCountEl) shieldTokenCountEl.textContent = shieldTokenCount;
-        if (activateBtn) activateBtn.disabled = !(roundActive && shieldTokenCount > 0);
+        syncShieldActivationButton();
         if (mineSummary) mineSummary.textContent = bonuses.x2_mine || 0;
         if (shieldSummary) shieldSummary.textContent = bonuses.shield || 0;
+    }
+
+    function syncShieldActivationButton() {
+        const protectedNow = document.getElementById('player-shield-status').classList.contains('is-active');
+        const tokenCount = Number(document.getElementById('shield-token-count').textContent);
+        document.getElementById('btn-activate-shield').disabled = !roundActive || !tokenCount || protectedNow;
     }
 
     window.activateShield = function () {
@@ -5669,6 +5713,7 @@ const SESSION_ID = {{ game_session.id }};
         if (!active && !expiresIso) {
             badgeEl.classList.remove('is-active');
             timeEl.textContent = '';
+            syncShieldActivationButton();
             return;
         }
         if (expiresIso) {
@@ -5680,6 +5725,7 @@ const SESSION_ID = {{ game_session.id }};
                     if (!remaining) {
                         badgeEl.classList.remove('is-active');
                         timeEl.textContent = '';
+                        syncShieldActivationButton();
                         if (shieldCountdownInterval) {
                             clearInterval(shieldCountdownInterval);
                             shieldCountdownInterval = null;
@@ -5688,12 +5734,14 @@ const SESSION_ID = {{ game_session.id }};
                     }
                     badgeEl.classList.add('is-active');
                     timeEl.textContent = remaining + 's';
+                    syncShieldActivationButton();
                 };
                 refreshCountdown();
                 shieldCountdownInterval = setInterval(refreshCountdown, 1000);
                 shieldExpiryTimer = setTimeout(function () {
                     badgeEl.classList.remove('is-active');
                     timeEl.textContent = '';
+                    syncShieldActivationButton();
                     if (shieldCountdownInterval) {
                         clearInterval(shieldCountdownInterval);
                         shieldCountdownInterval = null;
@@ -5710,6 +5758,7 @@ const SESSION_ID = {{ game_session.id }};
             badgeEl.classList.remove('is-active');
             timeEl.textContent = '';
         }
+        syncShieldActivationButton();
     }
 
     socket.on('steal_targets', function (data) {
@@ -5830,8 +5879,8 @@ const SESSION_ID = {{ game_session.id }};
             msgEl.className = 'steal-result-msg no-targets';
             msgEl.innerHTML = '<strong>Stranger steal resolved.</strong><br>' + escapeHtml(data.log_entry || '');
         } else if (data.outcome === 'stranger_target_invalid') {
-            msgEl.className = 'steal-result-msg no-targets';
-            msgEl.innerHTML = '<strong>Target changed, Stranger steal resolved.</strong><br>' + escapeHtml(data.log_entry || '');
+            msgEl.className = 'steal-result-msg success';
+            msgEl.innerHTML = '<strong>Stranger steal succeeded.</strong><br>' + escapeHtml(data.log_entry || '');
         } else {
             msgEl.className = 'steal-result-msg success';
             msgEl.innerHTML = '<strong>Stranger steal resolved.</strong><br>' + escapeHtml(data.log_entry || '');
@@ -5926,7 +5975,7 @@ const SESSION_ID = {{ game_session.id }};
     .rail-panel {
         background-image:
             linear-gradient(180deg, rgba(255, 252, 245, 0.42), rgba(244, 236, 224, 0.26)),
-            url("{{ url_for('static', filename='classic_ui/player_ui/panel_texture.png') }}");
+            url("{{ url_for('static', filename='classic_ui/player_ui/panel_texture.png')|ui_image }}");
     }
 
     #player-status-panel {
@@ -5990,7 +6039,7 @@ const SESSION_ID = {{ game_session.id }};
     #problem-selector-shell {
         background:
             linear-gradient(180deg, rgba(248, 241, 228, 0.70), rgba(239, 229, 211, 0.60)),
-            url("{{ url_for('static', filename='classic_ui/player_ui/panel_texture.png') }}");
+            url("{{ url_for('static', filename='classic_ui/player_ui/panel_texture.png')|ui_image }}");
     }
 
     #problem-workspace {
@@ -6036,4 +6085,5 @@ const SESSION_ID = {{ game_session.id }};
         background: rgba(255, 250, 242, 0.36);
     }
 </style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/classic_game.css', v='20261019-economy-1') }}">
 {% endblock %}

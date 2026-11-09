@@ -31,7 +31,7 @@
     >
       <div class="equipment-slot-label">{{ slot_short_label }}</div>
       <div class="equipment-slot-body">
-        <img class="gear-thumb" src="{{ slot.item.icon_static_path }}" alt="{{ slot.item.name }}">
+        <img class="gear-thumb" src="{{ slot.item.icon_static_path|ui_image }}" alt="{{ slot.item.name }}">
       </div>
       <div class="equipment-slot-caption">
         <div class="equipment-slot-name">{{ slot.item.name }}</div>

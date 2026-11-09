@@ -5,7 +5,7 @@
     </tr>
     {% for sc in solve_counts %}
     <tr>
-        <td>{{ sc.problem_id }}</td>
+        <td>{{ problem_labels.get(sc.problem_id, 'Problem #' ~ sc.problem_id) }}</td>
         <td>{{ sc.solver_count }}</td>
     </tr>
     {% endfor %}

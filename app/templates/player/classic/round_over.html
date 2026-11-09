@@ -41,7 +41,9 @@
     {% endif %}
 
     <p style="margin-top:40px; color:#888; font-size:0.95em;">
-        Wait for the next round to begin.
+        {% if game_session.status == 'finished' and game_session.economy_version >= 2 %}
+        Your remaining gold has been saved to the Hub. Unspent gems have expired.
+        {% else %}Wait for the next round to begin.{% endif %}
     </p>
 
     <a href="/player/dashboard"

@@ -6,6 +6,10 @@ Flask, SQLAlchemy, and Socket.IO classroom math/physics game. Local development 
 
 ## Run locally
 
+For current online sets with separate persistent testing progress, use
+**Launch Admin Login.bat**. See [local testing and content refresh](docs/local-testing.md)
+for local accounts and how to bring in additional online sets.
+
 ```powershell
 .venv\Scripts\python.exe run.py
 ```
@@ -23,6 +27,7 @@ Open `http://localhost:5000`. The seed scripts create demo credentials (`admin/a
 ## Documentation
 
 - [Current state and release roadmap](docs/project_state.md) — current source of truth for status.
+- [Session reports and test-run guide](docs/learning-reports.md) — teacher reports, AI exports, publication and student progress.
 - [Self-hosted deployment](docs/self_hosted_deployment.md) — current Ubuntu/Docker Compose pilot path with fresh accounts and an empty problem bank.
 - [Earlier hosted pilot notes](docs/online_pilot.md) — superseded Render option, retained for reference.
 - [Cleanup inventory](docs/cleanup_inventory.md) — preservation rules and candidates for later refactoring.

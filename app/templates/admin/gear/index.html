@@ -53,7 +53,7 @@
         <td>{{ item.slot_type.replace('_', ' ')|title }}</td>
         <td>{{ item.image_key or '—' }}</td>
         <td>{{ item.avatar_asset_key or '—' }}</td>
-        <td>{{ item.diamond_cost }}</td>
+        <td>{{ item.gold_cost }} saved gold</td>
         <td>
             Mine {{ '%+d'|format(item.mine_gold_delta) }}<br>
             Steal {{ '%+d'|format(item.steal_gold_delta) }}<br>

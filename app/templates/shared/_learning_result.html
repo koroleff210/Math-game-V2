@@ -1,0 +1,13 @@
+{% from 'shared/_learning_macros.html' import pct %}
+<div class="learning">
+<a href="{{ url_for('learning.student_session',session_id=report.session.id) if student_view else url_for('learning.session_detail',session_id=report.session.id) }}">← Session report</a>
+<h1>{{ question.title }}</h1><p>{{ learner.name }} · Round {{ question.round_number }} · {{ question.context }} · {{ question.topic }}</p><p><span class="lr-status">{{ cell.label }}</span></p>
+{% if question.content %}{% set content=question.content %}
+<section class="lr-panel lr-question"><h2>Saved question</h2>{% set body_view=content.body %}{% include 'shared/_problem_body_blocks.html' %}
+<ul class="lr-options">{% for option in content.choices.options %}<li><strong>{{ option.label }}.</strong> {{ option.option_text }}{% if option.asset_name %}<br><img src="{{ url_for('learning.asset',session_id=report.session.id,name=option.asset_name) }}" alt="Option {{ option.label }} diagram">{% endif %}{% if option.id in content.answer_key.correct_option_ids %} <strong>— Correct answer</strong>{% endif %}</li>{% endfor %}</ul>
+{% if content.answer_key.accepted_answers %}<p><strong>Accepted answers:</strong> {{ content.answer_key.accepted_answers|join(' / ') }}</p>{% endif %}
+{% if content.explanation %}<h3>Explanation / markscheme</h3><pre>{{ content.explanation }}</pre>{% else %}<p class="muted">No explanation was available when this question was captured.</p>{% endif %}
+{% for warning in content.warnings %}<p class="lr-warning">{{ warning }}</p>{% endfor %}<p class="muted"><small>Saved content version {{ content.version_hash[:12] }} · {{ question.canonical_id or 'Local question' }}</small></p></section>
+{% else %}<p class="lr-warning">This older result has no frozen question content. Current question-bank content is not substituted for the original.</p>{% endif %}
+<section class="lr-panel"><h2>Answer sequence</h2><p class="muted">Timestamps are UTC. They do not measure active solving time.</p><div class="lr-table-scroll"><table><thead><tr><th>Attempt</th><th>Submitted answer</th><th>Result</th><th>Time</th></tr></thead><tbody>{% for a in cell.attempts %}<tr><td>{{ a.number }}<br><small>#{{ a.id }}</small></td><td>{% if a.option_label %}{{ a.option_label }}: {{ a.option_text }}{% else %}{{ a.answer_text or '(empty)' }}{% endif %}</td><td>{{ 'Correct' if a.is_correct else 'Incorrect' }}</td><td>{{ a.submitted_at }}</td></tr>{% else %}<tr><td colspan="4">No submitted answers recorded.</td></tr>{% endfor %}</tbody></table></div></section>
+</div>

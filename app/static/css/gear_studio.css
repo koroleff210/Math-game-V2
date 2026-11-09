@@ -49,6 +49,11 @@
 .studio-reference-control button { padding:5px!important; }
 .studio-reference select { font-size:.78rem!important; padding:8px 4px!important; }
 .studio-reference-note { margin:5px 0 0; font-size:.7rem; color:#6b7a83; line-height:1.4; }
+.studio-tools { margin-top:14px; }
+#gear-studio .studio-tools button[aria-pressed=true] { color:#fff; background:#286d7b; border-color:#286d7b; }
+.studio-zoom-control { display:flex; align-items:center; gap:8px; margin:8px 0; }
+.studio-zoom-control input { flex:1; }
+.studio-stage { overflow:auto; max-height:72vh; }
 #studio-clear-gear { width:100%; margin-top:8px; }
 .studio-availability { border-top:1px solid #e3eaed; margin-top:22px; padding-top:16px; color:#657580; font-size:.75rem; line-height:1.5; }
 .studio-availability strong { color:#465d68; }

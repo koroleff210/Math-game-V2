@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "shared/_resource_icon.html" import resource_icon %}
 
 {% block title %}Blacksmith - Upgrades & Gear{% endblock %}
 
@@ -11,7 +12,7 @@
     color: #2f271d;
     background:
       linear-gradient(90deg, rgba(38, 25, 15, 0.42) 0%, rgba(52, 34, 20, 0.14) 46%, rgba(30, 20, 14, 0.02) 72%),
-      url("{{ url_for('static', filename='classic_ui/player_ui/blacksmith_bg.png') }}") center right / cover no-repeat fixed;
+      url("{{ url_for('static', filename='classic_ui/player_ui/blacksmith_bg.png')|ui_image }}") center right / cover no-repeat fixed;
     font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
   }
   .flash-messages {
@@ -38,7 +39,7 @@
     border: 1px solid rgba(110, 83, 48, 0.28);
     background:
       linear-gradient(180deg, rgba(255, 248, 235, 0.96), rgba(239, 224, 197, 0.93)),
-      url("{{ url_for('static', filename='classic_ui/player_ui/panel_texture.png') }}");
+      url("{{ url_for('static', filename='classic_ui/player_ui/panel_texture.png')|ui_image }}");
     background-repeat: no-repeat, repeat;
     background-size: auto, 240px 240px;
     box-shadow:
@@ -102,6 +103,7 @@
       0 7px 16px rgba(55, 37, 19, 0.16);
   }
   .smith-balance-row {
+    justify-content: flex-start;
     margin-top: 8px;
   }
   .smith-balance {
@@ -109,21 +111,15 @@
     align-items: center;
     gap: 8px;
     min-height: 30px;
-    padding: 0 11px;
-    font-size: 0.88rem;
+    padding: 2px 11px;
+    font-size: 1.4rem;
+    white-space: nowrap;
     border-radius: 999px;
     color: #593c0f;
     background: linear-gradient(180deg, rgba(255, 244, 206, 0.98), rgba(233, 203, 127, 0.92));
     border: 1px solid rgba(142, 102, 28, 0.24);
     font-weight: 900;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.62);
-  }
-  .smith-balance-label {
-    color: #766148;
-    font-size: 0.7rem;
-    font-weight: 800;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
   }
   .smith-tabs {
     display: grid;
@@ -500,6 +496,7 @@
     }
   }
 </style>
+<link rel="stylesheet" href="{{ url_for('static',filename='css/blacksmith_inventory.css',v='20261017-2') }}">
 {% endblock %}
 
 {% block content %}
@@ -510,13 +507,13 @@
         <div class="smith-title-row">
           <div>
             <h1 class="smith-title">Blacksmith</h1>
-            <p class="smith-subtitle">Spend diamonds on permanent upgrades and gear.</p>
+            <p class="smith-subtitle">Buy permanent gear with saved gold. Spend diamonds on upgrades.</p>
           </div>
           <a class="smith-back-link" href="{{ url_for('player.dashboard') }}">Back to Hub</a>
         </div>
         <div class="smith-balance-row">
-          <span class="smith-balance-label">Diamond balance</span>
-          <span class="smith-balance">&#128142; {{ balance }}</span>
+          <span class="smith-balance" title="Saved gold for permanent gear">{{ resource_icon('gold') }} {{ saved_gold }}</span>
+          <span class="smith-balance" title="Diamonds for upgrades">{{ resource_icon('diamond') }} {{ balance }}</span>
         </div>
       </header>
 
@@ -633,7 +630,7 @@
             <div class="smith-card-list">
               {% for item in gear_items %}
                 <article class="smith-card gear-card" data-item-id="{{ item.id }}">
-                  <img class="gear-store-thumb" src="{{ item.icon_static_path }}" alt="{{ item.name }}">
+                  <img class="gear-store-thumb" src="{{ item.icon_static_path|ui_image }}" alt="{{ item.name }}">
                   <div class="gear-card-body">
                     <div class="gear-card-top">
                       <h2 class="smith-card-title">{{ item.name }}</h2>
@@ -646,12 +643,12 @@
                     </div>
                     <p class="smith-card-text gear-description">{{ item.description }}</p>
                     <div class="smith-card-footer">
-                      <span class="smith-cost">Cost: &#128142; {{ item.diamond_cost }}</span>
+                      <span class="smith-cost">Cost: {{ resource_icon('gold') }} {{ item.gold_cost }}</span>
                       <form class="smith-form" method="POST" action="{{ url_for('player.blacksmith_buy_gear') }}">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="item_id" value="{{ item.id }}">
                         <input type="hidden" name="return_tab" value="gear">
-                        <button type="submit" class="smith-buy-button" {% if balance < item.diamond_cost %}disabled{% endif %}>
+                        <button type="submit" class="smith-buy-button" {% if saved_gold < item.gold_cost %}disabled{% endif %}>
                           Buy
                         </button>
                       </form>
@@ -667,5 +664,19 @@
       </div>
     </div>
   </section>
+  <aside class="smith-comparison" aria-label="Your owned gear">
+    <details class="smith-inventory-details" data-smith-inventory open>
+      <summary>Owned gear <span>({{ inventory_view.comparison_items|length }})</span></summary>
+      <div class="smith-inventory-content">
+        <ul class="smith-owned-list">{% for item in inventory_view.comparison_items %}
+          <li class="smith-owned-item{{ ' is-equipped' if item.is_equipped else '' }}" data-owned-gear="{{ item.id }}">
+            <span class="smith-gear-icon"><img src="{{ item.icon_static_path|ui_image }}" alt="" loading="lazy"></span>
+            <div><strong>{{ item.name }}</strong><small>{{ 'Equipped' if item.is_equipped else 'Inactive item' if not item.is_active else 'In inventory' if item.compatible else 'Other character type' }} · {{ item.slot_label }}</small><small>Mine {{ '%+d'|format(item.mine_gold_delta) }} · Steal {{ '%+d'|format(item.steal_gold_delta) }} · Shield {{ '%+d'|format(item.shield_duration_delta) }}s</small></div>
+          </li>{% else %}<li class="smith-inventory-hint">No gear owned yet.</li>{% endfor %}</ul>
+        <a class="smith-inventory-link" href="{{ url_for('player.dashboard') }}">Manage equipment in the Hub →</a>
+      </div>
+    </details>
+  </aside>
+  <script type="application/json" data-ui-preloads>{{ [url_for('static',filename='classic_ui/player_ui/background_001.png')|ui_image]|tojson }}</script>
 </main>
 {% endblock %}

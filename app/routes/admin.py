@@ -60,6 +60,8 @@ from app.models.analytics import (
 from app.routes.forms import TopicForm, SubjectForm, ProblemForm, ProblemSetForm, PlayerCreateForm, PlayerEditForm, PlayerGroupForm, DiamondAwardForm, GearItemForm
 from app.services.progression import award_diamonds_to_player
 from app.services.player_reset import reset_player_to_starting_state
+from app.services.economy import grant_starting_gold, STARTING_GOLD_REASON
+from app.models.economy import GoldTransaction
 from app.services.analytics_reports import (
     build_class_dashboard,
     parse_date_filter,
@@ -114,6 +116,16 @@ from app.models.progression import PlayerProgression
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
+
+@admin_bp.before_request
+def protect_captured_question_content():
+    if request.method == 'POST' and request.path.startswith('/admin/problems/') and current_user.is_authenticated and current_user.is_admin:
+        problem_id = (request.view_args or {}).get('problem_id')
+        if problem_id:
+            from app.services.learning_snapshots import question_in_unfinished_round
+            if question_in_unfinished_round(problem_id):
+                abort(409, 'This question is captured in an unfinished round. Finish the round before editing its content or answers.')
+
 CONTENT_KIND_CHOICES = [
     (PROBLEM_CONTENT_KIND_PROBLEM, 'Problem'),
     (PROBLEM_CONTENT_KIND_DEFINITION, 'Definition'),
@@ -165,6 +177,7 @@ def gear_new():
                 'description': form.description.data,
                 'image_key': form.image_key.data,
                 'avatar_asset_key': form.avatar_asset_key.data,
+                'gold_cost': form.gold_cost.data,
                 'diamond_cost': form.diamond_cost.data,
                 'mine_gold_delta': form.mine_gold_delta.data,
                 'steal_gold_delta': form.steal_gold_delta.data,
@@ -215,6 +228,7 @@ def gear_edit(item_id):
                 'description': form.description.data,
                 'image_key': form.image_key.data,
                 'avatar_asset_key': form.avatar_asset_key.data,
+                'gold_cost': form.gold_cost.data,
                 'diamond_cost': form.diamond_cost.data,
                 'mine_gold_delta': form.mine_gold_delta.data,
                 'steal_gold_delta': form.steal_gold_delta.data,
@@ -1381,6 +1395,7 @@ def player_new():
                 return render_template('admin/players/index.html', players=all_players, form=form, create_open=True)
             if not player.is_admin:
                 reset_player_to_starting_state(player)
+                grant_starting_gold(player.id)
             db.session.commit()
             flash(f'Player "{player.username}" created.', 'success')
             return redirect(url_for('admin.players_index'))
@@ -1475,7 +1490,7 @@ def player_reset(player_id):
         db.session.commit()
         flash(
             f'Reset "{player.username}" to first-login state with '
-            f'{result["diamonds_balance"]} welcome gift Diamond(s).',
+            'zero saved gold. Previous game history is preserved.',
             'success',
         )
     except ValueError as exc:
@@ -1516,11 +1531,15 @@ def player_delete(player_id):
             column = foreign_key.parent
             if table.name in owned_tables and column.name == 'player_id':
                 continue
-            if db.session.execute(select(column).where(column == player_id).limit(1)).first():
+            references = select(column).where(column == player_id)
+            if table.name == GoldTransaction.__tablename__ and column.name == 'player_id':
+                references = references.where(GoldTransaction.reason != STARTING_GOLD_REASON)
+            if db.session.execute(references.limit(1)).first():
                 flash(f'Cannot delete "{username}" — saved game or audit records refer to this player.', 'error')
                 return redirect(url_for('admin.players_index'))
     from sqlalchemy.exc import IntegrityError
     try:
+        GoldTransaction.query.filter_by(player_id=player_id, reason=STARTING_GOLD_REASON).delete()
         for name in owned_tables:
             table = db.metadata.tables[name]
             db.session.execute(table.delete().where(table.c.player_id == player_id))
@@ -1795,10 +1814,12 @@ def subject_delete(subject_id):
 
 # ── Analytics round viewer ─────────────────────────────────────────────────
 
-def _answer_attempt_counts(round_id, *, problem_id=None):
+def _answer_attempt_counts(round_id, *, problem_id=None, mode_context=None):
     rows = AnalyticsAnswerAttempt.query.filter_by(round_id=round_id)
     if problem_id is not None:
         rows = rows.filter_by(problem_id=problem_id)
+    if mode_context is not None:
+        rows = rows.filter_by(mode_context=mode_context)
     attempts = rows.all()
     correct = sum(1 for attempt in attempts if attempt.is_correct)
     incorrect = len(attempts) - correct
@@ -1824,7 +1845,7 @@ def _build_analytics_problem_summaries(analytics_round):
             problem_id=row.problem_id,
             mode_context=row.mode_context,
         ).all()
-        counts = _answer_attempt_counts(analytics_round.round_id, problem_id=row.problem_id)
+        counts = _answer_attempt_counts(analytics_round.round_id, problem_id=row.problem_id, mode_context=row.mode_context)
         summaries.append({
             'row': row,
             'players_seen': sum(1 for item in player_problem_rows if item.first_seen_at is not None),

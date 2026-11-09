@@ -130,6 +130,51 @@ def test_catalog_uses_actual_game_layers_and_existing_assets(studio):
     assert client.get('/admin/gear-studio/').status_code == 200
 
 
+def test_catalog_includes_bundled_references_without_creating_shop_items(studio):
+    _app, client, _tmp = studio
+    data = client.get('/admin/gear-studio/catalog').json
+    assert GearItemDefinition.query.count() == 0
+    refs = data['reference_items']
+    assert {item['slot'] for item in refs} == {'head', 'chest', 'boots', 'main_hand', 'off_hand'}
+    assert all(item['reference_only'] for item in refs)
+    assert any(item['layers']['m'].get('main-hand') for item in refs)
+    # Male-only bundled artwork is not silently overlaid on the female body.
+    assert any(item['layers']['m'] and not item['layers']['f'] for item in refs)
+    assert len(data['faces']['m']) >= 1 and len(data['faces']['f']) >= 1
+    assert UploadedAsset.query.count() == 0
+
+
+def test_erased_edges_keep_the_source_frame_on_save_and_reopen(studio):
+    _app, client, tmp = studio
+    image = Image.new('RGBA', (40, 60), (0, 0, 0, 0))
+    for x in range(20, 40):
+        for y in range(60):
+            image.putpixel((x, y), (220, 40, 70, 255))
+    image.putpixel((30, 20), (0, 0, 0, 0))
+    stream = BytesIO()
+    image.save(stream, format='PNG')
+    result = save(client, pixels=stream.getvalue(), preserve_source_frame=True,
+                  transform=dict(x=100, y=200, width=80, rotation=0))
+    assert result.status_code == 200
+    asset = db.session.get(UploadedAsset, result.json['asset_id'])
+    with Image.open(tmp / 'media' / asset.storage_name) as exported:
+        assert exported.getchannel('A').point(lambda alpha: 255 if alpha >= 128 else 0).getbbox() == (140, 200, 180, 320)
+        assert exported.getpixel((160, 240))[3] < 100
+    editor = client.get('/admin/gear-studio/editor', query_string=dict(
+        slot='face', target=str(asset.id), variant='m', layer='front')).json
+    assert editor['preserve_source_frame'] is True
+    source = client.get(editor['source_url'])
+    with Image.open(BytesIO(source.data)) as saved:
+        assert saved.size == (40, 60)
+    source_pixels = source.data
+    source.close()
+    again = save(client, target=str(asset.id), revision=result.json['revision'],
+                 pixels=source_pixels, preserve_source_frame=True, transform=editor['transform'])
+    assert again.status_code == 200
+    with Image.open(tmp / 'media' / asset.storage_name) as exported:
+        assert exported.getchannel('A').point(lambda alpha: 255 if alpha >= 128 else 0).getbbox() == (140, 200, 180, 320)
+
+
 @pytest.mark.parametrize('change', [
     dict(pixels=b'bad png'), dict(pixels=png((0, 0, 0, 0))),
     dict(transform=dict(x=99999, y=0, width=100, rotation=0)),

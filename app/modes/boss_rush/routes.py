@@ -1,3 +1,4 @@
+from app.services.economy import serialized_session
 # app/modes/boss_rush/routes.py
 #
 # Boss Rush HTTP routes for session control, battle answers, recovery, and rewards.
@@ -58,6 +59,8 @@ boss_rush_player_bp = Blueprint('boss_rush_player', __name__, url_prefix='/boss-
 
 
 _BOSS_RUSH_CONFIG_COPY_FIELDS = (
+    'bank_gold', 'reward_combo_start', 'reward_combo_high', 'combo_gold_low', 'combo_gold_high', 'bank_combo_low', 'bank_combo_high', 'bank_equal_percent', 'defeat_diamonds', 'defeat_gear_id', 'defeat_gear_chance', 'loot_duplicate_gold',
+    'attack_gold', 'defeat_gold',
     'boss_type',
     'boss_name',
     'boss_image_path',
@@ -113,6 +116,8 @@ def _emit_hub_session_available(game_session):
 
 
 def _populate_session_form_choices(form):
+    from app.models.gear import GearItemDefinition
+    form.defeat_gear_id.choices = [('', 'No gear loot')] + [(item.id,item.name) for item in GearItemDefinition.query.filter_by(is_active=True).order_by(GearItemDefinition.name).all()]
     attack_sets = (
         ProblemSet.query
         .filter_by(usable_in_boss_rush=True)
@@ -181,6 +186,9 @@ def _build_boss_rush_config_from_form(form, *, round_id):
         player_max_hp=form.player_max_hp.data,
         attack_problem_set_id=form.attack_problem_set_id.data,
         recovery_problem_set_id=form.recovery_problem_set_id.data,
+        shared_bank_enabled=True,
+        **{f: getattr(form, f).data for f in ('bank_gold', 'reward_combo_start', 'reward_combo_high', 'combo_gold_low', 'combo_gold_high', 'bank_combo_low', 'bank_combo_high', 'bank_equal_percent', 'defeat_diamonds', 'defeat_gear_id', 'defeat_gear_chance', 'loot_duplicate_gold')},
+        attack_gold=form.attack_gold.data, defeat_gold=form.defeat_gold.data,
         first_place_diamonds=form.first_place_diamonds.data,
         second_place_diamonds=form.second_place_diamonds.data,
         third_place_diamonds=form.third_place_diamonds.data,
@@ -421,6 +429,7 @@ def start_round(session_id):
 @boss_rush_admin_bp.route('/<int:session_id>/end', methods=['POST'])
 @login_required
 @admin_required
+@serialized_session
 def end_round(session_id):
     game_session = db.session.get(GameSession, session_id)
     if not game_session or game_session.mode != BOSS_RUSH_MODE:
@@ -433,6 +442,12 @@ def end_round(session_id):
         game_round.boss_rush_battle_state.status = BOSS_RUSH_STATUS_ENDED
         game_round.boss_rush_battle_state.next_ability_at = None
     if game_round:
+        battle = game_round.boss_rush_battle_state
+        if battle:
+            from app.services.boss_rewards import expire_bank
+            expire_bank(game_round.boss_rush_config, battle, game_session)
+        if game_session.economy_version >= 2 and battle and battle.is_defeated:
+            finalize_boss_rush_rewards(game_session, game_round, game_round.boss_rush_config, battle)
         finalize_boss_rush_round(game_round)
     game_session.status = 'waiting'
     db.session.commit()
@@ -493,6 +508,7 @@ def toggle_ability_freeze(session_id, action):
 @boss_rush_admin_bp.route('/<int:session_id>/next_round', methods=['GET', 'POST'])
 @login_required
 @admin_required
+@serialized_session
 def next_round(session_id):
     game_session = db.session.get(GameSession, session_id)
     if not game_session or game_session.mode != BOSS_RUSH_MODE:
@@ -571,6 +587,7 @@ def next_round(session_id):
 @boss_rush_admin_bp.route('/<int:session_id>/end_session', methods=['POST'])
 @login_required
 @admin_required
+@serialized_session
 def end_session(session_id):
     game_session = db.session.get(GameSession, session_id)
     if not game_session or game_session.mode != BOSS_RUSH_MODE:
@@ -583,9 +600,17 @@ def end_session(session_id):
         game_round.boss_rush_battle_state.status = BOSS_RUSH_STATUS_ENDED
         game_round.boss_rush_battle_state.next_ability_at = None
     if game_round:
+        battle = game_round.boss_rush_battle_state
+        if battle:
+            from app.services.boss_rewards import expire_bank
+            expire_bank(game_round.boss_rush_config, battle, game_session)
+        if game_session.economy_version >= 2 and battle and battle.is_defeated:
+            finalize_boss_rush_rewards(game_session, game_round, game_round.boss_rush_config, battle)
         finalize_boss_rush_round(game_round)
     game_session.status = 'finished'
     game_session.ended_at = now
+    from app.services.economy import settle_session
+    settle_session(game_session)
     db.session.commit()
     _emit_live_state(session_id)
     flash('Boss Rush session ended.', 'success')
@@ -595,6 +620,7 @@ def end_session(session_id):
 @boss_rush_admin_bp.route('/<int:session_id>/finalize', methods=['POST'])
 @login_required
 @admin_required
+@serialized_session
 def finalize_rewards(session_id):
     game_session = db.session.get(GameSession, session_id)
     if not game_session or game_session.mode != BOSS_RUSH_MODE:
@@ -618,6 +644,8 @@ def finalize_rewards(session_id):
             game_session.status = 'finished'
             game_session.ended_at = game_session.ended_at or now
             game_round.ended_at = game_round.ended_at or now
+        from app.services.economy import settle_session
+        settle_session(game_session)
         finalize_boss_rush_round(game_round, reward_snapshot=result.get('snapshot'))
         db.session.commit()
         _emit_live_state(session_id)
@@ -627,9 +655,9 @@ def finalize_rewards(session_id):
         return redirect(url_for('boss_rush_admin.manage', session_id=session_id))
 
     if result['already_finalized']:
-        flash('Boss Rush rewards were already finalized. No duplicate Diamonds were awarded.', 'info')
+        flash('Boss Rush rewards were already finalized. No duplicate rewards were awarded.', 'info')
     else:
-        flash('Boss Rush rewards finalized and Diamonds awarded.', 'success')
+        flash('Boss Rush rewards finalized.', 'success')
     return redirect(url_for('boss_rush_admin.manage', session_id=session_id))
 
 
@@ -708,7 +736,10 @@ def lobby(session_id):
     if game_session.status == 'active':
         return redirect(url_for('boss_rush_player.game', session_id=session_id))
     game_round = _latest_round(session_id)
-    return render_template('player/boss_rush/lobby.html', game_session=game_session, game_round=game_round)
+    from app.services.economy import saved_gold_balance
+    from app.models.classic import PlayerWallet
+    wallet = PlayerWallet.query.filter_by(session_id=session_id, player_id=current_user.id).first()
+    return render_template('player/boss_rush/lobby.html', game_session=game_session, game_round=game_round, wallet=wallet, saved_gold=saved_gold_balance(current_user.id))
 
 
 @boss_rush_player_bp.route('/game/<int:session_id>')
@@ -758,6 +789,7 @@ def game(session_id):
 
 @boss_rush_player_bp.route('/game/<int:session_id>/answer', methods=['POST'])
 @login_required
+@serialized_session
 def submit_answer(session_id):
     game_session = db.session.get(GameSession, session_id)
     if not game_session or game_session.mode != BOSS_RUSH_MODE:

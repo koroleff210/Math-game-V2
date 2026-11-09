@@ -13,6 +13,7 @@ from app.extensions import login_manager, db
 from app.models.player import Player
 from app.services import login_rate_limit, shared_identity
 from app.services.player_reset import reset_player_to_starting_state
+from app.services.economy import grant_starting_gold
 from sqlalchemy.exc import IntegrityError
 import hashlib
 
@@ -149,6 +150,7 @@ def login():
                             db.session.add(player)
                             db.session.flush()
                             reset_player_to_starting_state(player)
+                            grant_starting_gold(player.id)
                         player.shared_email = identity['email']
                         player.shared_identity_id = identity['id']
                         db.session.commit()

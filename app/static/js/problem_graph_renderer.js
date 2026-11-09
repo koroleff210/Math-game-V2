@@ -1,5 +1,23 @@
 (function () {
     const MAX_RENDER_ATTEMPTS = 8;
+    let plotlyLoading;
+
+    function ensurePlotly() {
+        if (window.Plotly) return Promise.resolve();
+        if (plotlyLoading) return plotlyLoading;
+        plotlyLoading = new Promise(function (resolve, reject) {
+            const script = document.createElement('script');
+            script.src = 'https://cdn.plot.ly/plotly-2.35.2.min.js';
+            script.async = true;
+            script.onload = function () {
+                if (window.Plotly) resolve();
+                else { script.remove(); plotlyLoading = null; reject(new Error('Graph library unavailable')); }
+            };
+            script.onerror = function () { script.remove(); plotlyLoading = null; reject(new Error('Graph library unavailable')); };
+            document.head.appendChild(script);
+        });
+        return plotlyLoading;
+    }
 
     function queueFrame(callback) {
         if (window.requestAnimationFrame) {
@@ -75,6 +93,7 @@
         );
 
         const plotMethod = canvas.classList.contains('js-plotly-plot') ? 'react' : 'newPlot';
+        if (plotMethod === 'newPlot') canvas.textContent = '';
         Promise.resolve(window.Plotly[plotMethod](canvas, payload.data || [], layout, config)).then(function () {
             scheduleGraphResize(canvas);
         }).catch(function () {
@@ -96,7 +115,26 @@
 
     window.renderProblemGraphs = function (scope) {
         const root = scope || document;
-        root.querySelectorAll('[data-problem-graph-block]').forEach(renderGraphBlock);
+        const blocks = Array.from(root.querySelectorAll('[data-problem-graph-block]'));
+        if (!blocks.length) return;
+        blocks.forEach(function (block) {
+            const canvas = block.querySelector('.problem-graph-canvas');
+            if (canvas && !window.Plotly) canvas.textContent = 'Loading graph…';
+        });
+        ensurePlotly().then(function () {
+            blocks.filter(function (block) { return block.isConnected; }).forEach(function (block) { renderGraphBlock(block, 0); });
+        }).catch(function () {
+            blocks.forEach(function (block) {
+                const canvas = block.querySelector('.problem-graph-canvas');
+                if (!canvas) return;
+                canvas.textContent = 'Graph unavailable. ';
+                const retry = document.createElement('button');
+                retry.type = 'button';
+                retry.textContent = 'Retry';
+                retry.onclick = function () { window.renderProblemGraphs(root); };
+                canvas.appendChild(retry);
+            });
+        });
     };
 
     document.addEventListener('DOMContentLoaded', function () {

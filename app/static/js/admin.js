@@ -40,6 +40,7 @@ function initClassicSessionForm() {
     gemMilestone: form.querySelector('[name="gem_milestone_count"]'),
     gemStreak: form.querySelector('[name="gem_streak_count"]'),
     gemTreasureChance: form.querySelector('[name="gem_treasure_chance"]'),
+    treasureDoubleMineChance: form.querySelector('[name="treasure_double_mine_chance"]'),
     treasureStealChance: form.querySelector('[name="treasure_steal_token_chance"]'),
     treasureShieldChance: form.querySelector('[name="treasure_active_shield_chance"]'),
     treasureSecondChance: form.querySelector('[name="treasure_second_chance_chance"]'),
@@ -64,6 +65,24 @@ function initClassicSessionForm() {
     field.addEventListener('input', renderClassicReview);
     field.addEventListener('change', renderClassicReview);
   });
+
+  const presetData = form.querySelector('[data-classic-presets]');
+  const presetSelect = form.querySelector('#classic-preset');
+  const applyPreset = form.querySelector('[data-apply-classic-preset]');
+  if (presetData && presetSelect && applyPreset) {
+    const presets = JSON.parse(presetData.textContent);
+    applyPreset.addEventListener('click', function () {
+      const settings = presets[presetSelect.value];
+      if (!settings) return;
+      Object.entries(settings).forEach(function ([name, value]) {
+        const field = form.elements.namedItem(name);
+        if (!field) return;
+        if (field.type === 'checkbox') field.checked = value;
+        else field.value = value;
+      });
+      renderClassicReview();
+    });
+  }
 
   renderClassicReview();
 
@@ -98,6 +117,7 @@ function initClassicSessionForm() {
     if (outputs.sideRewards) {
       outputs.sideRewards.textContent = buildTreasureChestSummary(
         gemTreasureChance,
+        toNumber(fields.treasureDoubleMineChance, 0),
         treasureStealChance,
         treasureShieldChance,
         treasureSecondChance
@@ -159,10 +179,13 @@ function buildStealSummary(stealPercent, stealMinCap, stealMaxCap, chestCount, w
   return 'Steal takes about ' + percentText + '% of target gold, minimum ' + stealMinCap + ', ' + capText + '; ' + miniGameText + '.';
 }
 
-function buildTreasureChestSummary(gemTreasureChance, treasureStealChance, treasureShieldChance, treasureSecondChance) {
+function buildTreasureChestSummary(gemTreasureChance, treasureDoubleMineChance, treasureStealChance, treasureShieldChance, treasureSecondChance) {
   const parts = [];
   if (gemTreasureChance > 0) {
     parts.push('Gem chest ' + formatChance(gemTreasureChance));
+  }
+  if (treasureDoubleMineChance > 0) {
+    parts.push('Double Mine chest ' + formatChance(treasureDoubleMineChance));
   }
   if (treasureStealChance > 0) {
     parts.push('Steal Token chest ' + formatChance(treasureStealChance));
