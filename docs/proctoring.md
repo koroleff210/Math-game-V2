@@ -10,7 +10,7 @@ There is no audio capture or video recording. Each student sends a WebRTC video 
 
 Apply the Alembic migration before starting the updated application. Existing sessions get the default of false. Keep the game on HTTPS and its current single Socket.IO worker. Monitoring connections and short-lived admission status live in that worker and must be re-established after a restart.
 
-For use across different networks or restrictive school networks, provision an authenticated TURN relay and set `PROCTOR_ICE_SERVERS` to a JSON array of WebRTC ICE server settings. For example, set the URLs and replace the credential values with deployment-issued credentials.
+For use across different networks or restrictive school networks, provision an authenticated TURN relay. For coturn with `use-auth-secret`, set `PROCTOR_TURN_URLS` to a JSON array of TURN URLs and keep the relay's shared secret in `PROCTOR_TURN_SECRET` in the private service environment. The game issues per-user credentials that expire after eight hours. For another ICE provider, use `PROCTOR_ICE_SERVERS` with its connection settings.
 
 ```json
 [{"urls":["turns:relay.example.org:443?transport=tcp"],"username":"deployment-user","credential":"deployment-credential"}]

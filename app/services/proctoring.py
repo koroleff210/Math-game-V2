@@ -1,8 +1,10 @@
 """Live, in-memory WebRTC signaling and gameplay admission for one game worker."""
 
+from base64 import b64encode
 from dataclasses import dataclass
+import hmac
 from threading import RLock
-from time import monotonic
+from time import monotonic, time
 
 from flask import Blueprint, abort, current_app, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
@@ -45,6 +47,18 @@ def rooms():
 
 def may_play(game, player_id):
     return not game.proctoring_required or rooms().allowed(game, player_id)
+
+
+def ice_servers(player_id):
+    servers = list(current_app.config['PROCTOR_ICE_SERVERS'])
+    urls = current_app.config['PROCTOR_TURN_URLS']
+    secret = current_app.config['PROCTOR_TURN_SECRET']
+    if urls and secret:
+        username = f'{int(time()) + 8 * 3600}:{player_id}'
+        signature = hmac.digest(secret.encode(), username.encode(), 'sha1')
+        servers.append({'urls': urls, 'username': username,
+                        'credential': b64encode(signature).decode('ascii')})
+    return servers
 
 
 def end_proctoring(game_id):
@@ -124,7 +138,7 @@ def register(socketio, app):
             if previous and previous != request.sid:
                 return {'ok': False, 'message': 'A monitoring tab is already open for this session.'}
             rooms().viewers[game.id] = request.sid
-        return {'ok': True, 'ice_servers': current_app.config['PROCTOR_ICE_SERVERS']}
+        return {'ok': True, 'ice_servers': ice_servers(current_user.id)}
 
     @socketio.on('proctor_watch_ready')
     def watch_ready(data):
@@ -151,7 +165,7 @@ def register(socketio, app):
                 if viewer:
                     socketio.emit('proctor_peer_left', {'peer': previous.connection}, to=viewer)
             shares[current_user.id] = Share(current_user.id, current_user.username, request.sid)
-        return {'ok': True, 'ice_servers': current_app.config['PROCTOR_ICE_SERVERS']}
+        return {'ok': True, 'ice_servers': ice_servers(current_user.id)}
 
     @socketio.on('proctor_share_ready')
     def share_ready(data):

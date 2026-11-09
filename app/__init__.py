@@ -89,6 +89,8 @@ def create_app(config_class=Config):
     register_all_handlers(socketio)
     from app.services import proctoring
     flask_app.config.setdefault('PROCTOR_ICE_SERVERS', json.loads(os.environ.get('PROCTOR_ICE_SERVERS', '[]')))
+    flask_app.config.setdefault('PROCTOR_TURN_URLS', json.loads(os.environ.get('PROCTOR_TURN_URLS', '[]')))
+    flask_app.config.setdefault('PROCTOR_TURN_SECRET', os.environ.get('PROCTOR_TURN_SECRET', ''))
     flask_app.register_blueprint(proctoring.bp)
     proctoring.register(socketio, flask_app)
 
